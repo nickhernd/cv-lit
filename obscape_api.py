@@ -20,7 +20,7 @@ import requests
 # ── Configuración ──────────────────────────────────────────────────────────────
 API_URL  = "https://obscape.com/portal/api/v3/api"
 USERNAME = "fuster"
-API_KEY  = "gtbOeudRqK6NIdanljoULOhyT1rsyKpFZgrbxMBfbA6REh9gjG"
+API_KEY  = "c1RyHhP6aJBPRHwIUrpz9eEPHPGhlbuMZIujEUvWTJaJPXJO0x"
 
 # Directorio de salida por defecto
 OUT_DIR = Path(__file__).parent / "proces_images" / "images"

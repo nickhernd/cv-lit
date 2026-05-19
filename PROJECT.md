@@ -19,10 +19,10 @@ https://www.obscape.com/portal/api/v3/api?username=<username>&key=<APIkey>
 **Credenciales:**
 - Username: `fuster`
 - Password portal: `Delfos17*`
-- API Key: `gtbOeudRqK6NIdanljoULOhyT1rsyKpFZgrbxMBfbA6REh9gjG`
+- API Key: `c1RyHhP6aJBPRHwIUrpz9eEPHPGhlbuMZIujEUvWTJaJPXJO0x`
 
 ```
-https://www.obscape.com/portal/api/v3/api?username=fuster&key=gtbOeudRqK6NIdanljoULOhyT1rsyKpFZgrbxMBfbA6REh9gjG
+https://www.obscape.com/portal/api/v3/api?username=fuster&key=c1RyHhP6aJBPRHwIUrpz9eEPHPGhlbuMZIujEUvWTJaJPXJO0x
 ```
 
 > **Nota:** password del portal y API key son cosas distintas. El API key se obtiene en el portal → usuario → User Settings.
