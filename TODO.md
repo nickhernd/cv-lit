@@ -16,6 +16,7 @@
 - [ ] Script de inventario: listar por cámara cuántas imágenes hay y en qué fechas
 - [ ] Filtrar y separar imágenes nocturnas / de baja visibilidad automáticamente
 - [ ] Organizar dataset de imágenes a las 12:00h (fase horaria prioritaria)
+    - [ ] Organizar carpetas en base a camaras y json
 
 ### Datos GNSS del IEL
 - [!] Solicitar transectos GNSS al IEL (GCPs en EPSG:25830) — **bloquea calibración**
