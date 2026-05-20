@@ -1,0 +1,56 @@
+% Chapter 9 — Estado actual del proyecto
+\chapter{Estado Actual del Proyecto}
+
+\section{Fecha de referencia: 2026-05-20}
+
+\section{Archivos disponibles}
+
+\begin{description}
+  \item[\texttt{obscape\_api.py}] Cliente Python para descarga automática
+        de imágenes y metadatos via API Obscape. Funcional pero sin acceso
+        a las cámaras de Guardamar todavía.
+
+  \item[\texttt{proces\_images/images/}] Dataset de prueba PTM61474:
+        $\approx 90$ imágenes horarias (04:00h--18:00h) del 29/04/2026
+        al 06/05/2026.
+
+  \item[\texttt{proces\_images/horizon\_correct.py}] Script de corrección
+        interactiva de curvatura de horizonte.
+
+  \item[\texttt{map\_ubication.png}] Mapa de la ubicación del proyecto
+        ``Ketel Haven'' en Obscape (Países Bajos).
+\end{description}
+
+\section{Tareas completadas}
+
+\begin{itemize}
+  \item[$\checkmark$] Diseño del pipeline completo (módulos 3.0--3.5).
+  \item[$\checkmark$] Cliente API Obscape funcional.
+  \item[$\checkmark$] Dataset de prueba disponible ($\approx 90$ imágenes).
+  \item[$\checkmark$] Documentación del sistema (este documento).
+\end{itemize}
+
+\section{Tareas pendientes}
+
+\begin{itemize}
+  \item[$\square$] Confirmar cuenta/proyecto Obscape para las 6 cámaras
+        de Guardamar.
+  \item[$\square$] Obtener transectos GNSS del IEL (GCPs en EPSG:25830).
+  \item[$\square$] Definir ROI por cámara.
+  \item[$\square$] Implementar módulo de calibración offline 3.0.
+  \item[$\square$] Implementar segmentación con SAM (módulo 3.2).
+  \item[$\square$] Implementar extracción de línea de costa (módulo 3.3).
+  \item[$\square$] Implementar proyección a EPSG:25830 (módulo 3.4).
+  \item[$\square$] Implementar postprocesado y exportación GeoJSON (módulo 3.5).
+  \item[$\square$] Validar con transectos GNSS independientes.
+\end{itemize}
+
+\section{Bloqueos activos}
+
+\begin{enumerate}
+  \item \textbf{Acceso API Obscape} para las 6 cámaras: sin esto no hay
+        imágenes de producción. PTM61474 permite desarrollo pero es una
+        cámara distinta.
+  \item \textbf{GCPs GNSS del IEL}: sin ellos no se puede ejecutar el
+        módulo de calibración (3.0) ni el resto del pipeline.
+\end{enumerate}

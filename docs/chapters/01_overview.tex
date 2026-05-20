@@ -1,0 +1,58 @@
+% Chapter 1 — Visión general del proyecto
+\chapter{Visión General del Proyecto}
+
+\section{Descripción}
+
+\textbf{cv-lit} es un sistema de detección automática de línea de costa a partir de imágenes
+oblicuas capturadas por \textbf{6 cámaras fijas} instaladas en el frente litoral de
+\textbf{Guardamar del Segura} (Alicante, España).
+
+\section{Cliente y colaboradores}
+
+\begin{description}
+  \item[Cliente] Ayuntamiento de Guardamar del Segura.
+  \item[Colaboración técnica] Instituto de Ecología Litoral (IEL) — suministra
+        los GCPs GNSS para la calibración de homografía.
+  \item[Equipo de desarrollo] 1 ingeniero a tiempo parcial, supervisado por la
+        Universidad de Alicante.
+  \item[Duración] 6 meses.
+\end{description}
+
+\section{Objetivo}
+
+Monitorización automática y continua de la playa seca produciendo como
+producto final un fichero \textbf{GeoJSON proyectado en EPSG:25830}
+(ETRS89 / UTM zona 30N).
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{lp{9cm}}
+\toprule
+\textbf{Campo GeoJSON} & \textbf{Descripción} \\
+\midrule
+\texttt{ID\_Camara}     & Identificador de la cámara (1--6) \\
+\texttt{Timestamp}      & Fecha y hora UTC de la imagen \\
+\texttt{Confianza\_IA}  & Score de confianza del modelo SAM (0--1) \\
+\texttt{Area\_Seca\_m2} & Superficie de playa seca medida en m² \\
+\bottomrule
+\end{tabular}
+\caption{Atributos obligatorios del GeoJSON de salida}
+\end{table}
+
+\section{Restricciones no negociables}
+
+\begin{itemize}
+  \item Toda implementación \textbf{debe} producir GeoJSON proyectado en \textbf{EPSG:25830}.
+  \item La fase horaria prioritaria de adquisición es \textbf{12:00h solar local}.
+  \item Modelo de segmentación: \textbf{SAM} (Segment Anything Model, Meta AI).
+  \item Cada cámara tiene su propio perfil de calibración independiente.
+\end{itemize}
+
+\section{Entregables finales}
+
+\begin{enumerate}
+  \item Aplicación ejecutable configurada y documentada.
+  \item Perfiles de calibración por cámara (6 ficheros \texttt{.npy}/\texttt{.json}).
+  \item Manual breve de uso.
+  \item Informe inicial de validación con métricas RMSE y MAE.
+\end{enumerate}

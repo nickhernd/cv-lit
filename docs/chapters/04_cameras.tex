@@ -1,0 +1,85 @@
+% Chapter 4 — Sistema de cámaras
+\chapter{Sistema de Cámaras}
+
+\section{Infraestructura}
+
+Se dispone de \textbf{6 cámaras fijas} instaladas en el frente litoral de
+Guardamar del Segura. Son propiedad del \textbf{Ayuntamiento de Guardamar del
+Segura} y están registradas en el portal \textbf{Obscape} bajo el proyecto
+que gestiona el acceso a las imágenes.
+
+\section{Tabla de estaciones}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{ccrrrll}
+\toprule
+\textbf{Cámara} & \textbf{Station ID} & \textbf{Latitud (°)} & \textbf{Longitud (°)} & \textbf{Dispositivos} & \textbf{Referencia} & \textbf{Última actualización} \\
+\midrule
+CAM 1 & 8213 & 38.110327 & $-$0.643027 & 1 & PTM61471 & 2026-05-20 15:01:55 UTC+2 \\
+CAM 2 & 8214 & 38.096291 & $-$0.645725 & 1 & PTM61474 & 2026-05-20 15:02:15 UTC+2 \\
+CAM 3 & 8212 & 38.087348 & $-$0.646994 & 1 & PTM61473 & 2026-05-20 15:03:28 UTC+2 \\
+CAM 4 & 8211 & 38.087385 & $-$0.647078 & 1 & PTM61475 & 2026-05-20 15:02:24 UTC+2 \\
+CAM 5 & 8209 & 38.076774 & $-$0.648117 & 1 & PTM61472 & 2026-05-20 15:02:11 UTC+2 \\
+CAM 6 & 8210 & 38.076796 & $-$0.648114 & 1 & PTM61470 & 2026-05-20 15:02:13 UTC+2 \\
+\bottomrule
+\end{tabular}
+\caption{Estaciones de cámara registradas en Obscape (Guardamar del Segura)}
+\end{table}
+
+\textbf{Notas:}
+\begin{itemize}
+  \item Todas las estaciones son de tipo \emph{Camera} con 1 dispositivo acoplado.
+  \item CAM 3 (8212, PTM61473) y CAM 4 (8211, PTM61475) están muy próximas
+        geográficamente (38.087°N, $\approx -0.647°$E) — posiblemente cubren
+        el mismo tramo desde ángulos distintos.
+  \item CAM 5 (8209, PTM61472) y CAM 6 (8210, PTM61470) también son casi
+        coincidentes en posición (38.0767--38.0768°N, $-0.6481°$E).
+  \item Las cámaras están todas activas: última actualización confirmada
+        el 2026-05-20 entre 15:01 y 15:03 UTC+2.
+\end{itemize}
+
+\section{Dataset de prueba disponible}
+
+El dataset manual corresponde a la \textbf{CAM 2} (Station ID 8214,
+referencia PTM61474). Contiene $\approx 90$ imágenes horarias
+(04:00h--18:00h) del 29/04/2026 al 06/05/2026, almacenadas en
+\texttt{proces\_images/images/}.
+
+\section{Acceso via API}
+
+Con los Station IDs reales ya es posible consultar cada cámara:
+
+\begin{Verbatim}
+# Listar datos de CAM 1 (últimas 24h)
+python obscape_api.py --project <nombre> --station PTM61471 --latest 24
+
+# Descargar imágenes de CAM 2 en rango de fechas (solo 12:00h)
+python obscape_api.py --project <nombre> --station PTM61474 \
+    --from 2026-05-01 --to 2026-05-20 --download
+\end{Verbatim}
+
+\textbf{Pendiente:} confirmar el nombre del proyecto Obscape bajo el que
+están registradas estas estaciones (ver Capítulo~\ref{chap:api}).
+
+\section{Perfiles de calibración}
+
+Cada cámara requiere su propio perfil independiente. Ver
+Capítulo~\ref{chap:calibration} para el proceso de estimación.
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{cll}
+\toprule
+\textbf{Cámara} & \textbf{Fichero H} & \textbf{Fichero params} \\
+\midrule
+CAM 1 & \texttt{calibration/cam\_1\_H.npy} & \texttt{calibration/cam\_1\_params.json} \\
+CAM 2 & \texttt{calibration/cam\_2\_H.npy} & \texttt{calibration/cam\_2\_params.json} \\
+CAM 3 & \texttt{calibration/cam\_3\_H.npy} & \texttt{calibration/cam\_3\_params.json} \\
+CAM 4 & \texttt{calibration/cam\_4\_H.npy} & \texttt{calibration/cam\_4\_params.json} \\
+CAM 5 & \texttt{calibration/cam\_5\_H.npy} & \texttt{calibration/cam\_5\_params.json} \\
+CAM 6 & \texttt{calibration/cam\_6\_H.npy} & \texttt{calibration/cam\_6\_params.json} \\
+\bottomrule
+\end{tabular}
+\caption{Ficheros de calibración pendientes de generar}
+\end{table}

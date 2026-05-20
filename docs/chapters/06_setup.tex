@@ -1,0 +1,57 @@
+% Chapter 6 — Setup técnico
+\chapter{Setup Técnico}
+
+\section{Entorno de desarrollo}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Elemento} & \textbf{Versión / detalle} \\
+\midrule
+OS              & Windows + Conda/Mamba \\
+Python          & 3.10 / 3.11 \\
+Gestor entornos & Miniforge / Mambaforge \\
+IDE             & VS Code \\
+GIS             & QGIS (validación EPSG:25830) \\
+Deep Learning   & PyTorch (SAM) \\
+Visión          & OpenCV (\texttt{opencv-python}) \\
+Geo             & GDAL, pyproj \\
+\bottomrule
+\end{tabular}
+\caption{Stack técnico del proyecto}
+\end{table}
+
+\textbf{Proyección de salida:} EPSG:25830 (ETRS89 / UTM zona 30N)\\
+\textbf{Fase horaria prioritaria:} imágenes a las \textbf{12:00h solar local}
+
+\section{Instalación del entorno}
+
+\begin{lstlisting}[language=bash]
+conda create -n cv-lit python=3.11
+conda activate cv-lit
+pip install torch torchvision          # SAM
+pip install segment-anything           # SAM (Meta)
+pip install opencv-python numpy        # vision + algebra
+pip install gdal pyproj shapely        # geo
+pip install requests                   # API Obscape
+\end{lstlisting}
+
+\section{Estructura de directorios}
+
+\begin{Verbatim}
+cv-lit/
+├── obscape_api.py           # cliente API Obscape
+├── map_ubication.png        # mapa proyecto Ketel Haven
+├── docs/                    # este documento memoir (LaTeX)
+│   ├── main.tex
+│   ├── preamble.tex
+│   └── chapters/
+├── calibration/             # (pendiente) perfiles de calibración
+│   ├── cam_1_H.npy
+│   ├── cam_1_params.json
+│   └── ...
+└── proces_images/
+    ├── images/              # imágenes PTM61474 (~90 JPG)
+    └── horizon_correct.py   # corrección curvatura de horizonte
+\end{Verbatim}
