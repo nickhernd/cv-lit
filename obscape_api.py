@@ -201,35 +201,49 @@ def main():
         print("  [!] Sin cámaras. Verificar credenciales.")
         sys.exit(1)
 
-    station_id = args.station or stations[0]["id"]
-    station_name = next((s["name"] for s in stations if s["id"] == station_id), station_id)
-    print(f"\n=== Datos de {station_name} (id={station_id}) ===")
+    # Si se especifica --station, trabajar solo con esa; si no, usar todas
+    if args.station:
+        target_stations = [s for s in stations if s["id"] == args.station]
+        if not target_stations:
+            print(f"  [!] Estación {args.station} no encontrada.")
+            sys.exit(1)
+    else:
+        target_stations = stations
 
     if args.download:
         if args.from_dt and args.to_dt:
             hour = None if args.all_hours else 12
-            saved = client.download_range(
-                station_id, station_name, args.from_dt, args.to_dt, out_dir, hour_filter=hour
-            )
-            print(f"\n{len(saved)} imágenes descargadas en {out_dir}/{station_name.replace(' ', '_')}/")
+            total = 0
+            for s in target_stations:
+                print(f"\n=== Descargando {s['name']} (id={s['id']}) ===")
+                saved = client.download_range(
+                    s["id"], s["name"], args.from_dt, args.to_dt, out_dir, hour_filter=hour
+                )
+                total += len(saved)
+                print(f"  {len(saved)} imágenes en {out_dir}/{s['name'].replace(' ', '_')}/")
+            print(f"\nTotal: {total} imágenes descargadas.")
         else:
-            print("Descargando última imagen...")
-            latest_data = client.get_station_data(station_id, latest_hours=1, tz="local")
-            points = latest_data.get("data", [])
-            meta = points[-1] if points else {}
-            client.download_image(station_id, station_name, "latest", out_dir, metadata=meta)
+            print("\nDescargando última imagen de cada cámara...")
+            for s in target_stations:
+                print(f"\n=== {s['name']} (id={s['id']}) ===")
+                latest_data = client.get_station_data(s["id"], latest_hours=1, tz="local")
+                points = latest_data.get("data", [])
+                meta = points[-1] if points else {}
+                client.download_image(s["id"], s["name"], "latest", out_dir, metadata=meta)
     else:
-        # Mostrar metadatos / últimas observaciones
+        # Mostrar metadatos / últimas observaciones de la(s) estación(es)
         latest = args.latest or 24
-        data = client.get_station_data(station_id, latest_hours=latest, tz="local")
-        params_info = data.get("parameters", [])
-        points = data.get("data", [])
-        print(f"Parámetros: {[p['name'] for p in params_info]}")
-        print(f"Puntos en las últimas {latest}h: {len(points)}")
-        if points:
-            print("Últimos 3 puntos:")
-            for pt in points[-3:]:
-                print(f"  {pt}")
+        for s in target_stations:
+            print(f"\n=== Datos de {s['name']} (id={s['id']}) ===")
+            data = client.get_station_data(s["id"], latest_hours=latest, tz="local")
+            params_info = data.get("parameters", [])
+            points = data.get("data", [])
+            print(f"Parámetros: {[p['name'] for p in params_info]}")
+            print(f"Puntos en las últimas {latest}h: {len(points)}")
+            if points:
+                print("Últimos 3 puntos:")
+                for pt in points[-3:]:
+                    print(f"  {pt}")
 
 
 if __name__ == "__main__":
