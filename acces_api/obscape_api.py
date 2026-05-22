@@ -5,7 +5,7 @@ Descarga imágenes y metadatos de estaciones de cámaras fijas.
 Uso:
     python obscape_api.py                                             # listar cámaras
     python obscape_api.py --download                                  # última imagen de cada cámara
-    python obscape_api.py --download --all                            # TODO el historial de todas las cámaras
+    python obscape_api.py --download --all                            # Todo el historial de todas las cámaras
     python obscape_api.py --station 8213 --download                   # última imagen de CAM 1
     python obscape_api.py --station 8214 --from 2026-05-01 --to 2026-05-20 --download
     python obscape_api.py --station 8214 --from 2026-05-01 --to 2026-05-20 --download --all-hours
