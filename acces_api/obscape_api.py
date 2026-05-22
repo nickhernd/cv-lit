@@ -3,20 +3,21 @@ Cliente para la API de Obscape.
 Descarga imágenes y metadatos de estaciones de cámaras fijas.
 
 Uso:
-    python obscape_api.py                      # listar proyectos y estaciones
-    python obscape_api.py --download           # descargar últimas imágenes
-    python obscape_api.py --from 2026-04-30 --to 2026-05-01  # rango de fechas
-    python obscape_api.py --station PTM61474 --latest 24      # últimas 24h
+    python obscape_api.py                                             # listar cámaras
+    python obscape_api.py --download                                  # última imagen de cada cámara
+    python obscape_api.py --download --all                            # TODO el historial de todas las cámaras
+    python obscape_api.py --station 8213 --download                   # última imagen de CAM 1
+    python obscape_api.py --station 8214 --from 2026-05-01 --to 2026-05-20 --download
+    python obscape_api.py --station 8214 --from 2026-05-01 --to 2026-05-20 --download --all-hours
 
-# Última imagen de CAM 1
-  python obscape_api.py --station 8213 --download
-
-  # Todas las imágenes de CAM 2 entre fechas (solo 12:00h)
-  python obscape_api.py --station 8214 --from 2026-05-01 --to 2026-05-20 --download
-
-  # Todas las horas
-  python obscape_api.py --station 8214 --from 2026-05-01 --to 2026-05-20 --download --all-hours
-
+Estructura de salida:
+    proces_images/
+      CAM_1/
+        images/  20260520_120000_8213.jpg
+        json/    20260520_120000_8213.json
+      CAM_2/
+        images/  ...
+        json/    ...
 """
 
 import argparse
@@ -32,8 +33,11 @@ API_URL  = "https://obscape.com/portal/api/v3/api"
 USERNAME = "fuster"
 API_KEY  = "c1RyHhP6aJBPRHwIUrpz9eEPHPGhlbuMZIujEUvWTJaJPXJO0x"
 
+# Fecha de inicio del proyecto (límite para --all)
+PROJECT_START = "2025-01-01T00:00:00"
+
 # Directorio de salida por defecto
-OUT_DIR = Path(__file__).parent / "proces_images" / "images"
+OUT_DIR = Path(__file__).parent.parent / "proces_images"
 
 # ── Cliente API ────────────────────────────────────────────────────────────────
 
@@ -50,10 +54,7 @@ class ObscapeClient:
         return r
 
     def list_stations(self, cameras_only: bool = True) -> list[dict]:
-        """
-        Devuelve la lista de estaciones de la cuenta.
-        Si cameras_only=True filtra BOYAs y devuelve solo cámaras (CAM*).
-        """
+        """Devuelve las estaciones. Si cameras_only=True filtra solo CAM*."""
         r = self._get({})
         r.raise_for_status()
         data = r.json()
@@ -98,17 +99,37 @@ class ObscapeClient:
     ) -> Path | None:
         """
         Descarga una imagen y su JSON de metadatos.
-        Estructura: base_out_dir/CAM_X/{YYYYMMDD}_{HHMMSS}_{station_id}.jpg/.json
+        Estructura:
+            base_out_dir/CAM_X/images/{YYYYMMDD}_{HHMMSS}_{station_id}.jpg
+            base_out_dir/CAM_X/json/  {YYYYMMDD}_{HHMMSS}_{station_id}.json
         """
-        folder = base_out_dir / station_name.replace(" ", "_")
-        folder.mkdir(parents=True, exist_ok=True)
+        cam_folder  = base_out_dir / station_name.replace(" ", "_")
+        img_folder  = cam_folder / "images"
+        json_folder = cam_folder / "json"
+        img_folder.mkdir(parents=True, exist_ok=True)
+        json_folder.mkdir(parents=True, exist_ok=True)
 
+        # Determinar nombre de fichero
         if timestamp == "latest":
-            fname_base = f"latest_{station_id}"
+            # Intentar usar el timestamp real del último punto de metadatos
+            ts_from_meta = (metadata or {}).get("time")
+            if ts_from_meta:
+                dt = datetime.fromtimestamp(int(ts_from_meta), tz=timezone.utc)
+                fname_base = f"{dt.strftime('%Y%m%d_%H%M%S')}_{station_id}"
+            else:
+                fname_base = f"latest_{station_id}"
         else:
             ts = int(timestamp)
             dt = datetime.fromtimestamp(ts, tz=timezone.utc)
             fname_base = f"{dt.strftime('%Y%m%d_%H%M%S')}_{station_id}"
+
+        img_path  = img_folder  / f"{fname_base}.jpg"
+        json_path = json_folder / f"{fname_base}.json"
+
+        # Saltar si ya existe (útil al relanzar --all)
+        if img_path.exists():
+            print(f"  [=] Ya existe {station_name}/images/{fname_base}.jpg — omitiendo")
+            return img_path
 
         r = self._get({"station": station_id, "image": timestamp}, stream=True)
         if r.status_code != 200:
@@ -119,13 +140,10 @@ class ObscapeClient:
             print(f"  [!] No es imagen: {ct} — {r.text[:100]}")
             return None
 
-        img_path = folder / f"{fname_base}.jpg"
         img_path.write_bytes(r.content)
-
-        json_path = folder / f"{fname_base}.json"
         json_path.write_text(json.dumps(metadata or {}, indent=2, ensure_ascii=False))
 
-        print(f"  [+] {station_name}/{fname_base}.jpg  ({len(r.content)//1024} KB)")
+        print(f"  [+] {station_name}/images/{fname_base}.jpg  ({len(r.content)//1024} KB)")
         return img_path
 
     def download_range(
@@ -138,8 +156,8 @@ class ObscapeClient:
         hour_filter: int | None = 12,
     ) -> list[Path]:
         """
-        Descarga imágenes + JSON de metadatos en un rango de fechas.
-        Si hour_filter != None, descarga solo las imágenes de esa hora (prioridad 12:00h).
+        Descarga imágenes + JSON en un rango de fechas.
+        hour_filter=None descarga todas las horas; por defecto solo 12:00h.
         """
         data = self.get_station_data(station_id, from_dt=from_dt, to_dt=to_dt, tz="local")
         points = data.get("data", [])
@@ -164,25 +182,27 @@ class ObscapeClient:
 
 def main():
     parser = argparse.ArgumentParser(description="Cliente API Obscape")
-    parser.add_argument("--station",  default=None, help="ID de estación (ej: 8213 para CAM 1)")
-    parser.add_argument("--from",     dest="from_dt", default=None,
+    parser.add_argument("--station",   default=None,
+                        help="ID de estación (ej: 8213 para CAM 1)")
+    parser.add_argument("--from",      dest="from_dt", default=None,
                         help="Fecha inicio yyyy-mm-dd o yyyy-mm-ddThh:mm:ss")
-    parser.add_argument("--to",       dest="to_dt", default=None,
+    parser.add_argument("--to",        dest="to_dt", default=None,
                         help="Fecha fin yyyy-mm-dd o yyyy-mm-ddThh:mm:ss")
-    parser.add_argument("--latest",   type=int, default=None,
-                        help="Últimas N horas")
-    parser.add_argument("--download", action="store_true",
+    parser.add_argument("--latest",    type=int, default=None,
+                        help="Últimas N horas (solo visualización)")
+    parser.add_argument("--download",  action="store_true",
                         help="Descargar imágenes")
+    parser.add_argument("--all",       dest="all_data", action="store_true",
+                        help="Descargar TODO el historial (todas las cámaras, todas las horas)")
     parser.add_argument("--all-hours", action="store_true",
-                        help="Descargar todas las horas (no solo 12:00h)")
-    parser.add_argument("--out",      default=str(OUT_DIR),
+                        help="En un rango --from/--to, descargar todas las horas (no solo 12:00h)")
+    parser.add_argument("--out",       default=str(OUT_DIR),
                         help="Directorio de salida")
     args = parser.parse_args()
 
     client  = ObscapeClient()
     out_dir = Path(args.out)
 
-    # Normalizar fechas
     def norm_date(s):
         if s and "T" not in s:
             return s + "T00:00:00"
@@ -191,7 +211,7 @@ def main():
     args.from_dt = norm_date(args.from_dt)
     args.to_dt   = norm_date(args.to_dt)
 
-    # Listar cámaras (excluye BOYAs)
+    # Listar cámaras
     print("=== Cámaras disponibles ===")
     stations = client.list_stations(cameras_only=True)
     for s in stations:
@@ -201,7 +221,7 @@ def main():
         print("  [!] Sin cámaras. Verificar credenciales.")
         sys.exit(1)
 
-    # Si se especifica --station, trabajar solo con esa; si no, usar todas
+    # Seleccionar estaciones objetivo
     if args.station:
         target_stations = [s for s in stations if s["id"] == args.station]
         if not target_stations:
@@ -210,7 +230,23 @@ def main():
     else:
         target_stations = stations
 
-    if args.download:
+    # ── Descarga ──────────────────────────────────────────────────────────────
+
+    if args.all_data:
+        # Descargar TODO el historial: desde PROJECT_START hasta hoy, todas las horas
+        to_dt = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        total = 0
+        print(f"\n=== Descarga completa ({PROJECT_START} → {to_dt}) ===")
+        for s in target_stations:
+            print(f"\n--- {s['name']} (id={s['id']}) ---")
+            saved = client.download_range(
+                s["id"], s["name"], PROJECT_START, to_dt, out_dir, hour_filter=None
+            )
+            total += len(saved)
+            print(f"  {len(saved)} imágenes → {out_dir}/{s['name'].replace(' ', '_')}/")
+        print(f"\nTotal: {total} imágenes descargadas.")
+
+    elif args.download:
         if args.from_dt and args.to_dt:
             hour = None if args.all_hours else 12
             total = 0
@@ -220,7 +256,7 @@ def main():
                     s["id"], s["name"], args.from_dt, args.to_dt, out_dir, hour_filter=hour
                 )
                 total += len(saved)
-                print(f"  {len(saved)} imágenes en {out_dir}/{s['name'].replace(' ', '_')}/")
+                print(f"  {len(saved)} imágenes → {out_dir}/{s['name'].replace(' ', '_')}/")
             print(f"\nTotal: {total} imágenes descargadas.")
         else:
             print("\nDescargando última imagen de cada cámara...")
@@ -230,8 +266,9 @@ def main():
                 points = latest_data.get("data", [])
                 meta = points[-1] if points else {}
                 client.download_image(s["id"], s["name"], "latest", out_dir, metadata=meta)
+
     else:
-        # Mostrar metadatos / últimas observaciones de la(s) estación(es)
+        # Solo mostrar metadatos
         latest = args.latest or 24
         for s in target_stations:
             print(f"\n=== Datos de {s['name']} (id={s['id']}) ===")
