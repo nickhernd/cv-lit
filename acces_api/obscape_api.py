@@ -34,7 +34,8 @@ USERNAME = "fuster"
 API_KEY  = "c1RyHhP6aJBPRHwIUrpz9eEPHPGhlbuMZIujEUvWTJaJPXJO0x"
 
 # Fecha de inicio del proyecto (límite para --all)
-PROJECT_START = "2025-01-01T00:00:00"
+# La API retorna vacío si el rango supera ~13 meses; datos disponibles desde 2026-01-01
+PROJECT_START = "2026-01-01T00:00:00"
 
 # Directorio de salida por defecto
 OUT_DIR = Path(__file__).parent.parent / "proces_images"
