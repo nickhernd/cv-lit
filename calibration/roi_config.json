@@ -1,0 +1,8 @@
+{
+  "CAM_1": {"x_min": 0, "y_min": 400, "x_max": 1920, "y_max": 1080, "description": "Excluye horizonte y cielo"},
+  "CAM_2": {"x_min": 0, "y_min": 350, "x_max": 1920, "y_max": 1080, "description": "Excluye horizonte y cielo"},
+  "CAM_3": {"x_min": 0, "y_min": 450, "x_max": 1920, "y_max": 1080, "description": "Excluye horizonte y cielo"},
+  "CAM_4": {"x_min": 0, "y_min": 400, "x_max": 1920, "y_max": 1080, "description": "Excluye horizonte y cielo"},
+  "CAM_5": {"x_min": 0, "y_min": 380, "x_max": 1920, "y_max": 1080, "description": "Excluye horizonte y cielo"},
+  "CAM_6": {"x_min": 0, "y_min": 420, "x_max": 1920, "y_max": 1080, "description": "Excluye horizonte y cielo"}
+}

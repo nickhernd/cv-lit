@@ -35,26 +35,41 @@ pip install requests                    # API Obscape
 
 ## Estructura de directorios
 
-```
+```text
 cv-lit/
-+-- obscape_api.py           # cliente API Obscape
-+-- map_ubication.png        # mapa proyecto Ketel Haven
-+-- docs/                    # esta documentación
-|   +-- README.md
-|   +-- 01_overview.md
-|   +-- 02_api.md
-|   +-- 03_pipeline.md
-|   +-- 04_cameras.md
-|   +-- 05_calibration.md
-|   +-- 06_setup.md
-|   +-- 07_plan.md
-|   +-- 08_validation.md
-|   \-- 09_estado.md
-+-- calibration/             # (pendiente) perfiles de calibración
-|   +-- cam_1_H.npy
-|   +-- cam_1_params.json
-|   \-- ...
-\-- proces_images/
-    +-- images/              # ~90 JPG estación PTM61474
-    \-- horizon_correct.py   # corrección curvatura de horizonte
-```
+├── .gitignore               # Archivos y carpetas excluidos de Git
+├── environment.yml          # Configuración del entorno Conda
+├── acces_api/               # Módulo de comunicación con Obscape
+│   └── obscape_api.py       # Cliente API para descarga de imágenes
+├── calibration/             # Parámetros de calibración por cámara
+│   ├── cam_1_params.json    # Parámetros intrínsecos/extrínsecos
+│   ├── cam_1_H.npy          # Matriz de homografía calculada
+│   └── ...
+├── data/                    # Almacenamiento de datos (excluido de Git)
+│   ├── raw/                 # Imágenes originales descargadas
+│   │   ├── CAM_1/           # Imágenes por cámara y timestamp
+│   │   └── ...
+│   ├── processed/           # Resultados del pipeline
+│   │   ├── masks/           # Máscaras binarias de segmentación (SAM)
+│   │   ├── rectified/       # Imágenes proyectadas a plano planta
+│   │   └── lines/           # Líneas de costa en formato GeoJSON
+│   └── logs/                # Registro de operaciones y errores
+├── docs/                    # Documentación técnica (Markdown)
+└── proces_images/           # Lógica de procesamiento y algoritmos
+    ├── segmentation/        # Scripts de segmentación con SAM
+    ├── extraction/          # Extracción de línea de la máscara
+    └── projection/      # Proyección de píxel a coordenadas UTM
+    ```
+
+    ## Convenciones de Git (Issue 108)
+
+    Para mantener un flujo de trabajo organizado, se seguirán las siguientes convenciones:
+
+    *   **Rama principal:** `main` (código estable y validado).
+    *   **Ramas de desarrollo:**
+    *   `feature/nombre-modulo` (ej: `feature/sam-segmentation`)
+    *   `fix/descripcion-error` (ej: `fix/api-timeout`)
+    *   `docs/nombre-doc` (ej: `docs/update-pipeline`)
+    *   **Pull Requests:** Todo cambio debe pasar por PR y ser revisado antes de integrarse en `main`.
+
+

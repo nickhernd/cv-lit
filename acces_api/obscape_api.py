@@ -21,12 +21,17 @@ Estructura de salida:
 """
 
 import argparse
+import csv
 import json
+import logging
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # ── Configuración ──────────────────────────────────────────────────────────────
 API_URL  = "https://obscape.com/portal/api/v3/api"
@@ -34,11 +39,12 @@ USERNAME = "fuster"
 API_KEY  = "c1RyHhP6aJBPRHwIUrpz9eEPHPGhlbuMZIujEUvWTJaJPXJO0x"
 
 # Fecha de inicio del proyecto (límite para --all)
-# La API retorna vacío si el rango supera ~13 meses; datos disponibles desde 2026-01-01
 PROJECT_START = "2026-01-01T00:00:00"
 
-# Directorio de salida por defecto
-OUT_DIR = Path(__file__).parent.parent / "proces_images"
+# Directorios de salida
+BASE_DIR = Path(__file__).parent.parent
+OUT_DIR  = BASE_DIR / "data" / "raw"
+LOG_DIR  = BASE_DIR / "data" / "logs"
 
 # ── Cliente API ────────────────────────────────────────────────────────────────
 
@@ -48,6 +54,33 @@ class ObscapeClient:
         self.api_key  = api_key
         self.session  = requests.Session()
         self.session.headers.update({"User-Agent": "cv-lit/1.0"})
+        
+        # Configurar reintentos automáticos (Issue 99)
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=2, # 2s, 4s, 8s
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("https://", adapter)
+        
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        self.log_file = LOG_DIR / "download_history.csv"
+        self._init_log()
+
+    def _init_log(self):
+        """Inicializa el CSV de logs si no existe (Issue 100)."""
+        if not self.log_file.exists():
+            with open(self.log_file, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["timestamp_proc", "cam_id", "cam_name", "img_timestamp", "status", "detail"])
+
+    def log_event(self, cam_id, cam_name, img_ts, status, detail=""):
+        """Registra un evento en el log (Issue 100)."""
+        with open(self.log_file, "a", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow([datetime.now().isoformat(), cam_id, cam_name, img_ts, status, detail])
 
     def _get(self, params: dict, stream: bool = False) -> requests.Response:
         params = {"username": self.username, "key": self.api_key, **params}
@@ -56,14 +89,18 @@ class ObscapeClient:
 
     def list_stations(self, cameras_only: bool = True) -> list[dict]:
         """Devuelve las estaciones. Si cameras_only=True filtra solo CAM*."""
-        r = self._get({})
-        r.raise_for_status()
-        data = r.json()
-        if not isinstance(data, list):
+        try:
+            r = self._get({})
+            r.raise_for_status()
+            data = r.json()
+            if not isinstance(data, list):
+                return []
+            if cameras_only:
+                data = [s for s in data if s.get("name", "").upper().startswith("CAM")]
+            return data
+        except Exception as e:
+            print(f"  [!] Error listando estaciones: {e}")
             return []
-        if cameras_only:
-            data = [s for s in data if s.get("name", "").upper().startswith("CAM")]
-        return data
 
     def get_station_data(
         self,
@@ -90,6 +127,16 @@ class ObscapeClient:
         r.raise_for_status()
         return r.json()
 
+    def check_health(self, station_name: str, metadata: dict):
+        """Alertas de estado de la cámara (Issue 101)."""
+        # Metadatos típicos: battery (V), rssi (dBm), tilt (deg)
+        bat = metadata.get("battery")
+        rssi = metadata.get("rssi")
+        if bat is not None and bat < 11.5:
+            print(f"  [⚠️] Batería BAJA en {station_name}: {bat}V")
+        if rssi is not None and rssi < -90:
+            print(f"  [⚠️] Señal DÉBIL en {station_name}: {rssi}dBm")
+
     def download_image(
         self,
         station_id: str,
@@ -100,9 +147,6 @@ class ObscapeClient:
     ) -> Path | None:
         """
         Descarga una imagen y su JSON de metadatos.
-        Estructura:
-            base_out_dir/CAM_X/images/{YYYYMMDD}_{HHMMSS}_{station_id}.jpg
-            base_out_dir/CAM_X/json/  {YYYYMMDD}_{HHMMSS}_{station_id}.json
         """
         cam_folder  = base_out_dir / station_name.replace(" ", "_")
         img_folder  = cam_folder / "images"
@@ -111,11 +155,11 @@ class ObscapeClient:
         json_folder.mkdir(parents=True, exist_ok=True)
 
         # Determinar nombre de fichero
+        ts_val = timestamp
         if timestamp == "latest":
-            # Intentar usar el timestamp real del último punto de metadatos
-            ts_from_meta = (metadata or {}).get("time")
-            if ts_from_meta:
-                dt = datetime.fromtimestamp(int(ts_from_meta), tz=timezone.utc)
+            ts_val = (metadata or {}).get("time") or "latest"
+            if ts_val != "latest":
+                dt = datetime.fromtimestamp(int(ts_val), tz=timezone.utc)
                 fname_base = f"{dt.strftime('%Y%m%d_%H%M%S')}_{station_id}"
             else:
                 fname_base = f"latest_{station_id}"
@@ -127,25 +171,39 @@ class ObscapeClient:
         img_path  = img_folder  / f"{fname_base}.jpg"
         json_path = json_folder / f"{fname_base}.json"
 
-        # Saltar si ya existe (útil al relanzar --all)
+        # Control de duplicados (Issue 98)
         if img_path.exists():
-            print(f"  [=] Ya existe {station_name}/images/{fname_base}.jpg — omitiendo")
+            print(f"  [=] Ya existe {station_name}/{fname_base}.jpg")
             return img_path
 
-        r = self._get({"station": station_id, "image": timestamp}, stream=True)
-        if r.status_code != 200:
-            print(f"  [!] Error {r.status_code} imagen {timestamp}")
-            return None
-        ct = r.headers.get("Content-Type", "")
-        if "image" not in ct:
-            print(f"  [!] No es imagen: {ct} — {r.text[:100]}")
+        try:
+            # Monitoreo de salud (Issue 101)
+            if metadata:
+                self.check_health(station_name, metadata)
+
+            r = self._get({"station": station_id, "image": timestamp}, stream=True)
+            if r.status_code != 200:
+                self.log_event(station_id, station_name, ts_val, "ERROR", f"HTTP {r.status_code}")
+                print(f"  [!] Error {r.status_code} imagen {timestamp}")
+                return None
+            
+            ct = r.headers.get("Content-Type", "")
+            if "image" not in ct:
+                self.log_event(station_id, station_name, ts_val, "ERROR", f"Invalid content-type: {ct}")
+                print(f"  [!] No es imagen: {ct}")
+                return None
+
+            img_path.write_bytes(r.content)
+            json_path.write_text(json.dumps(metadata or {}, indent=2, ensure_ascii=False))
+
+            self.log_event(station_id, station_name, ts_val, "OK")
+            print(f"  [+] {station_name}/images/{fname_base}.jpg")
+            return img_path
+        except Exception as e:
+            self.log_event(station_id, station_name, ts_val, "ERROR", str(e))
+            print(f"  [!] Excepción: {e}")
             return None
 
-        img_path.write_bytes(r.content)
-        json_path.write_text(json.dumps(metadata or {}, indent=2, ensure_ascii=False))
-
-        print(f"  [+] {station_name}/images/{fname_base}.jpg  ({len(r.content)//1024} KB)")
-        return img_path
 
     def download_range(
         self,
