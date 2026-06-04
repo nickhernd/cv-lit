@@ -56,10 +56,17 @@ class CalibrationTool:
     def __init__(self, cam_idx: int, image_path: str | None = None):
         self.cam      = CAMERAS[cam_idx]
         self.cam_idx  = cam_idx
-        self.gcps: list[dict] = []   # [{pixel:[u,v], utm:[X,Y], label:"GCP_01"}]
+        self.gcps: list[dict] = []   # [{pixel:[u,v], utm:[X,Y], label:"GCP_01", type:"calib"}]
         self.H: np.ndarray | None = None
         self.rmse_px: float = -1.0
         self.rmse_m:  float = -1.0
+        self.rmse_val_px: float = -1.0
+        self.rmse_val_m:  float = -1.0
+
+        # Parámetros intrínsecos (Issue #29)
+        self.K = np.eye(3, dtype=np.float64)
+        self.D = np.zeros(5, dtype=np.float64)
+        self.use_undistort = False
 
         if image_path:
             self.img_path = image_path
@@ -80,6 +87,22 @@ class CalibrationTool:
         os.makedirs(CALIB_DIR, exist_ok=True)
         return os.path.join(CALIB_DIR, f"cam_{self.cam_idx}_profile.json")
 
+    def load_intrinsics(self, path: str) -> bool:
+        """Carga parámetros K y D de un JSON."""
+        if not os.path.exists(path):
+            return False
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            self.K = np.array(data["K"], dtype=np.float64)
+            self.D = np.array(data["D"], dtype=np.float64)
+            self.use_undistort = True
+            print(f"Intrínsecos cargados desde {path}")
+            return True
+        except Exception as e:
+            print(f"Error cargando intrínsecos: {e}")
+            return False
+
     def load_gcps(self) -> bool:
         path = self.profile_path()
         if not os.path.exists(path):
@@ -93,6 +116,15 @@ class CalibrationTool:
             self.H       = np.array(H_list, dtype=np.float64)
             self.rmse_px = data.get("rmse_px", -1.0)
             self.rmse_m  = data.get("rmse_m",  -1.0)
+            self.rmse_val_px = data.get("rmse_val_px", -1.0)
+            self.rmse_val_m  = data.get("rmse_val_m",  -1.0)
+        
+        # Cargar intrínsecos si existen en el perfil
+        if "K" in data and "D" in data:
+            self.K = np.array(data["K"], dtype=np.float64)
+            self.D = np.array(data["D"], dtype=np.float64)
+            self.use_undistort = True
+
         print(f"Perfil cargado: {len(self.gcps)} GCPs, RMSE={self.rmse_px:.2f}px")
         return True
 
@@ -106,8 +138,12 @@ class CalibrationTool:
             "image_ref": self.img_path,
             "gcps":      self.gcps,
             "H":         self.H.tolist() if self.H is not None else None,
-            "rmse_px":   round(self.rmse_px, 4),
-            "rmse_m":    round(self.rmse_m,  4),
+            "K":         self.K.tolist(),
+            "D":         self.D.tolist(),
+            "rmse_px":     round(self.rmse_px, 4),
+            "rmse_m":      round(self.rmse_m,  4),
+            "rmse_val_px": round(self.rmse_val_px, 4),
+            "rmse_val_m":  round(self.rmse_val_m,  4),
             "n_gcps":    len(self.gcps),
             "date":      str(date.today()),
             "epsg":      25830,
@@ -128,15 +164,30 @@ class CalibrationTool:
     # Calibración
     # ------------------------------------------------------------------
 
+    def undistort_points(self, pts_px: np.ndarray) -> np.ndarray:
+        """Aplica corrección de distorsión a puntos en píxeles."""
+        if not self.use_undistort:
+            return pts_px
+        pts_reshaped = pts_px.reshape(-1, 1, 2).astype(np.float32)
+        undistorted  = cv2.undistortPoints(pts_reshaped, self.K, self.D, P=self.K)
+        return undistorted.reshape(-1, 2)
+
     def compute_homography(self) -> bool:
-        if len(self.gcps) < 4:
-            print(f"Faltan GCPs: {len(self.gcps)}/4 mínimo.")
+        # Separar puntos de calibración y validación (Issue #31)
+        calib_gcps = [g for g in self.gcps if g.get("type", "calib") == "calib"]
+        val_gcps   = [g for g in self.gcps if g.get("type") == "val"]
+
+        if len(calib_gcps) < 4:
+            print(f"Faltan GCPs de calibración: {len(calib_gcps)}/4 mínimo.")
             return False
 
-        pts_px  = np.array([[g["pixel"][0], g["pixel"][1]] for g in self.gcps],
+        pts_px_orig  = np.array([[g["pixel"][0], g["pixel"][1]] for g in calib_gcps],
+                                dtype=np.float32)
+        pts_utm = np.array([[g["utm"][0],   g["utm"][1]]   for g in calib_gcps],
                            dtype=np.float32)
-        pts_utm = np.array([[g["utm"][0],   g["utm"][1]]   for g in self.gcps],
-                           dtype=np.float32)
+
+        # Corregir distorsión si aplica (Issue #29)
+        pts_px = self.undistort_points(pts_px_orig)
 
         H, mask = cv2.findHomography(pts_px, pts_utm,
                                      cv2.RANSAC, ransacReprojThreshold=5.0)
@@ -145,26 +196,35 @@ class CalibrationTool:
             return False
 
         self.H = H
-        inliers = int(mask.sum()) if mask is not None else len(self.gcps)
+        inliers = int(mask.sum()) if mask is not None else len(calib_gcps)
 
-        # RMSE en píxeles (reproyección inversa UTM→pixel)
+        # RMSE Calibración
         H_inv, _ = cv2.invert(H)
-        reproj   = cv2.perspectiveTransform(pts_utm.reshape(-1, 1, 2), H_inv)
-        reproj   = reproj.reshape(-1, 2)
-        errors   = np.linalg.norm(reproj - pts_px, axis=1)
-        self.rmse_px = float(np.sqrt(np.mean(errors ** 2)))
+        proj_utm = cv2.perspectiveTransform(pts_px.reshape(-1, 1, 2), H).reshape(-1, 2)
+        self.rmse_m = float(np.sqrt(np.mean(np.linalg.norm(proj_utm - pts_utm, axis=1)**2)))
+        
+        reproj_px = cv2.perspectiveTransform(pts_utm.reshape(-1, 1, 2), H_inv).reshape(-1, 2)
+        self.rmse_px = float(np.sqrt(np.mean(np.linalg.norm(reproj_px - pts_px, axis=1)**2)))
 
-        # RMSE en metros (proyección pixel→UTM)
-        proj_utm = cv2.perspectiveTransform(pts_px.reshape(-1, 1, 2), H)
-        proj_utm = proj_utm.reshape(-1, 2)
-        errors_m = np.linalg.norm(proj_utm - pts_utm, axis=1)
-        self.rmse_m = float(np.sqrt(np.mean(errors_m ** 2)))
+        # RMSE Validación (Issue #31)
+        if val_gcps:
+            vpts_px_orig = np.array([[g["pixel"][0], g["pixel"][1]] for g in val_gcps], dtype=np.float32)
+            vpts_utm     = np.array([[g["utm"][0],   g["utm"][1]]   for g in val_gcps], dtype=np.float32)
+            vpts_px      = self.undistort_points(vpts_px_orig)
+            
+            vproj_utm = cv2.perspectiveTransform(vpts_px.reshape(-1, 1, 2), H).reshape(-1, 2)
+            self.rmse_val_m = float(np.sqrt(np.mean(np.linalg.norm(vproj_utm - vpts_utm, axis=1)**2)))
+            
+            vrep_px = cv2.perspectiveTransform(vpts_utm.reshape(-1, 1, 2), H_inv).reshape(-1, 2)
+            self.rmse_val_px = float(np.sqrt(np.mean(np.linalg.norm(vrep_px - vpts_px, axis=1)**2)))
+        else:
+            self.rmse_val_px = -1.0
+            self.rmse_val_m  = -1.0
 
-        print(f"\n  Homografía calculada  ({inliers}/{len(self.gcps)} inliers)")
-        print(f"  RMSE reproyección : {self.rmse_px:.3f} px  "
-              f"({'OK' if self.rmse_px < 2.0 else 'ALTO — revisar GCPs'})")
-        print(f"  RMSE geométrico   : {self.rmse_m:.3f} m  "
-              f"({'OK' if self.rmse_m < 1.5 else 'ALTO — revisar GCPs'})")
+        print(f"\n  Homografía calculada  ({inliers}/{len(calib_gcps)} inliers)")
+        print(f"  RMSE Calib : {self.rmse_px:.3f} px / {self.rmse_m:.3f} m")
+        if val_gcps:
+            print(f"  RMSE Valid : {self.rmse_val_px:.3f} px / {self.rmse_val_m:.3f} m")
         return True
 
     # ------------------------------------------------------------------
@@ -177,41 +237,61 @@ class CalibrationTool:
 
         for i, gcp in enumerate(self.gcps):
             u, v   = int(gcp["pixel"][0]), int(gcp["pixel"][1])
+            is_val = gcp.get("type") == "val"
+            color  = (255, 100, 0) if is_val else COLORS["gcp"] # Azul para validación
             label  = gcp.get("label", f"GCP_{i+1:02d}")
-            cv2.circle(self.display, (u, v), 8, COLORS["gcp"], 2)
-            cv2.circle(self.display, (u, v), 2, COLORS["gcp"], -1)
+            
+            cv2.circle(self.display, (u, v), 8, color, 2)
+            cv2.circle(self.display, (u, v), 2, color, -1)
             cv2.putText(self.display, label, (u + 10, v - 6),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, COLORS["text"], 1, cv2.LINE_AA)
 
             # Reproyección (si H existe)
             if self.H is not None:
                 H_inv, _ = cv2.invert(self.H)
-                pt_utm  = np.array([[[gcp["utm"][0], gcp["utm"][1]]]], dtype=np.float32)
-                rep_px  = cv2.perspectiveTransform(pt_utm, H_inv).reshape(2)
-                ru, rv  = int(rep_px[0]), int(rep_px[1])
+                pt_utm   = np.array([[[gcp["utm"][0], gcp["utm"][1]]]], dtype=np.float32)
+                rep_px_undist = cv2.perspectiveTransform(pt_utm, H_inv).reshape(2)
+                
+                # Para visualizar sobre la imagen distorsionada original, 
+                # en teoría deberíamos "redistorsionar" el punto, pero por ahora 
+                # asumimos que la visualización es aproximada o la imagen ya está corregida.
+                # Si use_undistort es True, los puntos dibujados estarán ligeramente desplazados
+                # respecto a sus posiciones corregidas.
+                ru, rv = int(rep_px_undist[0]), int(rep_px_undist[1])
                 cv2.circle(self.display, (ru, rv), 6, COLORS["reproj"], 2)
                 cv2.line(self.display, (u, v), (ru, rv), COLORS["reproj"], 1)
 
         # Panel de estado (esquina superior izquierda)
+        n_cal = len([g for g in self.gcps if g.get("type", "calib") == "calib"])
+        n_val = len([g for g in self.gcps if g.get("type") == "val"])
+        
         lines = [
             f"Camara : {self.cam['name']}  (id {self.cam['id']})",
-            f"GCPs   : {len(self.gcps)}  (min 4, rec. 8+)",
-            f"RMSE   : {self.rmse_px:.2f} px / {self.rmse_m:.2f} m"
-              if self.H is not None else "RMSE   : (sin calibrar)",
-            "",
-            "Click  → añadir GCP",
-            "'h'    → calcular homografia",
-            "'s'    → guardar perfil",
-            "'r'    → deshacer ultimo",
-            "'q'    → salir",
+            f"GCPs   : {n_cal} calib / {n_val} val",
+            f"Intrin : {'SI' if self.use_undistort else 'NO'}",
+            f"RMSE C : {self.rmse_px:.2f} px / {self.rmse_m:.2f} m"
+              if self.H is not None else "RMSE C : (sin calibrar)",
         ]
-        panel_w = 340
+        if self.rmse_val_px >= 0:
+            lines.append(f"RMSE V : {self.rmse_val_px:.2f} px / {self.rmse_val_m:.2f} m")
+        
+        lines += [
+            "",
+            "L-Click → añadir GCP CALIB",
+            "R-Click → añadir GCP VALID",
+            "'h'     → calcular homografia",
+            "'s'     → guardar perfil",
+            "'r'     → deshacer ultimo",
+            "'q'     → salir",
+        ]
+        
+        panel_w = 360
         panel_h = len(lines) * 22 + 16
         overlay = self.display.copy()
         cv2.rectangle(overlay, (6, 6), (panel_w, panel_h), COLORS["panel"], -1)
         cv2.addWeighted(overlay, 0.75, self.display, 0.25, 0, self.display)
         for j, line in enumerate(lines):
-            color = (80, 220, 80) if line.startswith("RMSE") and self.H is not None \
+            color = (80, 220, 80) if (line.startswith("RMSE") or "Intrin" in line) and self.H is not None \
                     else COLORS["text"]
             cv2.putText(self.display, line, (14, 26 + j * 22),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
@@ -221,11 +301,14 @@ class CalibrationTool:
     # ------------------------------------------------------------------
 
     def _mouse_callback(self, event, x, y, flags, param):
-        if event != cv2.EVENT_LBUTTONDOWN:
+        if event not in [cv2.EVENT_LBUTTONDOWN, cv2.EVENT_RBUTTONDOWN]:
             return
 
+        is_val = (event == cv2.EVENT_RBUTTONDOWN)
+        type_str = "VALID" if is_val else "CALIB"
+        
         label = f"GCP_{len(self.gcps) + 1:02d}"
-        print(f"\n  Punto {label} en pixel ({x}, {y})")
+        print(f"\n  Punto {type_str} {label} en pixel ({x}, {y})")
         print("  Introduce coordenadas UTM EPSG:25830  →  X Y  (o Enter para cancelar): ",
               end="", flush=True)
 
@@ -249,30 +332,57 @@ class CalibrationTool:
             print("  Valores no numéricos.")
             return
 
-        # Validación básica: bbox Guardamar del Segura en EPSG:25830
-        if not (690000 < X < 740000 and 4195000 < Y < 4230000):
-            print(f"  Advertencia: ({X:.1f}, {Y:.1f}) parece estar fuera del "
-                  f"area de Guardamar del Segura. Añadido de todas formas.")
-
-        self.gcps.append({"pixel": [x, y], "utm": [X, Y], "label": label})
-        print(f"  GCP añadido: {label} → pixel({x},{y}) UTM({X:.2f},{Y:.2f})")
+        self.gcps.append({
+            "pixel": [x, y], 
+            "utm": [X, Y], 
+            "label": label, 
+            "type": "val" if is_val else "calib"
+        })
+        print(f"  GCP añadido: {label} ({type_str}) → pixel({x},{y}) UTM({X:.2f},{Y:.2f})")
         self._render()
         cv2.imshow(self._win_name, self.display)
 
+    def save_diagnostic_image(self):
+        """Exporta una imagen con los errores de reproyección magnificados."""
+        if self.H is None:
+            return
+        
+        diag = self.img_orig.copy()
+        H_inv, _ = cv2.invert(self.H)
+        
+        for gcp in self.gcps:
+            u, v = gcp["pixel"]
+            pt_utm = np.array([[[gcp["utm"][0], gcp["utm"][1]]]], dtype=np.float32)
+            rep_px = cv2.perspectiveTransform(pt_utm, H_inv).reshape(2)
+            ru, rv = int(rep_px[0]), int(rep_px[1])
+            
+            # Dibujar vector de error magnificado (x10 para visibilidad)
+            mag = 10
+            eu, ev = ru - u, rv - v
+            cv2.line(diag, (u, v), (u + eu*mag, v + ev*mag), (0, 0, 255), 2)
+            cv2.circle(diag, (u, v), 4, (0, 255, 0), -1)
+            
+        out_path = self.profile_path().replace("_profile.json", "_diagnostic.png")
+        cv2.imwrite(out_path, diag)
+        print(f"Imagen de diagnóstico guardada: {out_path}")
+
     def run(self):
-        self._win_name = f"Calibración — {self.cam['name']}"
+        # Simplificar nombre para evitar problemas con algunos backends de GUI
+        self._win_name = f"Calibration - {self.cam['name']}"
         self._render()
 
         cv2.namedWindow(self._win_name, cv2.WINDOW_NORMAL)
         h, w = self.display.shape[:2]
         cv2.resizeWindow(self._win_name, min(1280, w), min(720, int(min(1280, w) * h / w)))
-        cv2.setMouseCallback(self._win_name, self._mouse_callback)
+        
+        # Mostrar primero, luego configurar el raton (evita Null pointer)
         cv2.imshow(self._win_name, self.display)
+        cv2.setMouseCallback(self._win_name, self._mouse_callback)
 
         print(f"\n=== Calibración {self.cam['name']} ===")
         print(f"  Imagen: {self.img_path}")
         print(f"  GCPs cargados: {len(self.gcps)}")
-        print("  Click en la imagen para añadir puntos GCP.\n")
+        print("  L-Click: añadir CALIB, R-Click: añadir VALID.\n")
 
         while True:
             key = cv2.waitKey(50) & 0xFF
@@ -287,6 +397,8 @@ class CalibrationTool:
                     print("Calcula primero la homografía con 'h'.")
                 else:
                     self.save_profile()
+            elif key == ord('p'):
+                self.save_diagnostic_image()
             elif key == ord('r'):
                 if self.gcps:
                     removed = self.gcps.pop()

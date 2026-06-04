@@ -43,7 +43,7 @@ PROJECT_START = "2026-01-01T00:00:00"
 
 # Directorios de salida
 BASE_DIR = Path(__file__).parent.parent
-OUT_DIR  = BASE_DIR / "data" / "raw"
+OUT_DIR  = BASE_DIR / "proces_images"
 LOG_DIR  = BASE_DIR / "data" / "logs"
 
 # ── Cliente API ────────────────────────────────────────────────────────────────
@@ -144,9 +144,10 @@ class ObscapeClient:
         timestamp: int | str,
         base_out_dir: Path,
         metadata: dict | None = None,
-    ) -> Path | None:
+    ) -> tuple[Path | None, bool]:
         """
         Descarga una imagen y su JSON de metadatos.
+        Retorna (path, is_new)
         """
         cam_folder  = base_out_dir / station_name.replace(" ", "_")
         img_folder  = cam_folder / "images"
@@ -174,7 +175,7 @@ class ObscapeClient:
         # Control de duplicados (Issue 98)
         if img_path.exists():
             print(f"  [=] Ya existe {station_name}/{fname_base}.jpg")
-            return img_path
+            return img_path, False
 
         try:
             # Monitoreo de salud (Issue 101)
@@ -185,24 +186,24 @@ class ObscapeClient:
             if r.status_code != 200:
                 self.log_event(station_id, station_name, ts_val, "ERROR", f"HTTP {r.status_code}")
                 print(f"  [!] Error {r.status_code} imagen {timestamp}")
-                return None
+                return None, False
             
             ct = r.headers.get("Content-Type", "")
             if "image" not in ct:
                 self.log_event(station_id, station_name, ts_val, "ERROR", f"Invalid content-type: {ct}")
                 print(f"  [!] No es imagen: {ct}")
-                return None
+                return None, False
 
             img_path.write_bytes(r.content)
             json_path.write_text(json.dumps(metadata or {}, indent=2, ensure_ascii=False))
 
             self.log_event(station_id, station_name, ts_val, "OK")
             print(f"  [+] {station_name}/images/{fname_base}.jpg")
-            return img_path
+            return img_path, True
         except Exception as e:
             self.log_event(station_id, station_name, ts_val, "ERROR", str(e))
             print(f"  [!] Excepción: {e}")
-            return None
+            return None, False
 
 
     def download_range(
@@ -216,7 +217,7 @@ class ObscapeClient:
     ) -> list[Path]:
         """
         Descarga imágenes + JSON en un rango de fechas.
-        hour_filter=None descarga todas las horas; por defecto solo 12:00h.
+        Retorna lista de nuevos paths descargados.
         """
         data = self.get_station_data(station_id, from_dt=from_dt, to_dt=to_dt, tz="local")
         points = data.get("data", [])
@@ -231,8 +232,8 @@ class ObscapeClient:
                 if dt.hour != hour_filter:
                     continue
             meta = pt if isinstance(pt, dict) else dict(zip([p["name"] for p in params_info], pt))
-            path = self.download_image(station_id, station_name, ts, base_out_dir, metadata=meta)
-            if path:
+            path, is_new = self.download_image(station_id, station_name, ts, base_out_dir, metadata=meta)
+            if is_new and path:
                 saved.append(path)
         return saved
 
