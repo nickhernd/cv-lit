@@ -30,18 +30,19 @@ CALIB_DIR  = os.path.join(os.path.dirname(BASE_DIR), "calibration")
 
 CAMERAS = {
     1: {"name": "CAM 1", "id": "8213", "serial": "PTM61471",
-        "folder": "CAM_1", "file": "latest_8213.jpg"},
+        "folder": "camera1", "file": "1779787800_20260526_093000_PTM61471.jpg"},
     2: {"name": "CAM 2", "id": "8214", "serial": "PTM61474",
-        "folder": "CAM_2", "file": "latest_8214.jpg"},
+        "folder": "camera2", "file": "1778580900_20260512_101500_PTM61474.jpg"},
     3: {"name": "CAM 3", "id": "8212", "serial": "PTM61473",
-        "folder": "CAM_3", "file": "latest_8212.jpg"},
+        "folder": "camera3", "file": "1777896000_20260504_120000_PTM61473.jpg"},
     4: {"name": "CAM 4", "id": "8211", "serial": "PTM61475",
-        "folder": "CAM_4", "file": "latest_8211.jpg"},
+        "folder": "camera4", "file": "1777896000_20260504_120000_PTM61475.jpg"},
     5: {"name": "CAM 5", "id": "8209", "serial": "PTM61472",
-        "folder": "CAM_5", "file": "latest_8209.jpg"},
+        "folder": "camera5", "file": "1777893600_20260504_112000_PTM61472.jpg"},
     6: {"name": "CAM 6", "id": "8210", "serial": "PTM61470",
-        "folder": "CAM_6", "file": "latest_8210.jpg"},
+        "folder": "camera6", "file": "1777891200_20260504_104000_PTM61470.jpg"},
 }
+
 
 COLORS = {
     "gcp":       (0, 255, 100),
@@ -118,16 +119,76 @@ class CalibrationTool:
             self.rmse_m  = data.get("rmse_m",  -1.0)
             self.rmse_val_px = data.get("rmse_val_px", -1.0)
             self.rmse_val_m  = data.get("rmse_val_m",  -1.0)
-        
+
         # Cargar intrínsecos si existen en el perfil
         if "K" in data and "D" in data:
             self.K = np.array(data["K"], dtype=np.float64)
             self.D = np.array(data["D"], dtype=np.float64)
             self.use_undistort = True
 
-        print(f"Perfil cargado: {len(self.gcps)} GCPs, RMSE={self.rmse_px:.2f}px")
+        print(f"Perfil cargado: {len(self.gcps)} GCPs")
         return True
 
+    def load_from_reference_csv(self, csv_path: str = "proces_images/data/GCP.csv"):
+        """
+        Importa puntos píxel desde el Excel/CSV predeterminado (Issue #24-28).
+        Usa un esquema de mapeo para asignar UTMs a etiquetas 'A', 'V', 'FIJO'.
+        """
+        if not os.path.exists(csv_path):
+            print(f"  [!] No se encontró el archivo de referencia: {csv_path}")
+            return False
+
+        # Mapeo de UTMs por etiqueta (ESQUEMA - para completar con datos reales)
+        # Boya 1 (N), Boya 2 (C), Boya 3 (S)
+        BUOY_UTM = {
+            "BOYA_1": [707622.0, 4222212.0],
+            "BOYA_2": [707244.0, 4219260.0],
+            "BOYA_3": [707002.0, 4216011.0],
+            # Puntos fijos (ejemplos)
+            "TORRE":  [711000.0, 4209000.0]
+        }
+
+        print(f"  Cargando puntos de referencia desde {csv_path}...")
+        try:
+            import csv
+            with open(csv_path, newline="") as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+
+            # El CSV tiene cabeceras en las primeras filas
+            # Formato: CAMERA, FILE, COLOR, X_IMG, Y_IMG, X_UTM, Y_UTM
+            cam_label = f"CAM{self.cam_idx}"
+            count = 0
+
+            for row in rows:
+                if len(row) < 5: continue
+                if row[0].upper() == cam_label:
+                    label = row[2] # A, V, FIJO
+                    u, v = float(row[3]), float(row[4])
+
+                    # Intentar obtener UTM si ya está en el CSV, si no usar el esquema BUOY_UTM
+                    utm_x = float(row[5]) if len(row) > 5 and row[5] else 0.0
+                    utm_y = float(row[6]) if len(row) > 6 and row[6] else 0.0
+
+                    # Si UTM es 0, buscamos en el diccionario de boyas (como esquema)
+                    if utm_x == 0.0:
+                        # Mapeo simple: A -> Boya 1, V -> Boya 2 (esto es personalizable)
+                        if label == "A": utm_x, utm_y = BUOY_UTM["BOYA_1"]
+                        elif label == "V": utm_x, utm_y = BUOY_UTM["BOYA_2"]
+
+                    self.gcps.append({
+                        "pixel": [u, v],
+                        "utm": [utm_x, utm_y],
+                        "label": f"{label}_{count+1:02d}",
+                        "type": "calib"
+                    })
+                    count += 1
+
+            print(f"  [OK] {count} puntos cargados desde el esquema de referencia.")
+            return True
+        except Exception as e:
+            print(f"  [!] Error procesando CSV: {e}")
+            return False
     def save_profile(self):
         os.makedirs(CALIB_DIR, exist_ok=True)
         data = {
@@ -279,6 +340,7 @@ class CalibrationTool:
             "",
             "L-Click → añadir GCP CALIB",
             "R-Click → añadir GCP VALID",
+            "'a'     → CARGAR REF. EXCEL/CSV",
             "'h'     → calcular homografia",
             "'s'     → guardar perfil",
             "'r'     → deshacer ultimo",
@@ -388,6 +450,10 @@ class CalibrationTool:
             key = cv2.waitKey(50) & 0xFF
             if key == ord('q'):
                 break
+            elif key == ord('a'):
+                if self.load_from_reference_csv():
+                    self._render()
+                    cv2.imshow(self._win_name, self.display)
             elif key == ord('h'):
                 if self.compute_homography():
                     self._render()
