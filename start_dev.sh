@@ -1,25 +1,35 @@
 #!/bin/bash
 
 # --- Configuración ---
-BACKEND_CMD="backend/venv/bin/uvicorn backend.main:app --port 8000 --reload"
-FRONTEND_CMD="npm run dev"
+# Usamos el venv de la raíz
+BACKEND_DIR="backend"
+VENV_PATH="./venv"
+PYTHON_BIN="$VENV_PATH/bin/python"
 
-echo "=== Iniciando entorno de desarrollo ==="
+echo "=== Iniciando entorno de desarrollo CV-LIT ==="
 
-# Iniciar Backend
+# 1. Iniciar Backend
 echo "[1/2] Iniciando Backend (FastAPI)..."
-$BACKEND_CMD &
+# Ejecutamos desde la carpeta backend para que las rutas relativas funcionen bien
+cd $BACKEND_DIR
+../$PYTHON_BIN -m uvicorn main:app --port 8000 --reload &
 BACKEND_PID=$!
+cd ..
 
-# Iniciar Frontend
+# 2. Iniciar Frontend
 echo "[2/2] Iniciando Frontend (Vite)..."
 cd frontend
-$FRONTEND_CMD &
+npm run dev &
 FRONTEND_PID=$!
 cd ..
 
 # Manejo de cierre (Ctrl+C)
 trap 'echo -e "\n=== Cerrando servidores..."; kill $BACKEND_PID $FRONTEND_PID; exit' SIGINT SIGTERM
 
-echo "=== Servidores corriendo (Ctrl+C para detener) ==="
+echo ""
+echo "✔ Backend corriendo en: http://localhost:8000"
+echo "✔ Frontend corriendo en: http://localhost:5173"
+echo "=== Presiona Ctrl+C para detener ==="
+echo ""
+
 wait

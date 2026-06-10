@@ -2,7 +2,24 @@
 
 Sistema de monitorización automática mediante cámaras fijas (Obscape) en Guardamar del Segura.
 
-## Inicio Rápido
+## Interfaz Web (Dashboard & Calibración)
+
+El sistema cuenta con una interfaz moderna en Vue para monitorizar el estado y realizar calibraciones interactivas.
+
+### Ejecución (Entorno de Desarrollo)
+Puedes iniciar tanto el backend (FastAPI) como el frontend (Vite) con un solo comando:
+```bash
+./start_dev.sh
+```
+
+Esto levantará:
+- **Backend:** `http://localhost:8000`
+- **Frontend:** `http://localhost:5173`
+
+### Calibración Interactiva
+Desde la interfaz web, puedes seleccionar una cámara, cargar su última imagen, marcar los puntos GCP con clicks y calcular la homografía instantáneamente.
+
+## Inicio Rápido (Scripts de Python)
 
 ### 1. Instalación
 Asegúrate de tener las dependencias instaladas:
