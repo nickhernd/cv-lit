@@ -369,9 +369,19 @@ class CalibrationTool:
         is_val = (event == cv2.EVENT_RBUTTONDOWN)
         type_str = "VALID" if is_val else "CALIB"
         
-        label = f"GCP_{len(self.gcps) + 1:02d}"
-        print(f"\n  Punto {type_str} {label} en pixel ({x}, {y})")
-        print("  Introduce coordenadas UTM EPSG:25830  →  X Y  (o Enter para cancelar): ",
+        # Predefined GCPs for easier selection
+        known_gcps = {
+            "1": {"label": "BOYA_1", "utm": [707622.0, 4222212.0]},
+            "2": {"label": "BOYA_2", "utm": [707244.0, 4219260.0]},
+            "3": {"label": "BOYA_3", "utm": [707002.0, 4216011.0]},
+            "4": {"label": "TORRE",  "utm": [711000.0, 4209000.0]}
+        }
+        
+        print(f"\n  Punto seleccionado en pixel ({x}, {y})")
+        print("  Selecciona GCP conocido:")
+        for k, v in known_gcps.items():
+            print(f"    {k}: {v['label']} {v['utm']}")
+        print("    o escribe 'X Y' para coordenadas manuales. (Enter para cancelar): ",
               end="", flush=True)
 
         try:
@@ -382,17 +392,21 @@ class CalibrationTool:
         if not raw:
             print("  Cancelado.")
             return
-
-        parts = raw.replace(",", " ").split()
-        if len(parts) != 2:
-            print("  Formato incorrecto. Usa: 711234.5 4209876.3")
-            return
-
-        try:
-            X, Y = float(parts[0]), float(parts[1])
-        except ValueError:
-            print("  Valores no numéricos.")
-            return
+            
+        if raw in known_gcps:
+            X, Y = known_gcps[raw]["utm"]
+            label = known_gcps[raw]["label"]
+        else:
+            parts = raw.replace(",", " ").split()
+            if len(parts) != 2:
+                print("  Formato incorrecto.")
+                return
+            try:
+                X, Y = float(parts[0]), float(parts[1])
+                label = f"GCP_{len(self.gcps) + 1:02d}"
+            except ValueError:
+                print("  Valores no numéricos.")
+                return
 
         self.gcps.append({
             "pixel": [x, y], 
