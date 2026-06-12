@@ -119,7 +119,7 @@ def run(input_dir: Path, output_dir: Path, ref_path: Path | None):
 
         cv2.imwrite(str(out_aligned / p.name), aligned)
 
-        status_icon = "✓" if info["status"] in ("ok", "reference") else "⚠"
+        status_icon = "[OK]" if info["status"] in ("ok", "reference") else "[WARNING]"
         print(f"  [{i+1:03d}] {p.name}  {status_icon}  {info['status']}  ({info['inliers']} inliers)")
 
         records.append({

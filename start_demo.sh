@@ -6,13 +6,13 @@ BACKEND_DIR="backend"
 VENV_PATH="./venv"
 PYTHON_BIN="$VENV_PATH/bin/python"
 
-echo "=== Iniciando entorno de desarrollo CV-LIT ==="
+echo "=== Iniciando MODO DEMO CV-LIT (Datos Simulados) ==="
 
-# 1. Iniciar Backend
-echo "[1/2] Iniciando Backend (FastAPI)..."
-# Ejecutamos desde la carpeta backend para que las rutas relativas funcionen bien
+# 1. Iniciar Backend en Modo Demo
+echo "[1/2] Iniciando Backend en MODO DEMO..."
 cd $BACKEND_DIR
-../$PYTHON_BIN -m uvicorn main:app --port 8000 --reload &
+# Pasamos la variable de entorno APP_MODE=demo
+APP_MODE=demo ../$PYTHON_BIN -m uvicorn main:app --port 8000 --reload &
 BACKEND_PID=$!
 cd ..
 
@@ -27,7 +27,7 @@ cd ..
 trap 'echo -e "\n=== Cerrando servidores..."; kill $BACKEND_PID $FRONTEND_PID; exit' SIGINT SIGTERM
 
 echo ""
-echo "[OK] Backend corriendo en: http://localhost:8000"
+echo "[OK] Backend DEMO corriendo en: http://localhost:8000"
 echo "[OK] Frontend corriendo en: http://localhost:5173"
 echo "=== Presiona Ctrl+C para detener ==="
 echo ""

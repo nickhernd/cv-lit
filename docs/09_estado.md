@@ -1,40 +1,41 @@
 # Estado Actual del Proyecto
 
-← [Volver al índice](README.md)
+← [Volver al indice](README.md)
 
-> Última actualización: 2026-06-04
+> Ultima actualizacion: 2026-06-04
 
 ---
 
 ## Archivos disponibles
 
-| Fichero | Descripción |
+| Fichero | Descripcion |
 |---------|-------------|
 | [`obscape_api.py`](../obscape_api.py) | Cliente API Obscape. Soporta control de duplicados y ventana de 2 semanas. |
-| [`proces_images/calibration_tool.py`](../proces_images/calibration_tool.py) | Herramienta de calibración con soporte para intrínsecos y validación. |
-| [`proces_images/recalibrate.py`](../proces_images/recalibrate.py) | Herramienta de recalibración rápida mediante arrastre de GCPs. |
+| [`proces_images/calibration_tool.py`](../proces_images/calibration_tool.py) | Herramienta de calibracion con soporte para intrinsecos y validacion. |
+| [`proces_images/recalibrate.py`](../proces_images/recalibrate.py) | Herramienta de recalibracion rapida mediante arrastre de GCPs. |
 | [`visualizar_calibracion.py`](../visualizar_calibracion.py) | Lanzador simplificado para pruebas visuales. |
 
-## Completado ✅
+## Completado [OK]
 
-- [x] Diseño del pipeline completo (módulos 3.0–3.5) → ver [Pipeline](03_pipeline.md)
-- [x] Cliente API Obscape funcional y automatizado (`obscape_api.py`)
-- [x] Implementar módulo de calibración offline 3.0 (#29, #30, #31, #32, #34)
-- [x] Script de recalibración rápida (#33)
-- [x] Validación matemática de la homografía (`test_calibration_logic.py`)
-- [x] IDs y coordenadas de las 6 cámaras confirmados
+- [x] Diseno del pipeline completo (modulos 3.0–3.5) -> ver [Pipeline](03_pipeline.md)
+- [x] Cliente API Obscape funcional y verificado (`obscape_api.py`)
+- [x] Acceso confirmado a las 6 camaras de Guardamar via API
+- [x] Implementar modulo de calibracion offline 3.0 (`calibration_tool.py`)
+- [x] Script de recalibracion rapida (`recalibrate.py`)
+- [x] Validacion matematica de la homografia (`test_calibration_logic.py`)
+- [x] Definicion preliminar de ROI por camara (`roi_config.json`)
+- [x] IDs y coordenadas de las 6 camaras confirmados
+- [x] Prototipo de segmentacion con SAM (modulo 3.2) (`segmentation_sam.py`)
+- [x] Prototipo de extraccion de linea de costa (modulo 3.3) (`extract_coastline.py`)
+- [x] Script de validacion de pipeline Mes 3 (`test_mes3_pipeline.py`)
 
-## Pendiente ⬜
+## Pendiente [ ]
 
-- [ ] Confirmar nombre del proyecto Obscape para las 6 cámaras de Guardamar
-- [ ] Obtener transectos GNSS del IEL (GCPs en EPSG:25830)
-- [ ] Definir ROI por cámara
-- [ ] Implementar segmentación con SAM (módulo 3.2)
-- [ ] Implementar extracción de línea de costa (módulo 3.3)
-- [ ] Implementar proyección a EPSG:25830 (módulo 3.4)
-- [ ] Implementar postprocesado y exportación GeoJSON (módulo 3.5)
+- [ ] Obtener transectos GNSS del IEL (GCPs en EPSG:25830) -> **Bloquea ejecucion de calibracion final**
+- [ ] Calibracion final de las 6 camaras con datos reales
+- [ ] Implementar proyeccion a EPSG:25830 (modulo 3.4)
+- [ ] Implementar postprocesado y exportacion GeoJSON (modulo 3.5)
 
-## Bloqueos activos 🔴
+## Bloqueos activos [BLOQUEO]
 
-1. **Acceso API Obscape** para las 6 cámaras: sin esto no hay imágenes de producción. PTM61474 permite desarrollo pero es una cámara distinta a las 6 de Guardamar.
-2. **GCPs GNSS del IEL**: sin ellos no se puede ejecutar la calibración (3.0) ni el resto del pipeline.
+1. **GCPs GNSS del IEL**: sin ellos no se puede ejecutar la calibracion (3.0) con precision submetrica ni el resto del pipeline. Las herramientas estan listas para ser ejecutadas en cuanto se reciba el archivo.

@@ -1,59 +1,63 @@
-# cv-lit — Monitorización de Línea de Costa
+# cv-lit - Monitorizacion de Linea de Costa
 
-Sistema de monitorización automática mediante cámaras fijas (Obscape) en Guardamar del Segura.
+Sistema de monitorizacion automatica mediante camaras fijas (Obscape) en Guardamar del Segura.
 
-## Interfaz Web (Dashboard & Calibración)
+## Interfaz Web (Dashboard & Calibracion)
 
 El sistema cuenta con una interfaz moderna en Vue para monitorizar el estado y realizar calibraciones interactivas.
 
-### Ejecución (Entorno de Desarrollo)
+### Ejecucion (Entorno de Desarrollo)
 Puedes iniciar tanto el backend (FastAPI) como el frontend (Vite) con un solo comando:
 ```bash
 ./start_dev.sh
 ```
 
-Esto levantará:
+Esto levantara:
 - **Backend:** `http://localhost:8000`
 - **Frontend:** `http://localhost:5173`
 
-### Calibración Interactiva
-Desde la interfaz web, puedes seleccionar una cámara, cargar su última imagen, marcar los puntos GCP con clicks y calcular la homografía instantáneamente.
+### Calibracion Interactiva
+Desde la interfaz web, puedes seleccionar una camara, cargar su ultima imagen, marcar los puntos GCP con clicks y calcular la homografia instantaneamente.
 
-## Inicio Rápido (Scripts de Python)
+## Inicio Rapido (Scripts de Python)
 
-### 1. Instalación
-Asegúrate de tener las dependencias instaladas:
+### 1. Diagnostico Inicial
+Verifica la conexion con la API y el estado de las camaras:
 ```bash
-pip install opencv-python numpy requests pyproj
+python3 verify_setup.py
 ```
 
-### 2. Descarga de Imágenes
-El sistema descarga imágenes automáticamente evitando duplicados.
+### 2. Descarga de Imagenes
+El sistema descarga imagenes automaticamente evitando duplicados.
 ```bash
-# Descarga estándar (últimos 14 días, 12:00h)
+# Descarga estandar (ultimos 14 dias, 12:00h)
 python3 acces_api/scheduled_download.py
-
-# Descarga masiva (últimos 30 días, todas las horas)
-python3 acces_api/scheduled_download.py --days 30 --hour all
 ```
 
-### 3. Calibración y Mantenimiento
-Para calibrar una cámara desde cero o realizar ajustes si se ha movido:
+### 3. Calibracion y Mantenimiento
+Para calibrar una camara desde cero o realizar ajustes si se ha movido:
 ```bash
-# Lanzador rápido para CAM 1
+# Lanzador rapido para CAM 1
 python3 visualizar_calibracion.py
 
-# Ajuste rápido (arrastrar puntos) en una imagen nueva
+# Ajuste rapido (arrastrar puntos) en una imagen nueva
 python3 proces_images/recalibrate.py --cam 1 --image ruta/foto.jpg
 ```
 
-## Estado del Proyecto (Mes 2)
-- ✅ **Calibración técnica**: Motor de homografía, RANSAC y corrección de distorsión completados.
-- ✅ **Automatización**: Sistema de descarga con control de duplicados y ventana de 14 días operativo.
-- 🔴 **Bloqueo**: Pendiente de recibir GCPs reales del IEL para calibración definitiva.
+### 4. Segmentacion y Extraccion (Mes 3)
+Prueba el pipeline de extraccion de linea de costa:
+```bash
+# Ejecuta el flujo: ROI -> Segmentacion -> Linea de Costa
+python3 proces_images/test_mes3_pipeline.py --cam 1
+```
 
-## Documentación completa
-Para más detalles, consulta la carpeta `docs/`:
-- [Guía de Comandos](docs/13_guia_comandos.md) — Lista completa de herramientas.
-- [Mejoras del Sistema](docs/12_mejoras_sistema.md) — Detalles sobre las últimas actualizaciones.
-- [Estado del Proyecto](docs/09_estado.md) — Progreso de los hitos.
+## Estado del Proyecto (Mes 3)
+- [OK] **Hito 1 & 2**: Acceso API Obscape, Herramientas de Calibracion y ROI completados.
+- [OK] **Hito 3**: Prototipo de segmentacion (SAM) y extraccion de linea de costa funcional.
+- [BLOQUEO] **Bloqueo**: Pendiente de recibir GCPs reales del IEL para calibracion final de precision.
+
+## Documentacion completa
+Para mas detalles, consulta la carpeta `docs/`:
+- [Guia de Comandos](docs/13_guia_comandos.md) - Lista completa de herramientas.
+- [Mejoras del Sistema](docs/12_mejoras_sistema.md) - Detalles sobre las ultimas actualizaciones.
+- [Estado del Proyecto](docs/09_estado.md) - Progreso de los hitos.

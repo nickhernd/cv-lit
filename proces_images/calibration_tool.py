@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-calibration_tool.py — Herramienta interactiva de calibración píxel↔UTM
+calibration_tool.py - Herramienta interactiva de calibracion pixel↔UTM
 
 Flujo:
-  1. Cargar imagen de referencia de una cámara
-  2. Click izquierdo → marcar punto GCP en la imagen
+  1. Cargar imagen de referencia de una camara
+  2. Click izquierdo -> marcar punto GCP en la imagen
   3. Introducir coordenadas UTM (X Y) por terminal
-  4. Repetir hasta tener ≥4 pares (recomendado ≥8)
-  5. Pulsar 'h' → calcular homografía con RANSAC + mostrar RMSE
-  6. Pulsar 's' → guardar perfil en calibration/
-  7. Pulsar 'r' → deshacer último punto
-  8. Pulsar 'q' → salir
+  4. Repetir hasta tener >=4 pares (recomendado >=8)
+  5. Pulsar 'h' -> calcular homografia con RANSAC + mostrar RMSE
+  6. Pulsar 's' -> guardar perfil en calibration/
+  7. Pulsar 'r' -> deshacer ultimo punto
+  8. Pulsar 'q' -> salir
 
 Uso:
   python calibration_tool.py --cam 1
@@ -29,17 +29,17 @@ DATA_DIR   = os.path.join(BASE_DIR, "data")
 CALIB_DIR  = os.path.join(os.path.dirname(BASE_DIR), "calibration")
 
 CAMERAS = {
-    1: {"name": "CAM 1", "id": "8213", "serial": "PTM61471",
+    1: {"name": "CAM 1 (Norte)", "id": "8213", "serial": "PTM61471",
         "folder": "camera1", "file": "1779787800_20260526_093000_PTM61471.jpg"},
-    2: {"name": "CAM 2", "id": "8214", "serial": "PTM61474",
+    2: {"name": "CAM 2 (Norte Centro)", "id": "8214", "serial": "PTM61474",
         "folder": "camera2", "file": "1778580900_20260512_101500_PTM61474.jpg"},
-    3: {"name": "CAM 3", "id": "8212", "serial": "PTM61473",
+    3: {"name": "CAM 3 (Centro)", "id": "8212", "serial": "PTM61473",
         "folder": "camera3", "file": "1777896000_20260504_120000_PTM61473.jpg"},
-    4: {"name": "CAM 4", "id": "8211", "serial": "PTM61475",
+    4: {"name": "CAM 4 (Centro Sur)", "id": "8211", "serial": "PTM61475",
         "folder": "camera4", "file": "1777896000_20260504_120000_PTM61475.jpg"},
-    5: {"name": "CAM 5", "id": "8209", "serial": "PTM61472",
+    5: {"name": "CAM 5 (Sur)", "id": "8209", "serial": "PTM61472",
         "folder": "camera5", "file": "1777893600_20260504_112000_PTM61472.jpg"},
-    6: {"name": "CAM 6", "id": "8210", "serial": "PTM61470",
+    6: {"name": "CAM 6 (Sur Punta)", "id": "8210", "serial": "PTM61470",
         "folder": "camera6", "file": "1777891200_20260504_104000_PTM61470.jpg"},
 }
 
@@ -64,7 +64,7 @@ class CalibrationTool:
         self.rmse_val_px: float = -1.0
         self.rmse_val_m:  float = -1.0
 
-        # Parámetros intrínsecos (Issue #29)
+        # Parametros intrinsecos (Issue #29)
         self.K = np.eye(3, dtype=np.float64)
         self.D = np.zeros(5, dtype=np.float64)
         self.use_undistort = False
@@ -76,7 +76,7 @@ class CalibrationTool:
 
         img = cv2.imread(self.img_path)
         if img is None:
-            raise FileNotFoundError(f"No se encontró la imagen: {self.img_path}")
+            raise FileNotFoundError(f"No se encontro la imagen: {self.img_path}")
         self.img_orig = img.copy()
         self.display  = img.copy()
 
@@ -89,7 +89,7 @@ class CalibrationTool:
         return os.path.join(CALIB_DIR, f"cam_{self.cam_idx}_profile.json")
 
     def load_intrinsics(self, path: str) -> bool:
-        """Carga parámetros K y D de un JSON."""
+        """Carga parametros K y D de un JSON."""
         if not os.path.exists(path):
             return False
         try:
@@ -98,10 +98,10 @@ class CalibrationTool:
             self.K = np.array(data["K"], dtype=np.float64)
             self.D = np.array(data["D"], dtype=np.float64)
             self.use_undistort = True
-            print(f"Intrínsecos cargados desde {path}")
+            print(f"Intrinsecos cargados desde {path}")
             return True
         except Exception as e:
-            print(f"Error cargando intrínsecos: {e}")
+            print(f"Error cargando intrinsecos: {e}")
             return False
 
     def load_gcps(self) -> bool:
@@ -120,7 +120,7 @@ class CalibrationTool:
             self.rmse_val_px = data.get("rmse_val_px", -1.0)
             self.rmse_val_m  = data.get("rmse_val_m",  -1.0)
 
-        # Cargar intrínsecos si existen en el perfil
+        # Cargar intrinsecos si existen en el perfil
         if "K" in data and "D" in data:
             self.K = np.array(data["K"], dtype=np.float64)
             self.D = np.array(data["D"], dtype=np.float64)
@@ -131,11 +131,11 @@ class CalibrationTool:
 
     def load_from_reference_csv(self, csv_path: str = "proces_images/data/GCP.csv"):
         """
-        Importa puntos píxel desde el Excel/CSV predeterminado (Issue #24-28).
+        Importa puntos pixel desde el Excel/CSV predeterminado (Issue #24-28).
         Usa un esquema de mapeo para asignar UTMs a etiquetas 'A', 'V', 'FIJO'.
         """
         if not os.path.exists(csv_path):
-            print(f"  [!] No se encontró el archivo de referencia: {csv_path}")
+            print(f"  [!] No se encontro el archivo de referencia: {csv_path}")
             return False
 
         # Mapeo de UTMs por etiqueta (ESQUEMA - para completar con datos reales)
@@ -166,7 +166,7 @@ class CalibrationTool:
                     label = row[2] # A, V, FIJO
                     u, v = float(row[3]), float(row[4])
 
-                    # Intentar obtener UTM si ya está en el CSV, si no usar el esquema BUOY_UTM
+                    # Intentar obtener UTM si ya esta en el CSV, si no usar el esquema BUOY_UTM
                     utm_x = float(row[5]) if len(row) > 5 and row[5] else 0.0
                     utm_y = float(row[6]) if len(row) > 6 and row[6] else 0.0
 
@@ -213,7 +213,7 @@ class CalibrationTool:
         with open(path, "w") as f:
             json.dump(data, f, indent=2)
 
-        # También guardar H como .npy para uso directo en OpenCV
+        # Tambien guardar H como .npy para uso directo en OpenCV
         if self.H is not None:
             npy_path = path.replace("_profile.json", "_H.npy")
             np.save(npy_path, self.H)
@@ -222,11 +222,11 @@ class CalibrationTool:
         print(f"Perfil guardado: {path}")
 
     # ------------------------------------------------------------------
-    # Calibración
+    # Calibracion
     # ------------------------------------------------------------------
 
     def undistort_points(self, pts_px: np.ndarray) -> np.ndarray:
-        """Aplica corrección de distorsión a puntos en píxeles."""
+        """Aplica correccion de distorsion a puntos en pixeles."""
         if not self.use_undistort:
             return pts_px
         pts_reshaped = pts_px.reshape(-1, 1, 2).astype(np.float32)
@@ -234,32 +234,32 @@ class CalibrationTool:
         return undistorted.reshape(-1, 2)
 
     def compute_homography(self) -> bool:
-        # Separar puntos de calibración y validación (Issue #31)
+        # Separar puntos de calibracion y validacion (Issue #31)
         calib_gcps = [g for g in self.gcps if g.get("type", "calib") == "calib"]
         val_gcps   = [g for g in self.gcps if g.get("type") == "val"]
 
         if len(calib_gcps) < 4:
-            print(f"Faltan GCPs de calibración: {len(calib_gcps)}/4 mínimo.")
+            print(f"Faltan GCPs de calibracion: {len(calib_gcps)}/4 minimo.")
             return False
 
-        pts_px_orig  = np.array([[g["pixel"][0], g["pixel"][1]] for g in calib_gcps],
+        pts_px_orig  = np.array([g["pixel"][0], g["pixel"][1] for g in calib_gcps],
                                 dtype=np.float32)
-        pts_utm = np.array([[g["utm"][0],   g["utm"][1]]   for g in calib_gcps],
+        pts_utm = np.array([g["utm"][0],   g["utm"][1]   for g in calib_gcps],
                            dtype=np.float32)
 
-        # Corregir distorsión si aplica (Issue #29)
+        # Corregir distorsion si aplica (Issue #29)
         pts_px = self.undistort_points(pts_px_orig)
 
         H, mask = cv2.findHomography(pts_px, pts_utm,
                                      cv2.RANSAC, ransacReprojThreshold=5.0)
         if H is None:
-            print("RANSAC no pudo estimar la homografía.")
+            print("RANSAC no pudo estimar la homografia.")
             return False
 
         self.H = H
         inliers = int(mask.sum()) if mask is not None else len(calib_gcps)
 
-        # RMSE Calibración
+        # RMSE Calibracion
         H_inv, _ = cv2.invert(H)
         proj_utm = cv2.perspectiveTransform(pts_px.reshape(-1, 1, 2), H).reshape(-1, 2)
         self.rmse_m = float(np.sqrt(np.mean(np.linalg.norm(proj_utm - pts_utm, axis=1)**2)))
@@ -267,10 +267,10 @@ class CalibrationTool:
         reproj_px = cv2.perspectiveTransform(pts_utm.reshape(-1, 1, 2), H_inv).reshape(-1, 2)
         self.rmse_px = float(np.sqrt(np.mean(np.linalg.norm(reproj_px - pts_px, axis=1)**2)))
 
-        # RMSE Validación (Issue #31)
+        # RMSE Validacion (Issue #31)
         if val_gcps:
-            vpts_px_orig = np.array([[g["pixel"][0], g["pixel"][1]] for g in val_gcps], dtype=np.float32)
-            vpts_utm     = np.array([[g["utm"][0],   g["utm"][1]]   for g in val_gcps], dtype=np.float32)
+            vpts_px_orig = np.array([g["pixel"][0], g["pixel"][1] for g in val_gcps], dtype=np.float32)
+            vpts_utm     = np.array([g["utm"][0],   g["utm"][1]   for g in val_gcps], dtype=np.float32)
             vpts_px      = self.undistort_points(vpts_px_orig)
             
             vproj_utm = cv2.perspectiveTransform(vpts_px.reshape(-1, 1, 2), H).reshape(-1, 2)
@@ -282,14 +282,14 @@ class CalibrationTool:
             self.rmse_val_px = -1.0
             self.rmse_val_m  = -1.0
 
-        print(f"\n  Homografía calculada  ({inliers}/{len(calib_gcps)} inliers)")
+        print(f"\n  Homografia calculada  ({inliers}/{len(calib_gcps)} inliers)")
         print(f"  RMSE Calib : {self.rmse_px:.3f} px / {self.rmse_m:.3f} m")
         if val_gcps:
             print(f"  RMSE Valid : {self.rmse_val_px:.3f} px / {self.rmse_val_m:.3f} m")
         return True
 
     # ------------------------------------------------------------------
-    # Visualización
+    # Visualizacion
     # ------------------------------------------------------------------
 
     def _render(self):
@@ -299,7 +299,7 @@ class CalibrationTool:
         for i, gcp in enumerate(self.gcps):
             u, v   = int(gcp["pixel"][0]), int(gcp["pixel"][1])
             is_val = gcp.get("type") == "val"
-            color  = (255, 100, 0) if is_val else COLORS["gcp"] # Azul para validación
+            color  = (255, 100, 0) if is_val else COLORS["gcp"] # Azul para validacion
             label  = gcp.get("label", f"GCP_{i+1:02d}")
             
             cv2.circle(self.display, (u, v), 8, color, 2)
@@ -307,16 +307,16 @@ class CalibrationTool:
             cv2.putText(self.display, label, (u + 10, v - 6),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, COLORS["text"], 1, cv2.LINE_AA)
 
-            # Reproyección (si H existe)
+            # Reproyeccion (si H existe)
             if self.H is not None:
                 H_inv, _ = cv2.invert(self.H)
-                pt_utm   = np.array([[[gcp["utm"][0], gcp["utm"][1]]]], dtype=np.float32)
+                pt_utm   = np.array([[gcp["utm"][0], gcp["utm"][1]], dtype=np.float32)
                 rep_px_undist = cv2.perspectiveTransform(pt_utm, H_inv).reshape(2)
                 
                 # Para visualizar sobre la imagen distorsionada original, 
-                # en teoría deberíamos "redistorsionar" el punto, pero por ahora 
-                # asumimos que la visualización es aproximada o la imagen ya está corregida.
-                # Si use_undistort es True, los puntos dibujados estarán ligeramente desplazados
+                # en teoria deberiamos "redistorsionar" el punto, pero por ahora 
+                # asumimos que la visualizacion es aproximada o la imagen ya esta corregida.
+                # Si use_undistort es True, los puntos dibujados estaran ligeramente desplazados
                 # respecto a sus posiciones corregidas.
                 ru, rv = int(rep_px_undist[0]), int(rep_px_undist[1])
                 cv2.circle(self.display, (ru, rv), 6, COLORS["reproj"], 2)
@@ -338,13 +338,13 @@ class CalibrationTool:
         
         lines += [
             "",
-            "L-Click → añadir GCP CALIB",
-            "R-Click → añadir GCP VALID",
-            "'a'     → CARGAR REF. EXCEL/CSV",
-            "'h'     → calcular homografia",
-            "'s'     → guardar perfil",
-            "'r'     → deshacer ultimo",
-            "'q'     → salir",
+            "L-Click -> anadir GCP CALIB",
+            "R-Click -> anadir GCP VALID",
+            "'a'     -> CARGAR REF. EXCEL/CSV",
+            "'h'     -> calcular homografia",
+            "'s'     -> guardar perfil",
+            "'r'     -> deshacer ultimo",
+            "'q'     -> salir",
         ]
         
         panel_w = 360
@@ -405,7 +405,7 @@ class CalibrationTool:
                 X, Y = float(parts[0]), float(parts[1])
                 label = f"GCP_{len(self.gcps) + 1:02d}"
             except ValueError:
-                print("  Valores no numéricos.")
+                print("  Valores no numericos.")
                 return
 
         self.gcps.append({
@@ -414,12 +414,12 @@ class CalibrationTool:
             "label": label, 
             "type": "val" if is_val else "calib"
         })
-        print(f"  GCP añadido: {label} ({type_str}) → pixel({x},{y}) UTM({X:.2f},{Y:.2f})")
+        print(f"  GCP anadido: {label} ({type_str}) -> pixel({x},{y}) UTM({X:.2f},{Y:.2f})")
         self._render()
         cv2.imshow(self._win_name, self.display)
 
     def save_diagnostic_image(self):
-        """Exporta una imagen con los errores de reproyección magnificados."""
+        """Exporta una imagen con los errores de reproyeccion magnificados."""
         if self.H is None:
             return
         
@@ -428,7 +428,7 @@ class CalibrationTool:
         
         for gcp in self.gcps:
             u, v = gcp["pixel"]
-            pt_utm = np.array([[[gcp["utm"][0], gcp["utm"][1]]]], dtype=np.float32)
+            pt_utm = np.array([[gcp["utm"][0], gcp["utm"][1]], dtype=np.float32)
             rep_px = cv2.perspectiveTransform(pt_utm, H_inv).reshape(2)
             ru, rv = int(rep_px[0]), int(rep_px[1])
             
@@ -440,7 +440,7 @@ class CalibrationTool:
             
         out_path = self.profile_path().replace("_profile.json", "_diagnostic.png")
         cv2.imwrite(out_path, diag)
-        print(f"Imagen de diagnóstico guardada: {out_path}")
+        print(f"Imagen de diagnostico guardada: {out_path}")
 
     def run(self):
         # Simplificar nombre para evitar problemas con algunos backends de GUI
@@ -455,10 +455,10 @@ class CalibrationTool:
         cv2.imshow(self._win_name, self.display)
         cv2.setMouseCallback(self._win_name, self._mouse_callback)
 
-        print(f"\n=== Calibración {self.cam['name']} ===")
+        print(f"\n=== Calibracion {self.cam['name']} ===")
         print(f"  Imagen: {self.img_path}")
         print(f"  GCPs cargados: {len(self.gcps)}")
-        print("  L-Click: añadir CALIB, R-Click: añadir VALID.\n")
+        print("  L-Click: anadir CALIB, R-Click: anadir VALID.\n")
 
         while True:
             key = cv2.waitKey(50) & 0xFF
@@ -474,7 +474,7 @@ class CalibrationTool:
                     cv2.imshow(self._win_name, self.display)
             elif key == ord('s'):
                 if self.H is None:
-                    print("Calcula primero la homografía con 'h'.")
+                    print("Calcula primero la homografia con 'h'.")
                 else:
                     self.save_profile()
             elif key == ord('p'):
@@ -490,11 +490,11 @@ class CalibrationTool:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Herramienta de calibración píxel↔UTM")
+    ap = argparse.ArgumentParser(description="Herramienta de calibracion pixel↔UTM")
     ap.add_argument("--cam",   type=int, required=True, choices=range(1, 7),
-                    help="Índice de cámara (1–6)")
+                    help="Indice de camara (1–6)")
     ap.add_argument("--image", type=str, default=None,
-                    help="Ruta a imagen de referencia (por defecto: latest de la cámara)")
+                    help="Ruta a imagen de referencia (por defecto: latest de la camara)")
     ap.add_argument("--load",  action="store_true",
                     help="Cargar GCPs existentes del perfil guardado")
     args = ap.parse_args()

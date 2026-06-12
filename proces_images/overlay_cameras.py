@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-overlay_cameras.py — Mosaico de las 6 cámaras con detección ORB
+overlay_cameras.py - Mosaico de las 6 camaras con deteccion ORB
 
 Uso:
-  python overlay_cameras.py                    # mosaico con imágenes latest
+  python overlay_cameras.py                    # mosaico con imagenes latest
   python overlay_cameras.py --match 1 2        # matching ORB entre CAM 1 y CAM 2
   python overlay_cameras.py --save             # guardar mosaico en output/
 """
@@ -59,7 +59,7 @@ def _make_cell(cam: dict) -> np.ndarray:
     vis = cv2.drawKeypoints(img, kp, None, color=(0, 255, 80),
                             flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
     header = np.full((HEADER_H, THUMB_W, 3), 25, dtype=np.uint8)
-    label  = f"{cam['name']}  (id {cam['id']})  —  {len(kp)} features"
+    label  = f"{cam['name']}  (id {cam['id']})  -  {len(kp)} features"
     cv2.putText(header, label, (10, 25),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.58, (0, 220, 220), 1, cv2.LINE_AA)
     return np.vstack([header, vis])
@@ -74,7 +74,7 @@ def build_mosaic() -> np.ndarray:
     canvas_h = ROWS * cell_h + (ROWS - 1) * MARGIN + 55
     canvas   = np.full((canvas_h, canvas_w, 3), 15, dtype=np.uint8)
 
-    cv2.putText(canvas, "cv-lit — Mosaico de camaras con ORB features",
+    cv2.putText(canvas, "cv-lit - Mosaico de camaras con ORB features",
                 (20, 38), cv2.FONT_HERSHEY_SIMPLEX, 0.85, (255, 255, 255), 2, cv2.LINE_AA)
 
     for i, cell in enumerate(cells):
@@ -109,7 +109,7 @@ def show_matching(idx_a: int, idx_b: int) -> np.ndarray:
 
     header = np.full((40, vis.shape[1], 3), 20, dtype=np.uint8)
     label  = (f"Matching ORB: {cam_a['name']} vs {cam_b['name']}"
-              f"  —  {len(top50)} matches (de {len(matches)} totales)")
+              f"  -  {len(top50)} matches (de {len(matches)} totales)")
     cv2.putText(header, label, (12, 26),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.62, (0, 220, 220), 1, cv2.LINE_AA)
     return np.vstack([header, vis])
@@ -135,23 +135,23 @@ def _show(title: str, img: np.ndarray, save: bool = False, filename: str = "outp
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Overlay y análisis de cámaras")
+    ap = argparse.ArgumentParser(description="Overlay y analisis de camaras")
     ap.add_argument("--match", nargs=2, type=int, metavar=("A", "B"),
-                    help="Mostrar matching ORB entre CAM A y CAM B (1–6)")
+                    help="Mostrar matching ORB entre CAM A y CAM B (1-6)")
     ap.add_argument("--save", action="store_true", help="Guardar imagen en output/")
     args = ap.parse_args()
 
     if args.match:
         a, b = args.match
         if not (1 <= a <= 6 and 1 <= b <= 6):
-            print("Los índices de cámara deben estar entre 1 y 6.")
+            print("Los indices de camara deben estar entre 1 y 6.")
             return
         img = show_matching(a, b)
         _show(f"Matching CAM {a} vs CAM {b}", img, args.save,
               f"matching_cam{a}_cam{b}.jpg")
     else:
         img = build_mosaic()
-        _show("Mosaico cámaras — ESC/tecla para cerrar", img, args.save,
+        _show("Mosaico camaras - ESC/tecla para cerrar", img, args.save,
               "mosaic_cameras.jpg")
 
 

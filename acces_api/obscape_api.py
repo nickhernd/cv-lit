@@ -1,12 +1,12 @@
 """
 Cliente para la API de Obscape.
-Descarga imágenes y metadatos de estaciones de cámaras fijas.
+Descarga imagenes y metadatos de estaciones de camaras fijas.
 
 Uso:
-    python obscape_api.py                                             # listar cámaras
-    python obscape_api.py --download                                  # última imagen de cada cámara
-    python obscape_api.py --download --all                            # Todo el historial de todas las cámaras
-    python obscape_api.py --station 8213 --download                   # última imagen de CAM 1
+    python obscape_api.py                                             # listar camaras
+    python obscape_api.py --download                                  # ultima imagen de cada camara
+    python obscape_api.py --download --all                            # Todo el historial de todas las camaras
+    python obscape_api.py --station 8213 --download                   # ultima imagen de CAM 1
     python obscape_api.py --station 8214 --from 2026-05-01 --to 2026-05-20 --download
     python obscape_api.py --station 8214 --from 2026-05-01 --to 2026-05-20 --download --all-hours
 
@@ -33,12 +33,12 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-# ── Configuración ──────────────────────────────────────────────────────────────
+# ── Configuracion ──────────────────────────────────────────────────────────────
 API_URL  = "https://obscape.com/portal/api/v3/api"
 USERNAME = "fuster"
 API_KEY  = "c1RyHhP6aJBPRHwIUrpz9eEPHPGhlbuMZIujEUvWTJaJPXJO0x"
 
-# Fecha de inicio del proyecto (límite para --all)
+# Fecha de inicio del proyecto (limite para --all)
 PROJECT_START = "2026-01-01T00:00:00"
 
 # Directorios de salida
@@ -55,7 +55,7 @@ class ObscapeClient:
         self.session  = requests.Session()
         self.session.headers.update({"User-Agent": "cv-lit/1.0"})
         
-        # Configurar reintentos automáticos (Issue 99)
+        # Configurar reintentos automaticos (Issue 99)
         retry_strategy = Retry(
             total=3,
             backoff_factor=2, # 2s, 4s, 8s
@@ -128,14 +128,14 @@ class ObscapeClient:
         return r.json()
 
     def check_health(self, station_name: str, metadata: dict):
-        """Alertas de estado de la cámara (Issue 101)."""
-        # Metadatos típicos: battery (V), rssi (dBm), tilt (deg)
+        """Alertas de estado de la camara (Issue 101)."""
+        # Metadatos tipicos: battery (V), rssi (dBm), tilt (deg)
         bat = metadata.get("battery")
         rssi = metadata.get("rssi")
         if bat is not None and bat < 11.5:
-            print(f"  [⚠️] Batería BAJA en {station_name}: {bat}V")
+            print(f"  [WARNING] Bateria BAJA en {station_name}: {bat}V")
         if rssi is not None and rssi < -90:
-            print(f"  [⚠️] Señal DÉBIL en {station_name}: {rssi}dBm")
+            print(f"  [WARNING] Senal DEBIL en {station_name}: {rssi}dBm")
 
     def download_image(
         self,
@@ -202,7 +202,7 @@ class ObscapeClient:
             return img_path, True
         except Exception as e:
             self.log_event(station_id, station_name, ts_val, "ERROR", str(e))
-            print(f"  [!] Excepción: {e}")
+            print(f"  [!] Excepcion: {e}")
             return None, False
 
 
@@ -216,7 +216,7 @@ class ObscapeClient:
         hour_filter: int | None = 12,
     ) -> list[Path]:
         """
-        Descarga imágenes + JSON en un rango de fechas.
+        Descarga imagenes + JSON en un rango de fechas.
         Retorna lista de nuevos paths descargados.
         """
         data = self.get_station_data(station_id, from_dt=from_dt, to_dt=to_dt, tz="local")
@@ -243,17 +243,17 @@ class ObscapeClient:
 def main():
     parser = argparse.ArgumentParser(description="Cliente API Obscape")
     parser.add_argument("--station",   default=None,
-                        help="ID de estación (ej: 8213 para CAM 1)")
+                        help="ID de estacion (ej: 8213 para CAM 1)")
     parser.add_argument("--from",      dest="from_dt", default=None,
                         help="Fecha inicio yyyy-mm-dd o yyyy-mm-ddThh:mm:ss")
     parser.add_argument("--to",        dest="to_dt", default=None,
                         help="Fecha fin yyyy-mm-dd o yyyy-mm-ddThh:mm:ss")
     parser.add_argument("--latest",    type=int, default=None,
-                        help="Últimas N horas (solo visualización)")
+                        help="Ultimas N horas (solo visualizacion)")
     parser.add_argument("--download",  action="store_true",
-                        help="Descargar imágenes")
+                        help="Descargar imagenes")
     parser.add_argument("--all",       dest="all_data", action="store_true",
-                        help="Descargar TODO el historial (todas las cámaras, todas las horas)")
+                        help="Descargar TODO el historial (todas las camaras, todas las horas)")
     parser.add_argument("--all-hours", action="store_true",
                         help="En un rango --from/--to, descargar todas las horas (no solo 12:00h)")
     parser.add_argument("--out",       default=str(OUT_DIR),
@@ -271,21 +271,21 @@ def main():
     args.from_dt = norm_date(args.from_dt)
     args.to_dt   = norm_date(args.to_dt)
 
-    # Listar cámaras
-    print("=== Cámaras disponibles ===")
+    # Listar camaras
+    print("=== Camaras disponibles ===")
     stations = client.list_stations(cameras_only=True)
     for s in stations:
         print(f"  {s['id']:>6}  {s['name']}  ({s['latitude']}, {s['longitude']})")
 
     if not stations:
-        print("  [!] Sin cámaras. Verificar credenciales.")
+        print("  [!] Sin camaras. Verificar credenciales.")
         sys.exit(1)
 
     # Seleccionar estaciones objetivo
     if args.station:
         target_stations = [s for s in stations if s["id"] == args.station]
         if not target_stations:
-            print(f"  [!] Estación {args.station} no encontrada.")
+            print(f"  [!] Estacion {args.station} no encontrada.")
             sys.exit(1)
     else:
         target_stations = stations
@@ -296,15 +296,15 @@ def main():
         # Descargar TODO el historial: desde PROJECT_START hasta hoy, todas las horas
         to_dt = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         total = 0
-        print(f"\n=== Descarga completa ({PROJECT_START} → {to_dt}) ===")
+        print(f"\n=== Descarga completa ({PROJECT_START} -> {to_dt}) ===")
         for s in target_stations:
             print(f"\n--- {s['name']} (id={s['id']}) ---")
             saved = client.download_range(
                 s["id"], s["name"], PROJECT_START, to_dt, out_dir, hour_filter=None
             )
             total += len(saved)
-            print(f"  {len(saved)} imágenes → {out_dir}/{s['name'].replace(' ', '_')}/")
-        print(f"\nTotal: {total} imágenes descargadas.")
+            print(f"  {len(saved)} imagenes -> {out_dir}/{s['name'].replace(' ', '_')}/")
+        print(f"\nTotal: {total} imagenes descargadas.")
 
     elif args.download:
         if args.from_dt and args.to_dt:
@@ -316,10 +316,10 @@ def main():
                     s["id"], s["name"], args.from_dt, args.to_dt, out_dir, hour_filter=hour
                 )
                 total += len(saved)
-                print(f"  {len(saved)} imágenes → {out_dir}/{s['name'].replace(' ', '_')}/")
-            print(f"\nTotal: {total} imágenes descargadas.")
+                print(f"  {len(saved)} imagenes -> {out_dir}/{s['name'].replace(' ', '_')}/")
+            print(f"\nTotal: {total} imagenes descargadas.")
         else:
-            print("\nDescargando última imagen de cada cámara...")
+            print("\nDescargando ultima imagen de cada camara...")
             for s in target_stations:
                 print(f"\n=== {s['name']} (id={s['id']}) ===")
                 latest_data = client.get_station_data(s["id"], latest_hours=1, tz="local")
@@ -335,10 +335,10 @@ def main():
             data = client.get_station_data(s["id"], latest_hours=latest, tz="local")
             params_info = data.get("parameters", [])
             points = data.get("data", [])
-            print(f"Parámetros: {[p['name'] for p in params_info]}")
-            print(f"Puntos en las últimas {latest}h: {len(points)}")
+            print(f"Parametros: {[p['name'] for p in params_info]}")
+            print(f"Puntos en las ultimas {latest}h: {len(points)}")
             if points:
-                print("Últimos 3 puntos:")
+                print("Ultimos 3 puntos:")
                 for pt in points[-3:]:
                     print(f"  {pt}")
 

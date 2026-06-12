@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-pipeline_schema.py — Diagrama visual del pipeline cv-lit
+pipeline_schema.py - Diagrama visual del pipeline cv-lit
 
 Genera un PNG con el flujo completo:
-  Obscape API → Preprocesado → SAM → Extracción → Homografía → GeoJSON
-  más el módulo offline de Calibración que alimenta la Homografía.
+  Obscape API -> Preprocesado -> SAM -> Extraccion -> Homografia -> GeoJSON
+  mas el modulo offline de Calibracion que alimenta la Homografia.
 
 Uso:
   python pipeline_schema.py              # muestra en pantalla
@@ -19,7 +19,7 @@ from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
 
 OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
 
-# ── Paleta ────────────────────────────────────────────────────────────────────
+# --- Paleta --------------------------------------------------------------------
 C = {
     "bg":       "#0d1117",
     "main":     "#1e2d3d",
@@ -34,58 +34,58 @@ C = {
     "title":    "#79c0ff",
 }
 
-# ── Definición de nodos ───────────────────────────────────────────────────────
+# --- Definicion de nodos -------------------------------------------------------
 NODES = [
-    # (id, x, y, w, h, título, subtítulo, tipo)
+    # (id, x, y, w, h, titulo, subtitulo, tipo)
     ("entrada",  0.50, 0.90, 0.30, 0.07,
-     "Imágenes Obscape API",
-     "6 cámaras · 12:00h · CAM 1–6",
+     "Imagenes Obscape API",
+     "6 camaras * 12:00h * CAM 1-6",
      "main"),
 
     ("preproc",  0.50, 0.76, 0.34, 0.09,
      "3.1  Preprocesado",
-     "Normalización radiométrica\nBalance de blancos · Recorte ROI",
+     "Normalizacion radiometrica\nBalance de blancos * Recorte ROI",
      "main"),
 
     ("sam",      0.50, 0.60, 0.38, 0.10,
-     "3.2  Segmentación semántica  (SAM)",
-     "Mapa probabilístico: arena seca / húmeda / agua\n"
-     "Umbral adaptativo + filtrado morfológico → máscara binaria",
+     "3.2  Segmentacion semantica  (SAM)",
+     "Mapa probabilistico: arena seca / humeda / agua\n"
+     "Umbral adaptativo + filtrado morfologico -> mascara binaria",
      "main"),
 
     ("linea",    0.50, 0.445, 0.36, 0.09,
-     "3.3  Extracción de línea de costa",
-     "cv2.findContours · borde húmedo–seco\n"
-     "Polilínea en coordenadas de píxel  (u, v)",
+     "3.3  Extraccion de linea de costa",
+     "cv2.findContours * borde humedo-seco\n"
+     "Polilinea en coordenadas de pixel  (u, v)",
      "main"),
 
     ("homo",     0.50, 0.295, 0.34, 0.09,
-     "3.4  Proyección homografía",
-     "(u, v)  →  (X, Y)  EPSG:25830\n"
-     "Matriz H por cámara  (3×3)",
+     "3.4  Proyeccion homografia",
+     "(u, v)  ->  (X, Y)  EPSG:25830\n"
+     "Matriz H por camara  (3x3)",
      "main"),
 
     ("export",   0.50, 0.135, 0.40, 0.10,
-     "3.5  Postprocesado + Exportación",
-     "Suavizado Douglas-Peucker · Filtros temporales\n"
-     "Área seca (m²) · GeoJSON: ID_Camara, Timestamp,\n"
+     "3.5  Postprocesado + Exportacion",
+     "Suavizado Douglas-Peucker * Filtros temporales\n"
+     "Area seca (m2) * GeoJSON: ID_Camara, Timestamp,\n"
      "Confianza_IA, Area_Seca_m2  [EPSG:25830]",
      "main"),
 
-    # Módulo offline calibración (columna izquierda)
+    # Modulo offline calibracion (columna izquierda)
     ("gcps",     0.13, 0.76, 0.18, 0.07,
      "GCPs GNSS  (IEL)",
-     "EPSG:25830 · ≥8 puntos\n(bloqueado — pendiente IEL)",
+     "EPSG:25830 * >=8 puntos\n(bloqueado - pendiente IEL)",
      "calib"),
 
     ("calib",    0.13, 0.60, 0.20, 0.10,
-     "3.0  Calibración  (offline)",
-     "Correspondencias píxel ↔ UTM\ncv2.findHomography + RANSAC\n"
-     "Perfil: H · K · dist · RMSE",
+     "3.0  Calibracion  (offline)",
+     "Correspondencias pixel <-> UTM\ncv2.findHomography + RANSAC\n"
+     "Perfil: H * K * dist * RMSE",
      "calib"),
 ]
 
-# ── Flechas ───────────────────────────────────────────────────────────────────
+# --- Flechas -------------------------------------------------------------------
 ARROWS_MAIN = [
     ("entrada", "preproc"),
     ("preproc", "sam"),
@@ -94,7 +94,7 @@ ARROWS_MAIN = [
     ("homo",    "export"),
 ]
 
-# GCPs → Calib → H (flecha que entra en homo)
+# GCPs -> Calib -> H (flecha que entra en homo)
 ARROWS_CALIB = [
     ("gcps",  "calib"),
     ("calib", "homo"),
@@ -118,16 +118,16 @@ def draw(save: bool = False):
     ax.set_ylim(0, 1)
     ax.axis("off")
 
-    # Título
-    ax.text(0.50, 0.97, "cv-lit — Pipeline de detección de línea de costa",
+    # Titulo
+    ax.text(0.50, 0.97, "cv-lit - Pipeline de deteccion de linea de costa",
             ha="center", va="top", fontsize=15, fontweight="bold",
             color=C["title"], fontfamily="monospace")
-    ax.text(0.50, 0.945, "Guardamar del Segura · 6 cámaras · SAM + Homografía → GeoJSON EPSG:25830",
+    ax.text(0.50, 0.945, "Guardamar del Segura * 6 camaras * SAM + Homografia -> GeoJSON EPSG:25830",
             ha="center", va="top", fontsize=9, color=C["text_sub"])
 
     node_map = {nd[0]: nd for nd in NODES}
 
-    # ── Dibujar nodos ──────────────────────────────────────────────────────
+    # --- Dibujar nodos ------------------------------------------------------
     for nd in NODES:
         nid, x, y, w, h, title, sub, typ = nd
         bx, by, bw, bh = _node_rect(nd)
@@ -141,18 +141,18 @@ def draw(save: bool = False):
                              transform=ax.transAxes, zorder=3)
         ax.add_patch(box)
 
-        # Título del nodo
+        # Titulo del nodo
         ax.text(x, y + bh * 0.18, title,
                 ha="center", va="center", fontsize=9.5, fontweight="bold",
                 color=C["text"], transform=ax.transAxes, zorder=4)
 
-        # Subtítulo
+        # Subtitulo
         ax.text(x, y - bh * 0.16, sub,
                 ha="center", va="center", fontsize=7.5,
                 color=C["text_sub"], transform=ax.transAxes, zorder=4,
                 linespacing=1.45)
 
-    # ── Flechas principales (canal central) ───────────────────────────────
+    # --- Flechas principales (canal central) -------------------------------
     for src_id, dst_id in ARROWS_MAIN:
         src = node_map[src_id]
         dst = node_map[dst_id]
@@ -167,8 +167,8 @@ def draw(save: bool = False):
                         connectionstyle="arc3,rad=0.0"),
                     zorder=2)
 
-    # ── Flechas calibración ───────────────────────────────────────────────
-    # GCPs → Calib (vertical)
+    # --- Flechas calibracion -----------------------------------------------
+    # GCPs -> Calib (vertical)
     src = node_map["gcps"]
     dst = node_map["calib"]
     ax.annotate("", xy=(dst[1], dst[2] + dst[4] / 2 + 0.004),
@@ -179,7 +179,7 @@ def draw(save: bool = False):
                     color=C["arrow_c"], lw=1.6),
                 zorder=2)
 
-    # Calib → homo (diagonal izquierda → centro)
+    # Calib -> homo (diagonal izquierda -> centro)
     src = node_map["calib"]
     dst = node_map["homo"]
     sx  = src[1] + src[3] / 2       # lado derecho del bloque calib
@@ -194,17 +194,17 @@ def draw(save: bool = False):
                     connectionstyle="arc3,rad=-0.15"),
                 zorder=2)
 
-    # ── Leyenda ───────────────────────────────────────────────────────────
+    # --- Leyenda -----------------------------------------------------------
     legend_items = [
         mpatches.Patch(facecolor=C["main"],  edgecolor=C["border_m"], label="Pipeline principal"),
-        mpatches.Patch(facecolor=C["calib"], edgecolor=C["border_c"], label="Módulo offline — Calibración"),
+        mpatches.Patch(facecolor=C["calib"], edgecolor=C["border_c"], label="Modulo offline - Calibracion"),
     ]
     ax.legend(handles=legend_items, loc="lower right",
               facecolor=C["bg"], edgecolor=C["border_m"],
               labelcolor=C["text"], fontsize=8.5, framealpha=0.9)
 
-    # ── Etiqueta módulo offline ───────────────────────────────────────────
-    ax.text(0.13, 0.83, "OFFLINE\n(una vez por cámara)",
+    # --- Etiqueta modulo offline -------------------------------------------
+    ax.text(0.13, 0.83, "OFFLINE\n(una vez por camara)",
             ha="center", va="bottom", fontsize=7.5,
             color=C["border_c"], style="italic",
             transform=ax.transAxes)
