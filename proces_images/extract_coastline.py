@@ -1,62 +1,49 @@
-#!/usr/bin/env python3
-"""
-extract_coastline.py — Módulo para extraer la línea de costa desde una máscara binaria.
-
-Flujo:
-  1. Recibir máscara binaria (255=arena, 0=resto).
-  2. Detectar contornos (cv2.findContours).
-  3. Filtrar y seleccionar el contorno de la interfaz arena-mar.
-  4. Suavizar y simplificar la polilínea.
-"""
-
 import cv2
 import numpy as np
 
-def extract_coastline_from_mask(mask, min_length=100, epsilon_factor=0.001):
+def extract_coastline_from_mask(mask, min_length=500):
     """
-    Extrae la polilínea de la línea de costa.
-    mask: máscara binaria (0-255).
-    min_length: longitud mínima del contorno para ser considerado.
-    epsilon_factor: factor de simplificación Douglas-Peucker.
+    Extrae la línea de costa adaptada a resoluciones 4K.
     """
-    # 1. Encontrar contornos
-    # RETR_EXTERNAL para obtener solo los bordes exteriores
+    h, w = mask.shape
+    
+    # 1. Ignorar el tercio superior de la imagen (Cielo/Montañas)
+    # En 4K (2682px de alto), ignoramos los primeros 1000px
+    mask[0:int(h*0.4), :] = 0 
+    
+    # 2. Ignorar bordes laterales (3% de cada lado)
+    margin = int(w * 0.03)
+    mask[:, 0:margin] = 0
+    mask[:, w-margin:w] = 0
+    
+    # 3. Encontrar contornos
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
     if not contours:
         return None
 
-    # 2. Filtrar por longitud y seleccionar el principal
-    # En una playa, la línea de costa suele ser el contorno más largo que cruza la ROI
+    # 4. Quedarnos con el contorno más largo (debe ser la orilla)
+    # Aumentamos min_length porque en 4K los contornos son mucho más largos
     valid_contours = [c for c in contours if cv2.arcLength(c, False) > min_length]
-    
     if not valid_contours:
         return None
-    
-    # Seleccionamos el más largo como candidato a línea de costa
+        
     main_contour = max(valid_contours, key=lambda c: cv2.arcLength(c, False))
     
-    # 3. Simplificación de la polilínea (Douglas-Peucker)
-    epsilon = epsilon_factor * cv2.arcLength(main_contour, False)
+    # Simplificar para suavizar la línea
+    epsilon = 0.0015 * cv2.arcLength(main_contour, False)
     approx = cv2.approxPolyDP(main_contour, epsilon, False)
     
-    # 4. Convertir a lista de puntos (u, v)
-    points = approx.reshape(-1, 2).tolist()
-    
-    return points
+    return approx.reshape(-1, 2).tolist()
 
-def draw_coastline(image, points, color=(0, 255, 0), thickness=2):
-    """Dibuja la línea de costa sobre una imagen."""
+def draw_coastline(image, points, color=(0, 0, 255), thickness=6):
+    """Dibuja la línea en ROJO grueso para 4K."""
     if not points:
         return image
-    
     pts = np.array(points, dtype=np.int32).reshape((-1, 1, 2))
     cv2.polylines(image, [pts], False, color, thickness, cv2.LINE_AA)
+    
+    # Texto de estado
+    cv2.putText(image, "CV-LIT 4K: DETECTADO", (100, 150), 
+                cv2.FONT_HERSHEY_SIMPLEX, 3.0, (0, 0, 255), 8)
     return image
-
-if __name__ == "__main__":
-    # Test rápido con máscara ficticia
-    dummy_mask = np.zeros((500, 500), dtype=np.uint8)
-    cv2.rectangle(dummy_mask, (100, 100), (400, 400), 255, -1)
-    pts = extract_coastline_from_mask(dummy_mask)
-    print(f"Puntos extraídos: {len(pts) if pts else 0}")

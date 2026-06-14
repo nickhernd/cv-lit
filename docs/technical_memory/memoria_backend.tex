@@ -1,0 +1,147 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{animate} % Para animaciones dentro del PDF
+
+\geometry{margin=1in}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstset{style=mystyle}
+
+\title{\textbf{Memoria Técnica Avanzada: Sistema CV-Lit} \\ \large Monitorización Litoral Automatizada mediante Visión Artificial}
+\author{Desarrollo CV-Lit \\ \small Guardamar del Segura}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Este documento presenta la fundamentación teórica y técnica del backend de CV-Lit, un sistema diseñado para la extracción automática de la línea de costa a partir de imágenes oblicuas de alta resolución (4K). Se detallan los algoritmos de segmentación en espacio de color HSV, las técnicas de filtrado sustractivo de espuma, y los métodos de estabilidad temporal mediante consenso y suavizado dinámico.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{Fundamentación Teórica}
+
+\subsection{Procesamiento en Espacio de Color HSV}
+A diferencia del modelo RGB (Red, Green, Blue), el espacio de color \textbf{HSV} (Hue, Saturation, Value) permite una separación más efectiva de la información cromática y la luminancia. Para la detección de arena, el uso de HSV es crítico debido a las variaciones de iluminación solar.
+
+\begin{itemize}
+    \item \textbf{Hue (Matiz)}: Permite identificar el rango cromático de la arena (marrones y amarillos), ignorando los azules del mar.
+    \item \textbf{Saturation (Saturación)}: La arena posee una saturación media-alta, mientras que la espuma marina y las nubes tienden a ser acromáticas (saturación cercana a cero).
+    \item \textbf{Value (Brillo)}: Utilizado para filtrar sombras extremas o reflejos especulares sobre el agua.
+\end{itemize}
+
+El filtro implementado utiliza la siguiente máscara booleana:
+\begin{equation}
+    M_{sand}(p) = 
+    \begin{cases} 
+      1 & \text{si } H \in [10, 30], S \in [40, 255], V \in [80, 230] \\
+      0 & \text{en otro caso}
+    \end{cases}
+\end{equation}
+
+\subsection{Operaciones Morfológicas}
+Para garantizar una máscara de playa continua y libre de ruido (como pequeñas manchas de espuma), se aplican operaciones basadas en la teoría de conjuntos:
+
+\begin{enumerate}
+    \item \textbf{Apertura (Opening)}: Consiste en una erosión seguida de una dilatación. Elimina objetos pequeños y delgados (ruido de espuma aislada).
+    \begin{equation}
+        A \circ B = (A \ominus B) \oplus B
+    \end{equation}
+    \item \textbf{Cierre (Closing)}: Consiste en una dilatación seguida de una erosión. Rellena huecos dentro de la masa de arena (sombras de bañistas o sombrillas).
+    \begin{equation}
+        A \bullet B = (A \oplus B) \ominus B
+    \end{equation}
+\end{enumerate}
+
+\subsection{Extracción de Contornos y Algoritmo de Suzuki}
+La extracción de la polilínea se basa en el algoritmo de seguimiento de bordes de \textbf{Suzuki et al. (1985)}. El sistema jerarquiza los contornos detectados y selecciona aquel con la mayor longitud de arco que no intersecte los bordes superiores de la ROI, asegurando que la traza corresponda a la interfaz tierra-mar.
+
+\section{Algoritmos de Estabilidad Temporal}
+
+\subsection{Filtrado por Consenso Estadístico}
+En escenarios de alta marejada, la espuma blanca puede confundir la segmentación. El sistema implementa un filtro de consenso donde la máscara final $M_{master}$ se define por el voto mayoritario de $N$ fotogramas:
+\begin{equation}
+    M_{master}(x,y) = \sum_{i=1}^{N} M_i(x,y) \geq \frac{N}{2}
+\end{equation}
+Este método elimina cualquier elemento dinámico (olas, espuma) que no sea persistente en la misma coordenada espacial.
+
+\subsection{Suavizado Dinámico (Media Móvil Ponderada)}
+Para permitir una visualización fluida de los cambios en la orilla, se aplica una actualización recursiva de la máscara:
+\begin{equation}
+    M_t = \alpha \cdot I_t + (1 - \alpha) \cdot M_{t-1}
+\end{equation}
+Donde $\alpha = 0.7$ es el factor de aprendizaje. Esto proporciona una respuesta rápida a cambios reales en la marea pero suaviza las fluctuaciones instantáneas del oleaje.
+
+\section{Geometría Proyectiva y Homografía}
+La transformación de coordenadas imagen (píxeles) a coordenadas mundo (UTM) se realiza mediante una matriz de homografía $H$. Dado que las cámaras son fijas, se asume un plano de elevación constante (Z=0).
+\begin{equation}
+    \lambda \begin{bmatrix} X_{UTM} \\ Y_{UTM} \\ 1 \end{bmatrix} = \begin{bmatrix} h_{11} & h_{12} & h_{13} \\ h_{21} & h_{22} & h_{23} \\ h_{31} & h_{32} & h_{33} \end{bmatrix} \begin{bmatrix} u_{px} \\ v_{px} \\ 1 \end{bmatrix}
+\end{equation}
+El sistema utiliza el algoritmo \textbf{RANSAC} para calcular $H$, eliminando errores de marcado en los GCPs (Ground Control Points).
+
+\newpage
+\section{Visualización de Resultados (Animación)}
+
+\subsection{Detección Dinámica en 4K}
+La siguiente animación muestra el proceso de detección dinámico sobre una serie de 6 imágenes de la Cámara 1. La traza roja indica la línea de costa estabilizada.
+
+\begin{figure}[H]
+    \centering
+    % Nota: La animación solo es visible en visores PDF compatibles como Adobe Acrobat Reader.
+    % Se utilizan los frames generados: frame_000.jpg hasta frame_005.jpg
+    \animategraphics[autoplay,loop,width=0.8\textwidth]{2}{proces_images/output/frame_}{000}{005}
+    \caption{Animación de la detección de línea de costa (Serie Temporal CAM 1).}
+\end{figure}
+
+\subsection{Análisis de Máscaras}
+A continuación se observa el comportamiento del "cerebro" del sistema, mostrando cómo la máscara sustractiva elimina la espuma y aisla la arena seca.
+
+\begin{figure}[H]
+    \centering
+    \animategraphics[autoplay,loop,width=0.6\textwidth]{2}{proces_images/output/mask_frame_}{000}{005}
+    \caption{Evolución dinámica de la máscara de segmentación filtrada.}
+\end{figure}
+
+\section{Configuración del Sistema}
+El archivo \texttt{config.py} centraliza los parámetros de las 6 estaciones. La resolución 4K requiere una gestión eficiente de memoria, por lo que el backend utiliza punteros de OpenCV para el procesamiento \textit{in-place}.
+
+\section{Conclusión}
+El backend de CV-Lit representa una solución de ingeniería robusta que combina matemáticas de visión clásica con técnicas modernas de filtrado temporal, permitiendo una monitorización litoral precisa y fiable para el Ayuntamiento de Guardamar.
+
+\end{document}
