@@ -183,18 +183,20 @@ def calculate_homography(cam_id: int, image_name: Optional[str] = None):
     
     pts_px = np.array([g["pixel"] for g in gcps], dtype=np.float32)
     pts_utm = np.array([g["utm"] for g in gcps], dtype=np.float32)
-    
-    H, mask = cv2.findHomography(pts_px, pts_utm, cv2.RANSAC, 5.0)
-    
+    # RANSAC mas estricto para mayor precision
+    H, mask = cv2.findHomography(pts_px, pts_utm, cv2.RANSAC, 3.0)
+
     if H is None:
-        raise HTTPException(status_code=500, detail="Could not compute homography")
-    
+        raise HTTPException(status_code=500, detail="Error matematico en el calculo")
+
+    # RMSE real
     proj_utm = cv2.perspectiveTransform(pts_px.reshape(-1, 1, 2), H).reshape(-1, 2)
     rmse_m = float(np.sqrt(np.mean(np.linalg.norm(proj_utm - pts_utm, axis=1)**2)))
-    
+
     data["H"] = H.tolist()
     data["rmse_m"] = round(rmse_m, 4)
     data["status"] = "calibrated"
+
     
     with open(profile_path, "w") as f:
         json.dump(data, f, indent=2)
@@ -299,12 +301,46 @@ async def upload_images(cam_id: int, files: List[UploadFile] = File(...)):
     cam_folder = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"])
     os.makedirs(cam_folder, exist_ok=True)
     
+    uploaded = []
+    skipped = []
+    
     for file in files:
         file_path = os.path.join(cam_folder, file.filename)
+        if os.path.exists(file_path):
+            skipped.append(file.filename)
+            continue
+            
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+        uploaded.append(file.filename)
             
-    return {"status": "success", "count": len(files)}
+    return {
+        "status": "success", 
+        "uploaded": uploaded, 
+        "skipped": skipped,
+        "count": len(uploaded)
+    }
+
+@app.delete("/api/cameras/{cam_id}/images/{filename}")
+def delete_camera_image(cam_id: int, filename: str):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    
+    cam_folder = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"])
+    file_path = os.path.join(cam_folder, filename)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Do not allow deleting the default reference file if you want
+    if filename == CAMERAS[cam_id]["file"]:
+         raise HTTPException(status_code=403, detail="Cannot delete default reference image")
+
+    try:
+        os.remove(file_path)
+        return {"status": "success", "message": f"Deleted {filename}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/cameras/{cam_id}/import-rods")
 async def import_rods(cam_id: int, file: UploadFile = File(...)):
