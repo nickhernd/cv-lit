@@ -43,7 +43,7 @@ PROJECT_START = "2026-01-01T00:00:00"
 
 # Directorios de salida
 BASE_DIR = Path(__file__).parent.parent
-OUT_DIR  = BASE_DIR / "proces_images"
+OUT_DIR  = BASE_DIR / "proces_images" / "data"
 LOG_DIR  = BASE_DIR / "data" / "logs"
 
 # ── Cliente API ────────────────────────────────────────────────────────────────

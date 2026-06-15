@@ -1,7 +1,10 @@
 *.jpg
-*json
+# Ignorar metadatos de la API
+/proces_images/data/**/json/
 
 /frontend/node_modules
 /backend/node_modules
 /frontend/dist
 /backend/dist
+/venv/
+.env

@@ -33,14 +33,26 @@ app = FastAPI(title="CV-Lit API")
 APP_MODE = os.getenv("APP_MODE", "real").lower()
 print(f"[INFO] Iniciando en MODO: {APP_MODE.upper()}")
 
-# Inicializar segmentador (usara fallback si no hay pesos)
-CHECKPOINT_SAM = os.path.join(BASE_DIR, "sam_vit_h_4b8939.pth")
+# Segmentador Global (Lazy Loading)
 segmenter = None
-if APP_MODE == "real":
+
+def get_segmenter():
+    global segmenter
+    if segmenter is not None:
+        return segmenter
+    
+    if APP_MODE == "demo":
+        return None
+        
+    CHECKPOINT_SAM = os.path.join(BASE_DIR, "sam_vit_h_4b8939.pth")
+    print(f"[INFO] Cargando segmentador SAM desde {CHECKPOINT_SAM}...")
     try:
+        from segmentation_sam import SAMSegmenter
         segmenter = SAMSegmenter(checkpoint_path=CHECKPOINT_SAM)
     except Exception as e:
-        print(f"[ERROR] Error inicializando segmentador: {e}")
+        print(f"[ERROR] No se pudo inicializar SAM: {e}")
+        segmenter = False # Marcar como fallido para no reintentar cada vez
+    return segmenter
 
 app.add_middleware(
     CORSMiddleware,
@@ -60,6 +72,75 @@ class GCP(BaseModel):
 class CalibrationProfile(BaseModel):
     cam_id: int
     gcps: List[GCP]
+    reference_image: Optional[str] = None
+
+def align_image_to_ref(img: np.ndarray, ref_img: np.ndarray) -> np.ndarray:
+    """Alinea una imagen a una referencia usando ORB (más rápido que SIFT para la web)."""
+    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray_ref = cv2.cvtColor(ref_img, cv2.COLOR_BGR2GRAY)
+    
+    orb = cv2.ORB_create(nfeatures=2000)
+    kp1, des1 = orb.detectAndCompute(gray_img, None)
+    kp2, des2 = orb.detectAndCompute(gray_ref, None)
+    
+    if des1 is None or des2 is None:
+        return img
+        
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    matches = bf.match(des1, des2)
+    matches = sorted(matches, key=lambda x: x.distance)
+    
+    # Quedarnos con los mejores 10%
+    good_matches = matches[:int(len(matches) * 0.15)]
+    if len(good_matches) < 20:
+        return img
+        
+    src_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+    dst_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+    
+    H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+    if H is None:
+        return img
+        
+    h, w = ref_img.shape[:2]
+    return cv2.warpPerspective(img, H, (w, h))
+
+@app.post("/api/cameras/{cam_id}/set-reference")
+def set_reference_image(cam_id: int, filename: str):
+    profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_profile.json")
+    if os.path.exists(profile_path):
+        with open(profile_path, "r") as f:
+            data = json.load(f)
+    else:
+        data = {"cam_id": cam_id, "gcps": []}
+    
+    data["reference_image"] = filename
+    with open(profile_path, "w") as f:
+        json.dump(data, f, indent=2)
+    
+    return {"status": "success", "reference_image": filename}
+
+@app.get("/api/cameras/{cam_id}/images/{filename}/annotations")
+def get_image_annotations(cam_id: int, filename: str):
+    # Buscamos si existe un JSON especifico para esta imagen
+    info = CAMERAS[cam_id]
+    json_path = os.path.join(DATA_DIR, f"CAM_{cam_id}", "json", filename.replace(".jpg", ".json").replace(".png", ".json"))
+    
+    if os.path.exists(json_path):
+        with open(json_path, "r") as f:
+            return json.load(f)
+    return {"points": [], "roi": None}
+
+@app.post("/api/cameras/{cam_id}/images/{filename}/annotations")
+def save_image_annotations(cam_id: int, filename: str, data: dict):
+    target_dir = os.path.join(DATA_DIR, f"CAM_{cam_id}", "json")
+    os.makedirs(target_dir, exist_ok=True)
+    
+    json_path = os.path.join(target_dir, filename.replace(".jpg", ".json").replace(".png", ".json"))
+    with open(json_path, "w") as f:
+        json.dump(data, f, indent=2)
+    
+    return {"status": "success"}
 
 @app.get("/api/dashboard")
 def get_dashboard():
@@ -170,6 +251,27 @@ def list_camera_images(cam_id: int):
 
 @app.post("/api/cameras/{cam_id}/calculate-homography")
 def calculate_homography(cam_id: int, image_name: Optional[str] = None):
+    if APP_MODE == "demo":
+        # Simulamos una homografía exitosa para que el usuario vea el flujo completo
+        profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_profile.json")
+        with open(profile_path, "r") as f:
+            data = json.load(f)
+        
+        data["H"] = np.eye(3).tolist()
+        data["rmse_m"] = 0.1234
+        data["status"] = "calibrated"
+        with open(profile_path, "w") as f:
+            json.dump(data, f, indent=2)
+            
+        # Generar imagen dummy para el preview rectificado
+        preview_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_rectified.jpg")
+        info = CAMERAS[cam_id]
+        img_path = os.path.join(DATA_DIR, info["folder"], image_name if image_name else info["file"])
+        if os.path.exists(img_path):
+            shutil.copy(img_path, preview_path) # En demo solo copiamos la original como "rectificada"
+            
+        return {"status": "success", "rmse_m": 0.1234, "H": data["H"]}
+
     profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_profile.json")
     if not os.path.exists(profile_path):
         raise HTTPException(status_code=404, detail="Profile not found")
@@ -228,7 +330,7 @@ def get_rectified_preview(cam_id: int):
     return FileResponse(preview_path)
 
 @app.post("/api/cameras/{cam_id}/analyze-roi")
-def analyze_roi(cam_id: int):
+def analyze_roi(cam_id: int, filename: Optional[str] = None):
     if cam_id not in CAMERAS:
         raise HTTPException(status_code=404, detail="Camera not found")
     
@@ -242,27 +344,67 @@ def analyze_roi(cam_id: int):
         }
 
     info = CAMERAS[cam_id]
-    img_path = os.path.join(DATA_DIR, info["folder"], info["file"])
+    target_file = filename if filename else info["file"]
+    img_path = os.path.join(DATA_DIR, info["folder"], target_file)
     
     if not os.path.exists(img_path):
         raise HTTPException(status_code=404, detail="Image not found")
     
     img = cv2.imread(img_path)
     
+    # 0. Alineacion Automatica (Feature: Registro de Imagenes)
+    profile = get_camera_profile(cam_id)
+    ref_name = profile.get("reference_image")
+    is_aligned = False
+    
+    if ref_name and ref_name != target_file:
+        ref_path = os.path.join(DATA_DIR, info["folder"], ref_name)
+        if os.path.exists(ref_path):
+            ref_img = cv2.imread(ref_path)
+            img = align_image_to_ref(img, ref_img)
+            is_aligned = True
+            print(f"[INFO] Imagen {target_file} alineada con {ref_name}")
+
     # 1. Segmentacion
-    mask = segmenter.segment_dry_sand(img, str(cam_id))
+    s = get_segmenter()
+    mask = None
+    if s:
+        mask = s.segment_dry_sand(img, str(cam_id))
+    
     if mask is None:
-        roi = segmenter.get_roi(str(cam_id))
+        # Intentar fallback si SAM falla o no esta disponible
+        from test_mes3_pipeline import color_fallback_segmentation
+        # Obtener ROI manualmente si el segmentador no esta disponible
+        # (Esto asume que tenemos acceso a la lógica de ROI)
+        # Para simplificar, si no hay segmentador, usamos un ROI generico o lo buscamos
+        roi = None
+        if s:
+            roi = s.get_roi(str(cam_id))
+        else:
+            # Fallback a buscar ROI directamente
+            try:
+                from segmentation_sam import SAMSegmenter
+                temp_s = SAMSegmenter()
+                roi = temp_s.get_roi(str(cam_id))
+            except: pass
+            
         if roi:
             mask = color_fallback_segmentation(img, roi)
     
     # 2. Extraccion
-    points = extract_coastline_from_mask(mask)
+    if mask is not None:
+        points = extract_coastline_from_mask(mask)
+    else:
+        points = None
     
     # 3. Metricas
-    dry_pixels = np.sum(mask > 0)
-    dry_area = float(dry_pixels * 0.25) 
-    confidence = 0.95 if segmenter.predictor else 0.70
+    if mask is not None:
+        dry_pixels = np.sum(mask > 0)
+        dry_area = float(dry_pixels * 0.25) 
+    else:
+        dry_area = 0.0
+        
+    confidence = 0.95 if (s and s.predictor) else 0.70
     
     # 4. Viz
     viz = img.copy()
@@ -280,6 +422,24 @@ def analyze_roi(cam_id: int):
 
 @app.get("/api/geojson")
 def get_geojson():
+    if APP_MODE == "demo":
+        return {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {"cam_id": "CAM_3", "confidence": 0.99},
+                    "geometry": {
+                        "type": "LineString",
+                        "coordinates": [
+                            [-0.648117, 38.076774],
+                            [-0.647078, 38.087385],
+                            [-0.643027, 38.110327]
+                        ]
+                    }
+                }
+            ]
+        }
     path = os.path.join(DATA_DIR, "latest_result.json")
     if os.path.exists(path):
         with open(path, "r") as f:

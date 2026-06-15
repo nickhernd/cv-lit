@@ -4,7 +4,9 @@ import { ref, onMounted, computed } from 'vue'
 const emit = defineEmits(['notify'])
 
 const cameras = ref([])
+const availableImages = ref([])
 const selectedCamId = ref(null)
+const selectedImage = ref('')
 const analyzing = ref(false)
 const result = ref(null)
 const viewMode = ref('result') // 'original' or 'result'
@@ -15,12 +17,22 @@ async function fetchCameras() {
   cameras.value = data.cameras
 }
 
+async function fetchImages() {
+  if (!selectedCamId.value) return
+  const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/images`)
+  availableImages.value = await res.json()
+  if (availableImages.value.length > 0) {
+    selectedImage.value = availableImages.value[0]
+  }
+}
+
 async function runAnalysis() {
   if (!selectedCamId.value) return
   analyzing.value = true
   result.value = null
   try {
-    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/analyze-roi`, {
+    const url = `http://localhost:8000/api/cameras/${selectedCamId.value}/analyze-roi` + (selectedImage.value ? `?filename=${selectedImage.value}` : '')
+    const res = await fetch(url, {
       method: 'POST'
     })
     if (res.ok) {
@@ -41,12 +53,16 @@ function exportGeoJSON() {
   window.open('http://localhost:8000/api/geojson', '_blank')
 }
 
+import { watch } from 'vue'
+watch(selectedCamId, fetchImages)
+
 onMounted(fetchCameras)
 
 const displayImageUrl = computed(() => {
   if (!selectedCamId.value) return null
   const endpoint = viewMode.value === 'result' ? 'analysis-result' : 'image'
-  return `http://localhost:8000/api/cameras/${selectedCamId.value}/${endpoint}?t=${Date.now()}`
+  const fileQuery = selectedImage.value ? `file=${selectedImage.value}&` : ''
+  return `http://localhost:8000/api/cameras/${selectedCamId.value}/${endpoint}?${fileQuery}t=${Date.now()}`
 })
 </script>
 
@@ -62,6 +78,12 @@ const displayImageUrl = computed(() => {
           <option :value="null">Seleccionar Dispositivo</option>
           <option v-for="cam in cameras" :key="cam.idx" :value="cam.idx">{{ cam.name }}</option>
         </select>
+
+        <select v-if="selectedCamId" v-model="selectedImage" class="bg-white border border-slate-200 text-xs rounded-xl px-5 py-2.5 font-bold outline-none shadow-sm focus:ring-2 focus:ring-slate-200 transition-all">
+          <option value="">Imagen predeterminada</option>
+          <option v-for="img in availableImages" :key="img" :value="img">{{ img }}</option>
+        </select>
+
         <button @click="runAnalysis" 
                 :disabled="!selectedCamId || analyzing"
                 class="px-8 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-blue-700 disabled:opacity-30 flex items-center shadow-xl shadow-blue-600/20 transition-all active:scale-95">

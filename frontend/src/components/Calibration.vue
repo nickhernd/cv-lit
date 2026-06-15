@@ -12,7 +12,7 @@ const selectedCamId = ref(props.initialCamId)
 const cameras = ref([])
 const availableImages = ref([])
 const selectedImage = ref('')
-const currentProfile = ref({ gcps: [] })
+const currentProfile = ref({ gcps: [], reference_image: null })
 const loading = ref(false)
 const saving = ref(false)
 const calculating = ref(false)
@@ -21,6 +21,30 @@ const rmse = ref(null)
 // UX State
 const selectedGcpIdx = ref(null)
 const isDragging = ref(false)
+
+// Cargar anotaciones especificas de la imagen
+async function fetchImageAnnotations() {
+  if (!selectedCamId.value || !selectedImage.value) return
+  try {
+    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/images/${selectedImage.value}/annotations`)
+    const data = await res.json()
+    currentProfile.value.gcps = data.points || []
+  } catch (err) { console.error(err) }
+}
+
+async function saveAnnotations() {
+  if (!selectedCamId.value || !selectedImage.value) return
+  saving.value = true
+  try {
+    await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/images/${selectedImage.value}/annotations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ points: currentProfile.value.gcps })
+    })
+    emit('notify', 'Marcación guardada para esta imagen', 'success')
+  } catch (err) { emit('notify', 'Error al guardar marcación', 'error') }
+  finally { saving.value = false }
+}
 
 const steps = [
   { id: 1, name: 'Entrada', desc: 'Gestion de Archivos' },
@@ -67,6 +91,18 @@ async function fetchProfile() {
     rmse.value = currentProfile.value.rmse_m || null
   } catch (err) { console.error(err) }
   finally { loading.value = false }
+}
+
+async function setAsReference(filename) {
+  try {
+    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/set-reference?filename=${filename}`, {
+      method: 'POST'
+    })
+    if (res.ok) {
+      currentProfile.value.reference_image = filename
+      emit('notify', 'Imagen establecida como base para alineacion', 'success')
+    }
+  } catch (err) { emit('notify', 'Error al establecer referencia', 'error') }
 }
 
 async function handleFiles(files) {
@@ -139,24 +175,24 @@ function handleImageClick(event) {
   
   currentProfile.value.gcps.push(newGcp)
   selectedGcpIdx.value = currentProfile.value.gcps.length - 1
+  saveAnnotations() // Guardado automatico por imagen
 }
 
 async function saveCalibration() {
-  saving.value = true
-  try {
-    await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/calibrate`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cam_id: selectedCamId.value, gcps: currentProfile.value.gcps })
-    })
-    emit('notify', 'Configuracion guardada', 'success')
-  } catch (err) { emit('notify', 'Error al guardar', 'error') }
-  finally { saving.value = false }
+  saveAnnotations() // Redirigimos a la funcion por imagen
 }
 
 watch(selectedCamId, () => {
   if (selectedCamId.value) {
     fetchProfile()
     fetchImages()
+    selectedGcpIdx.value = null
+  }
+})
+
+watch(selectedImage, () => {
+  if (selectedImage.value) {
+    fetchImageAnnotations()
     selectedGcpIdx.value = null
   }
 })
@@ -220,10 +256,24 @@ onMounted(() => {
         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
            <div v-for="img in availableImages" :key="img" 
                 class="group relative aspect-video rounded-2xl overflow-hidden border-2 transition-all cursor-pointer"
-                :class="selectedImage === img ? 'border-slate-900 scale-[0.98]' : 'border-transparent hover:border-slate-200'"
+                :class="[
+                  selectedImage === img ? 'border-slate-900 scale-[0.98]' : 'border-transparent hover:border-slate-200',
+                  currentProfile.reference_image === img ? 'ring-2 ring-emerald-500 ring-offset-2' : ''
+                ]"
                 @click="selectedImage = img">
               <img :src="`http://localhost:8000/api/cameras/${selectedCamId}/image?file=${img}&thumb=1`" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all">
-              <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              
+              <!-- Badge Referencia -->
+              <div v-if="currentProfile.reference_image === img" class="absolute top-2 left-2 px-2 py-1 bg-emerald-500 text-white text-[7px] font-bold uppercase rounded-md shadow-lg">
+                BASE
+              </div>
+
+              <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2">
+                 <button @click.stop="setAsReference(img)" 
+                         title="Establecer como imagen base para alineacion"
+                         class="p-2 bg-emerald-600 text-white rounded-full hover:scale-110 transition-transform">
+                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                 </button>
                  <button @click.stop="deleteImage(img)" class="p-2 bg-red-600 text-white rounded-full hover:scale-110 transition-transform">
                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                  </button>
