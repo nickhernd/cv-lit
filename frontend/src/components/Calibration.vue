@@ -22,6 +22,14 @@ const rmse = ref(null)
 const selectedGcpIdx = ref(null)
 const isDragging = ref(false)
 
+const steps = [
+  { id: 1, name: 'Varillas', desc: 'Importar Coordenadas' },
+  { id: 2, name: 'Imágenes', desc: 'Carga de Fotogramas' },
+  { id: 3, name: 'Alineación', desc: 'Transformar a Ref.' },
+  { id: 4, name: 'Marcación', desc: 'Etiquetado Varillas' },
+  { id: 5, name: 'Validación', desc: 'Cálculo y Perfil' }
+]
+
 // Cargar anotaciones especificas de la imagen
 async function fetchImageAnnotations() {
   if (!selectedCamId.value || !selectedImage.value) return
@@ -41,16 +49,10 @@ async function saveAnnotations() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ points: currentProfile.value.gcps })
     })
-    emit('notify', 'Marcación guardada para esta imagen', 'success')
-  } catch (err) { emit('notify', 'Error al guardar marcación', 'error') }
+    emit('notify', 'Estado guardado para esta sesión', 'success')
+  } catch (err) { emit('notify', 'Error al guardar estado', 'error') }
   finally { saving.value = false }
 }
-
-const steps = [
-  { id: 1, name: 'Entrada', desc: 'Gestion de Archivos' },
-  { id: 2, name: 'Calibracion', desc: 'Marcacion GCP' },
-  { id: 3, name: 'Validacion', desc: 'Vista Rectificada' }
-]
 
 const imageUrl = computed(() => {
   if (!selectedCamId.value || !selectedImage.value) return null
@@ -67,7 +69,7 @@ async function fetchCameras() {
     const res = await fetch('http://localhost:8000/api/dashboard')
     const data = await res.json()
     cameras.value = data.cameras
-  } catch (err) { emit('notify', 'Error al cargar camaras', 'error') }
+  } catch (err) { emit('notify', 'Error al cargar estaciones', 'error') }
 }
 
 async function fetchImages() {
@@ -100,7 +102,7 @@ async function setAsReference(filename) {
     })
     if (res.ok) {
       currentProfile.value.reference_image = filename
-      emit('notify', 'Imagen establecida como base para alineacion', 'success')
+      emit('notify', 'Imagen establecida como referencia base', 'success')
     }
   } catch (err) { emit('notify', 'Error al establecer referencia', 'error') }
 }
@@ -114,31 +116,10 @@ async function handleFiles(files) {
     })
     const data = await res.json()
     if (res.ok) {
-      if (data.skipped.length > 0) {
-        emit('notify', `Subidos ${data.uploaded.length} archivos. ${data.skipped.length} omitidos por duplicados.`, 'info')
-      } else {
-        emit('notify', 'Imagenes subidas con exito', 'success')
-      }
+      emit('notify', `Subidos ${data.uploaded.length} archivos con éxito`, 'success')
       fetchImages()
     }
-  } catch (err) { emit('notify', 'Error al subir imagenes', 'error') }
-}
-
-async function deleteImage(filename) {
-  if (!confirm(`¿Borrar imagen ${filename}?`)) return
-  try {
-    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/images/${filename}`, {
-      method: 'DELETE'
-    })
-    if (res.ok) {
-      emit('notify', 'Imagen eliminada', 'success')
-      if (selectedImage.value === filename) selectedImage.value = ''
-      fetchImages()
-    } else {
-      const err = await res.json()
-      emit('notify', err.detail, 'error')
-    }
-  } catch (err) { emit('notify', 'Error de red', 'error') }
+  } catch (err) { emit('notify', 'Error al subir imágenes', 'error') }
 }
 
 async function calculateHomography() {
@@ -150,15 +131,15 @@ async function calculateHomography() {
     const data = await res.json()
     if (res.ok) {
       rmse.value = data.rmse_m
-      emit('notify', 'Homografia calculada correctamente', 'success')
-      currentStep.value = 3
+      emit('notify', 'Geometría validada correctamente', 'success')
+      currentStep.value = 5
     } else { emit('notify', data.detail, 'error') }
-  } catch (err) { emit('notify', 'Error de conexion', 'error') }
+  } catch (err) { emit('notify', 'Error de conexión', 'error') }
   finally { calculating.value = false }
 }
 
 function handleImageClick(event) {
-  if (currentStep.value !== 2) return
+  if (currentStep.value !== 4) return
   const rect = event.target.getBoundingClientRect()
   const x = event.clientX - rect.left
   const y = event.clientY - rect.top
@@ -168,18 +149,14 @@ function handleImageClick(event) {
   const newGcp = {
     pixel: [x, y],
     utm: [0, 0],
-    label: `GCP_${currentProfile.value.gcps.length + 1}`,
+    label: `VARILLA_${currentProfile.value.gcps.length + 1}`,
     type: 'calib',
     rel: [relX, relY]
   }
   
   currentProfile.value.gcps.push(newGcp)
   selectedGcpIdx.value = currentProfile.value.gcps.length - 1
-  saveAnnotations() // Guardado automatico por imagen
-}
-
-async function saveCalibration() {
-  saveAnnotations() // Redirigimos a la funcion por imagen
+  saveAnnotations()
 }
 
 watch(selectedCamId, () => {
@@ -207,233 +184,197 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="p-12 max-w-7xl mx-auto flex flex-col h-full">
-    <!-- Stepper -->
-    <div class="mb-12 flex items-center justify-between max-w-2xl mx-auto w-full relative">
-      <div v-for="step in steps" :key="step.id" class="z-10 flex flex-col items-center">
-        <div @click="currentStep = step.id" 
-             :class="currentStep >= step.id ? 'bg-slate-900 text-white cursor-pointer shadow-lg' : 'bg-white border-2 border-slate-100 text-slate-300 pointer-events-none'"
-             class="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300">
-          <svg v-if="currentStep > step.id" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span v-else>{{ step.id }}</span>
-        </div>
-        <span class="text-[10px] font-bold uppercase tracking-widest mt-3" :class="currentStep >= step.id ? 'text-slate-900' : 'text-slate-300'">{{ step.name }}</span>
-      </div>
-      <div class="absolute top-5 left-0 w-full h-[2px] bg-slate-100 -z-0">
-        <div class="h-full bg-slate-900 transition-all duration-500" :style="{ width: ((currentStep - 1) / (steps.length - 1)) * 100 + '%' }"></div>
+  <div class="space-y-6">
+    <div class="flex justify-between items-center border-b border-slate-200 pb-4">
+      <h1 class="text-2xl font-bold text-slate-900">Configuración de Estación de Visión</h1>
+      <div v-if="selectedCamId" class="flex items-center space-x-2 text-xs font-bold text-blue-600 uppercase">
+        <span>Cámara Activa:</span>
+        <span class="bg-blue-600 text-white px-2 py-0.5 rounded">ESTACIÓN {{ selectedCamId }}</span>
       </div>
     </div>
 
-    <!-- STEP 1: GESTION -->
-    <div v-if="currentStep === 1" class="flex-1 animate-fade-in space-y-12">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
-        <div class="p-10 border border-slate-100 rounded-[3rem] bg-slate-50/50 space-y-8">
-          <div>
-            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-widest mb-2">1. Seleccionar Camara</h3>
-            <p class="text-xs text-slate-400">Elige el dispositivo que deseas calibrar.</p>
-          </div>
-          <select v-model="selectedCamId" class="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-semibold outline-none shadow-sm focus:border-slate-900 transition-all">
-            <option :value="null">Seleccionar Dispositivo...</option>
-            <option v-for="cam in cameras" :key="cam.idx" :value="cam.idx">{{ cam.name }}</option>
-          </select>
-        </div>
+    <!-- TABS (Traditional Stepper) -->
+    <div class="flex border-b border-slate-200 bg-white rounded-t-md overflow-hidden">
+      <button v-for="step in steps" :key="step.id" 
+              @click="currentStep = step.id"
+              :class="currentStep === step.id ? 'bg-white border-b-2 border-blue-600 text-blue-600' : 'bg-slate-50 text-slate-500 hover:bg-slate-100 border-b border-transparent'"
+              class="px-6 py-4 text-xs font-bold uppercase tracking-wider transition-all flex-1 text-center">
+        {{ step.id }}. {{ step.name }}
+      </button>
+    </div>
 
-        <div class="p-1 border border-slate-100 rounded-[3rem] bg-white shadow-xl relative group">
-          <div @dragover.prevent="isDragging = true" 
-               @dragleave.prevent="isDragging = false"
-               @drop.prevent="isDragging = false; handleFiles($event.dataTransfer.files)"
-               :class="isDragging ? 'bg-slate-900 border-slate-900 text-white' : 'bg-slate-50/50 border-slate-100 text-slate-400'"
-               class="h-full w-full rounded-[2.8rem] border-2 border-dashed flex flex-col items-center justify-center p-12 transition-all cursor-pointer">
-            <input type="file" multiple @change="handleFiles($event.target.files)" class="absolute inset-0 opacity-0 cursor-pointer">
-            <svg class="w-12 h-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <span class="text-xs font-bold uppercase tracking-[0.2em]">{{ isDragging ? 'Soltar para subir' : 'Arrastrar imagenes aqui' }}</span>
+    <!-- PASO 1: IMPORTAR VARILLAS -->
+    <div v-if="currentStep === 1" class="card-standard p-8 space-y-8">
+       <div class="max-w-2xl mx-auto space-y-8">
+          <div class="space-y-4">
+            <label class="block text-xs font-bold text-slate-500 uppercase">1. Seleccionar Estación</label>
+            <select v-model="selectedCamId" class="w-full input-standard">
+              <option :value="null">-- Seleccionar --</option>
+              <option v-for="cam in cameras" :key="cam.idx" :value="cam.idx">{{ cam.name }}</option>
+            </select>
           </div>
-        </div>
-      </div>
+          
+          <div class="p-12 border-2 border-dashed border-slate-200 rounded-md bg-slate-50 flex flex-col items-center">
+             <p class="text-sm font-bold text-slate-600 mb-4">Importar coordenadas de varillas</p>
+             <button class="btn-secondary">Seleccionar CSV / XLSX</button>
+          </div>
 
-      <div v-if="selectedCamId" class="space-y-6">
-        <h3 class="text-xs font-bold text-slate-900 uppercase tracking-widest">Galeria de Referencias ({{ availableImages.length }})</h3>
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <div class="flex justify-end">
+            <button @click="currentStep = 2" :disabled="!selectedCamId" class="btn-standard">Siguiente Paso: Imágenes</button>
+          </div>
+       </div>
+    </div>
+
+    <!-- PASO 2: CARGAR FOTOS -->
+    <div v-if="currentStep === 2" class="space-y-6">
+       <div class="card-standard p-6 bg-slate-50 flex justify-between items-center">
+          <p class="text-sm font-medium text-slate-600">Subir nuevos fotogramas para la estación</p>
+          <input type="file" multiple @change="handleFiles($event.target.files)" class="text-sm">
+       </div>
+
+       <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
            <div v-for="img in availableImages" :key="img" 
-                class="group relative aspect-video rounded-2xl overflow-hidden border-2 transition-all cursor-pointer"
-                :class="[
-                  selectedImage === img ? 'border-slate-900 scale-[0.98]' : 'border-transparent hover:border-slate-200',
-                  currentProfile.reference_image === img ? 'ring-2 ring-emerald-500 ring-offset-2' : ''
-                ]"
+                class="card-standard overflow-hidden cursor-pointer group"
+                :class="selectedImage === img ? 'ring-2 ring-blue-600' : ''"
                 @click="selectedImage = img">
-              <img :src="`http://localhost:8000/api/cameras/${selectedCamId}/image?file=${img}&thumb=1`" class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all">
-              
-              <!-- Badge Referencia -->
-              <div v-if="currentProfile.reference_image === img" class="absolute top-2 left-2 px-2 py-1 bg-emerald-500 text-white text-[7px] font-bold uppercase rounded-md shadow-lg">
-                BASE
+              <div class="aspect-video relative bg-slate-200">
+                <img :src="`http://localhost:8000/api/cameras/${selectedCamId}/image?file=${img}&thumb=1`" class="w-full h-full object-cover">
+                <div v-if="currentProfile.reference_image === img" class="absolute top-2 left-2 bg-emerald-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow">BASE</div>
               </div>
-
-              <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2">
-                 <button @click.stop="setAsReference(img)" 
-                         title="Establecer como imagen base para alineacion"
-                         class="p-2 bg-emerald-600 text-white rounded-full hover:scale-110 transition-transform">
-                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                 </button>
-                 <button @click.stop="deleteImage(img)" class="p-2 bg-red-600 text-white rounded-full hover:scale-110 transition-transform">
-                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                 </button>
-              </div>
+              <div class="p-2 text-[10px] truncate font-mono text-slate-500 bg-white">{{ img }}</div>
            </div>
-        </div>
-        <div class="flex justify-center pt-8">
-           <button @click="currentStep = 2" :disabled="!selectedImage" 
-                   class="px-12 py-4 bg-slate-900 text-white rounded-2xl text-sm font-bold uppercase tracking-widest hover:scale-105 active:scale-95 disabled:opacity-20 transition-all shadow-xl shadow-slate-900/20">
-             Iniciar Marcacion
-           </button>
-        </div>
-      </div>
+       </div>
+
+       <div class="flex justify-end pt-4">
+         <button @click="currentStep = 3" :disabled="!selectedImage" class="btn-standard">Configurar Alineación</button>
+       </div>
     </div>
 
-    <!-- STEP 2: MARCACION -->
-    <div v-if="currentStep === 2" class="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-12 animate-fade-in overflow-hidden">
-      <div class="lg:col-span-3 flex flex-col min-h-0">
-        <div class="relative flex-1 rounded-[3rem] overflow-hidden border border-slate-100 bg-slate-50 shadow-inner group">
-          <img :src="imageUrl" @click="handleImageClick" class="w-full h-full object-contain select-none cursor-crosshair">
+    <!-- PASO 3: ALINEACION -->
+    <div v-if="currentStep === 3" class="card-standard p-8">
+       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div class="space-y-4">
+            <h4 class="text-xs font-bold text-slate-500 uppercase border-b border-slate-100 pb-2">Referencia Base</h4>
+            <div class="aspect-video bg-slate-100 rounded border border-slate-200 overflow-hidden">
+              <img v-if="currentProfile.reference_image" :src="`http://localhost:8000/api/cameras/${selectedCamId}/image?file=${currentProfile.reference_image}`" class="w-full h-full object-contain">
+            </div>
+            <button @click="setAsReference(selectedImage)" class="btn-secondary w-full">Establecer actual como base</button>
+          </div>
+          <div class="space-y-4">
+            <h4 class="text-xs font-bold text-slate-500 uppercase border-b border-slate-100 pb-2">Fotograma Actual</h4>
+            <div class="aspect-video bg-slate-100 rounded border border-slate-200 overflow-hidden">
+              <img :src="imageUrl" class="w-full h-full object-contain">
+            </div>
+            <button @click="currentStep = 4" class="btn-standard w-full">Continuar a Marcación</button>
+          </div>
+       </div>
+    </div>
+
+    <!-- PASO 4: MARCACION -->
+    <div v-if="currentStep === 4" class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+       <div class="lg:col-span-3 card-standard overflow-hidden bg-slate-900 flex flex-col relative min-h-[600px]">
+          <img :src="imageUrl" @click="handleImageClick" class="w-full h-full object-contain cursor-crosshair select-none">
           
           <div v-for="(gcp, idx) in currentProfile.gcps" :key="idx" 
-               class="absolute -translate-x-1/2 -translate-y-1/2 group/pt"
+               class="absolute -translate-x-1/2 -translate-y-1/2"
                :style="{ left: gcp.rel[0] + '%', top: gcp.rel[1] + '%' }">
             <div @click.stop="selectedGcpIdx = idx"
-                 :class="[
-                   gcp.type === 'rod' ? 'bg-amber-500' : 'bg-blue-600',
-                   selectedGcpIdx === idx ? 'scale-150 ring-4 ring-white shadow-2xl' : 'hover:scale-125'
-                 ]"
-                 class="w-4 h-4 rounded-full border-2 border-white shadow-lg transition-all cursor-pointer">
-            </div>
-            <div v-if="selectedGcpIdx === idx" class="absolute top-6 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-900 text-white text-[8px] font-bold rounded shadow-xl whitespace-nowrap z-50">
-              {{ gcp.label }}
+                 :class="selectedGcpIdx === idx ? 'bg-yellow-400 ring-4 ring-white' : 'bg-blue-600'"
+                 class="w-4 h-4 rounded-full border-2 border-white shadow-md cursor-pointer transition-transform hover:scale-125">
             </div>
           </div>
-        </div>
 
-        <div class="mt-6 flex justify-between items-center bg-slate-50/50 p-6 rounded-[2rem] border border-slate-100">
-           <div class="flex space-x-8">
-              <div class="flex items-center space-x-3">
-                <div class="w-3 h-3 rounded-full bg-blue-600"></div>
-                <span class="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">Arena (GCP)</span>
-              </div>
-              <div class="flex items-center space-x-3">
-                <div class="w-3 h-3 rounded-full bg-amber-500"></div>
-                <span class="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-500">Varilla</span>
-              </div>
-           </div>
-           <div class="flex space-x-4">
-              <button @click="saveCalibration" class="px-8 py-3 bg-white border border-slate-200 text-slate-900 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-100 transition-all">Guardar Progreso</button>
-              <button @click="calculateHomography" :disabled="currentProfile.gcps.filter(g=>g.type==='calib').length < 4 || calculating"
-                      class="px-10 py-3 bg-blue-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-20 transition-all">
-                {{ calculating ? 'Calculando...' : 'Generar Homografia' }}
-              </button>
-           </div>
-        </div>
-      </div>
+          <div class="absolute bottom-4 left-4 bg-black/50 text-white text-[10px] px-3 py-1 rounded font-bold uppercase tracking-wider">Modo Edición: Varillas GCP</div>
+       </div>
 
-      <aside class="space-y-6 flex flex-col min-h-0">
-        <!-- Edit Panel -->
-        <div v-if="selectedGcpIdx !== null" class="p-8 border border-slate-200 rounded-[2.5rem] bg-white shadow-2xl animate-scale-in">
-           <div class="flex justify-between items-center mb-6">
-              <h4 class="text-xs font-bold text-slate-900 uppercase tracking-widest">Editar Punto</h4>
-              <button @click="selectedGcpIdx = null" class="text-slate-300 hover:text-slate-900">
-                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-width="2" stroke-linecap="round"/></svg>
-              </button>
-           </div>
-           <div class="space-y-5">
-              <div>
-                <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Identificador</label>
-                <input v-model="currentProfile.gcps[selectedGcpIdx].label" class="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-xs font-bold focus:ring-2 focus:ring-slate-200">
+       <aside class="space-y-6">
+          <div v-if="selectedGcpIdx !== null" class="card-standard">
+            <div class="card-header flex justify-between">
+              <span>Editar Punto</span>
+              <button @click="selectedGcpIdx = null" class="text-slate-400">×</button>
+            </div>
+            <div class="p-4 space-y-4">
+              <div class="space-y-1">
+                <label class="text-[10px] font-bold text-slate-500 uppercase">ID Varilla</label>
+                <input v-model="currentProfile.gcps[selectedGcpIdx].label" class="w-full input-standard">
               </div>
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">UTM X</label>
-                  <input type="number" v-model.number="currentProfile.gcps[selectedGcpIdx].utm[0]" class="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-xs font-mono focus:ring-2 focus:ring-slate-200">
+              <div class="grid grid-cols-2 gap-2">
+                <div class="space-y-1">
+                  <label class="text-[10px] font-bold text-slate-500 uppercase">UTM X</label>
+                  <input type="number" v-model.number="currentProfile.gcps[selectedGcpIdx].utm[0]" class="w-full input-standard font-mono text-xs">
                 </div>
-                <div>
-                  <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">UTM Y</label>
-                  <input type="number" v-model.number="currentProfile.gcps[selectedGcpIdx].utm[1]" class="w-full bg-slate-50 border-none rounded-xl px-4 py-2.5 text-xs font-mono focus:ring-2 focus:ring-slate-200">
+                <div class="space-y-1">
+                  <label class="text-[10px] font-bold text-slate-500 uppercase">UTM Y</label>
+                  <input type="number" v-model.number="currentProfile.gcps[selectedGcpIdx].utm[1]" class="w-full input-standard font-mono text-xs">
                 </div>
               </div>
-              <div>
-                <label class="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Tipo</label>
-                <div class="flex bg-slate-50 p-1 rounded-xl">
-                  <button @click="currentProfile.gcps[selectedGcpIdx].type = 'calib'" 
-                          :class="currentProfile.gcps[selectedGcpIdx].type === 'calib' ? 'bg-white shadow text-slate-900' : 'text-slate-400'"
-                          class="flex-1 py-2 text-[9px] font-bold uppercase rounded-lg transition-all">GCP</button>
-                  <button @click="currentProfile.gcps[selectedGcpIdx].type = 'rod'"
-                          :class="currentProfile.gcps[selectedGcpIdx].type === 'rod' ? 'bg-white shadow text-slate-900' : 'text-slate-400'"
-                          class="flex-1 py-2 text-[9px] font-bold uppercase rounded-lg transition-all">Varilla</button>
-                </div>
-              </div>
-              <button @click="currentProfile.gcps.splice(selectedGcpIdx, 1); selectedGcpIdx = null" 
-                      class="w-full py-3 mt-4 text-red-500 text-[10px] font-bold uppercase tracking-widest hover:bg-red-50 rounded-xl transition-colors">Eliminar Punto</button>
-           </div>
-        </div>
+              <button @click="currentProfile.gcps.splice(selectedGcpIdx, 1); selectedGcpIdx = null; saveAnnotations()" class="w-full text-red-600 text-xs font-bold hover:underline">Eliminar Punto</button>
+            </div>
+          </div>
 
-        <div v-else class="flex-1 border border-slate-100 rounded-[2.5rem] bg-slate-50/50 p-8 overflow-hidden flex flex-col">
-           <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">Puntos Marcados ({{ currentProfile.gcps.length }})</h4>
-           <div class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
-              <div v-for="(gcp, idx) in currentProfile.gcps" :key="idx" 
-                   @click="selectedGcpIdx = idx"
-                   class="flex items-center justify-between p-4 bg-white rounded-2xl hover:border-slate-300 border border-transparent transition-all cursor-pointer group">
-                <div class="flex items-center space-x-3 min-w-0">
-                  <div class="w-2 h-2 rounded-full shrink-0" :class="gcp.type === 'rod' ? 'bg-amber-500' : 'bg-blue-600'"></div>
-                  <div class="truncate">
-                    <p class="text-[10px] font-bold text-slate-900">{{ gcp.label }}</p>
-                    <p class="text-[8px] text-slate-400 font-mono">{{ gcp.utm[0].toFixed(0) }}, {{ gcp.utm[1].toFixed(0) }}</p>
-                  </div>
-                </div>
-                <svg class="w-3 h-3 text-slate-200 group-hover:text-slate-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </div>
-              <div v-if="!currentProfile.gcps.length" class="h-full flex flex-col items-center justify-center text-center opacity-30 p-4 pt-12">
-                 <svg class="w-8 h-8 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" stroke-width="1.5"/></svg>
-                 <p class="text-[9px] font-bold uppercase tracking-widest">Haz click en la imagen para marcar un punto</p>
-              </div>
-           </div>
-        </div>
-      </aside>
+          <div class="card-standard flex flex-col max-h-[400px]">
+            <div class="card-header">Registro de Varillas ({{ currentProfile.gcps.length }})</div>
+            <div class="flex-1 overflow-y-auto divide-y divide-slate-100">
+               <div v-for="(gcp, idx) in currentProfile.gcps" :key="idx" 
+                    @click="selectedGcpIdx = idx"
+                    class="p-3 text-xs flex justify-between items-center cursor-pointer hover:bg-slate-50"
+                    :class="selectedGcpIdx === idx ? 'bg-blue-50' : ''">
+                  <span class="font-bold text-slate-700">{{ gcp.label }}</span>
+                  <span class="text-slate-400 font-mono text-[10px]">{{ gcp.utm[0].toFixed(0) }}, {{ gcp.utm[1].toFixed(0) }}</span>
+               </div>
+            </div>
+            <div class="p-4 border-t border-slate-100 bg-slate-50">
+              <button @click="calculateHomography" :disabled="currentProfile.gcps.length < 4 || calculating" class="btn-standard w-full uppercase text-xs">Calcular Geometría</button>
+            </div>
+          </div>
+       </aside>
     </div>
 
-    <!-- STEP 3: VALIDACION -->
-    <div v-if="currentStep === 3" class="max-w-5xl mx-auto flex-1 animate-scale-in flex flex-col justify-center py-12">
-      <header class="text-center mb-12">
-        <div class="inline-flex items-center px-5 py-2 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-bold uppercase tracking-widest mb-6 border border-emerald-100 shadow-sm">
-           <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-3 animate-pulse"></div>
-           Homografia Generada
-        </div>
-        <h2 class="text-4xl font-bold text-slate-900 tracking-tight">Vista Rectificada</h2>
-        <p class="text-slate-400 mt-4 text-sm max-w-md mx-auto leading-relaxed">Precision geometrica validada. Error medio residual: <span class="font-bold text-slate-900 tabular-nums">{{ rmse?.toFixed(4) }} m</span></p>
-      </header>
-      
-      <div class="relative rounded-[4rem] overflow-hidden border-[12px] border-slate-50 bg-slate-100 shadow-2xl mx-auto max-w-3xl transform hover:scale-[1.01] transition-transform duration-500">
-        <img :src="rectifiedUrl" class="w-full h-auto block" alt="Rectified View">
-        <div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
-      </div>
+    <!-- PASO 5: VALIDACION -->
+    <div v-if="currentStep === 5" class="card-standard p-12 text-center space-y-10">
+       <div class="inline-block bg-emerald-100 text-emerald-800 px-4 py-2 rounded text-sm font-bold uppercase tracking-widest border border-emerald-200">Perfil de Estación Generado</div>
+       
+       <div class="max-w-4xl mx-auto space-y-6">
+          <p class="text-slate-600 font-medium">Validación proyectiva completada con éxito.</p>
+          <div class="grid grid-cols-2 gap-4 max-w-sm mx-auto">
+            <div class="p-4 bg-slate-50 rounded border border-slate-100">
+              <p class="text-[10px] font-bold text-slate-400 uppercase">RMSE</p>
+              <p class="text-2xl font-bold text-slate-900 font-mono">{{ rmse?.toFixed(4) }} m</p>
+            </div>
+            <div class="p-4 bg-slate-50 rounded border border-slate-100">
+              <p class="text-[10px] font-bold text-slate-400 uppercase">Puntos</p>
+              <p class="text-2xl font-bold text-slate-900 font-mono">{{ currentProfile.gcps.length }}</p>
+            </div>
+          </div>
+          
+          <div class="aspect-video bg-slate-100 rounded border border-slate-200 overflow-hidden shadow-inner">
+            <img :src="rectifiedUrl" class="w-full h-full object-contain">
+          </div>
+       </div>
 
-      <div class="flex justify-center space-x-6 mt-16">
-        <button @click="currentStep = 2" class="px-10 py-4 border-2 border-slate-100 rounded-2xl text-xs font-bold text-slate-500 hover:bg-slate-50 transition-all uppercase tracking-widest">Ajustar Marcacion</button>
-        <button @click="currentStep = 1" class="px-12 py-4 bg-slate-900 text-white rounded-2xl text-xs font-bold hover:bg-slate-800 transition-all shadow-2xl shadow-slate-900/20 uppercase tracking-widest">Finalizar Calibracion</button>
-      </div>
+       <div class="flex justify-center space-x-4">
+          <button @click="currentStep = 4" class="btn-secondary">Ajustar Marcación</button>
+          <button @click="currentStep = 1" class="btn-standard uppercase tracking-widest">Finalizar y Guardar</button>
+       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar { width: 3px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #f1f5f9; border-radius: 20px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 20px; }
 
-.animate-scale-in { animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.98) translateY(10px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+.animate-glow {
+  box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4);
+  animation: pulse-glow 2s infinite;
 }
 
-.animate-fade-in { animation: fadeIn 0.5s ease-out; }
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+@keyframes pulse-glow {
+  0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
 }
+
+.cursor-crosshair { cursor: crosshair; }
 </style>

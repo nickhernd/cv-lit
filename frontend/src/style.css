@@ -1,42 +1,50 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@theme {
+  --color-primary: #1e293b;
+  --color-accent: #2563eb;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
 
 @layer base {
   body {
-    @apply bg-white text-slate-900 selection:bg-blue-100 selection:text-blue-900;
+    @apply bg-[#f1f5f9] text-slate-800;
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
   }
 }
 
-/* Custom Scrollbar - even more minimal */
+/* 2010-style clean container */
+.card-standard {
+  @apply bg-white border border-slate-200 rounded-md shadow-sm transition-all;
+}
+
+.card-header {
+  @apply px-4 py-3 bg-slate-50 border-b border-slate-200 rounded-t-md font-bold text-sm text-slate-700;
+}
+
+.btn-standard {
+  @apply px-4 py-2 bg-slate-800 text-white rounded-md text-sm font-medium hover:bg-slate-700 transition-colors shadow-sm disabled:opacity-50;
+}
+
+.btn-secondary {
+  @apply px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-md text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm;
+}
+
+.input-standard {
+  @apply bg-white border border-slate-300 rounded-md px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all;
+}
+
+/* Traditional Scrollbar */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-transparent;
+  @apply bg-slate-100;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-200 rounded-full hover:bg-slate-300;
-}
-
-/* Clean entry transition */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.4s ease-out forwards;
-}
-
-/* Minimal card style */
-.card-minimal {
-  @apply bg-white border border-slate-200 rounded-2xl transition-all duration-200;
-}
-
-.card-minimal:hover {
-  @apply border-slate-300 bg-slate-50/50;
+  @apply bg-slate-300 rounded-full hover:bg-slate-400;
 }
