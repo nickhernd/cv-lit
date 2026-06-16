@@ -9,7 +9,7 @@ const selectedCamId = ref(null)
 const selectedImage = ref('')
 const analyzing = ref(false)
 const result = ref(null)
-const viewMode = ref('result') // 'original' or 'result'
+const viewMode = ref('result') // 'original', 'result', or 'split'
 
 async function fetchCameras() {
   try {
@@ -91,23 +91,39 @@ const displayImageUrl = computed(() => {
       <!-- Image Display Area -->
       <div class="lg:col-span-3 space-y-4">
         <div class="card-standard overflow-hidden bg-slate-100 flex flex-col min-h-[600px] relative">
-           <img v-if="displayImageUrl" :src="displayImageUrl" class="w-full h-full object-contain">
+           <!-- Split View Layout -->
+           <div v-if="viewMode === 'split' && result" class="flex w-full h-full divide-x divide-white border-x-4 border-white">
+              <div class="flex-1 relative overflow-hidden bg-black">
+                 <img :src="`http://localhost:8000/api/cameras/${selectedCamId}/image?file=${selectedImage}`" class="w-full h-full object-contain">
+                 <div class="absolute top-2 left-2 bg-black/50 text-white text-[8px] px-2 py-0.5 rounded uppercase font-bold">Original</div>
+              </div>
+              <div class="flex-1 relative overflow-hidden bg-black">
+                 <img :src="`http://localhost:8000/api/cameras/${selectedCamId}/analysis-result?file=${selectedImage}`" class="w-full h-full object-contain">
+                 <div class="absolute top-2 left-2 bg-blue-600/80 text-white text-[8px] px-2 py-0.5 rounded uppercase font-bold">Segmentado</div>
+              </div>
+           </div>
+
+           <img v-else-if="displayImageUrl" :src="displayImageUrl" class="w-full h-full object-contain">
+           
            <div v-else class="flex-1 flex flex-col items-center justify-center text-slate-400">
               <svg class="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" stroke-width="2"/></svg>
               <p class="text-sm font-bold uppercase tracking-widest">Esperando Selección de Imagen</p>
            </div>
 
            <!-- View Controls -->
-           <div v-if="result" class="absolute top-4 left-4 flex bg-white border border-slate-200 rounded shadow-md overflow-hidden">
+           <div v-if="result" class="absolute top-4 left-4 flex bg-white border border-slate-200 rounded shadow-md overflow-hidden z-10">
               <button @click="viewMode = 'original'" 
                       :class="viewMode === 'original' ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-50'"
-                      class="px-4 py-1.5 text-xs font-bold uppercase border-r border-slate-200">Original</button>
+                      class="px-4 py-1.5 text-xs font-bold uppercase border-r border-slate-200 transition-colors">Original</button>
               <button @click="viewMode = 'result'" 
                       :class="viewMode === 'result' ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-50'"
-                      class="px-4 py-1.5 text-xs font-bold uppercase">Resultado</button>
+                      class="px-4 py-1.5 text-xs font-bold uppercase border-r border-slate-200 transition-colors">Resultado</button>
+              <button @click="viewMode = 'split'" 
+                      :class="viewMode === 'split' ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-50'"
+                      class="px-4 py-1.5 text-xs font-bold uppercase transition-colors">Lado a Lado</button>
            </div>
 
-           <div v-if="result" class="absolute bottom-4 left-4 bg-emerald-600 text-white text-[10px] px-3 py-1 rounded font-bold uppercase">Segmentación Activa: Shoreline</div>
+           <div v-if="result" class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-[10px] px-3 py-1 rounded font-bold uppercase shadow-lg">Segmentación Activa: Shoreline</div>
         </div>
         
         <div v-if="selectedCamId" class="card-standard p-4 bg-slate-50 flex items-center space-x-4">

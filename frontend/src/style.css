@@ -35,16 +35,30 @@
   @apply bg-white border border-slate-300 rounded-md px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all;
 }
 
-/* Traditional Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Print Styles for Reports */
+@media print {
+  header, aside, .no-print, button, select {
+    display: none !important;
+  }
+  
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  body {
+    background: white !important;
+  }
+  
+  .card-standard {
+    box-shadow: none !important;
+    border: 1px solid #cbd5e1 !important;
+    page-break-inside: avoid;
+  }
+  
+  .print-only {
+    display: block !important;
+  }
 }
 
-::-webkit-scrollbar-track {
-  @apply bg-slate-100;
-}
-
-::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 rounded-full hover:bg-slate-400;
-}
+.print-only { display: none; }

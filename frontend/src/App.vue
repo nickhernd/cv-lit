@@ -7,6 +7,15 @@ import ROIAnalysis from './components/ROIAnalysis.vue'
 const currentView = ref('dashboard')
 const selectedCamId = ref(null)
 const notifications = ref([])
+const logs = ref([])
+const showLogs = ref(false)
+
+async function fetchLogs() {
+  try {
+    const res = await fetch('http://localhost:8000/api/logs')
+    logs.value = await res.json()
+  } catch (err) { console.error('Error fetching logs:', err) }
+}
 
 function notify(message, type = 'info') {
   const id = Date.now()
@@ -24,6 +33,11 @@ function goToCalibration(camId = null) {
 function goToDashboard() {
   currentView.value = 'dashboard'
 }
+
+onMounted(() => {
+  fetchLogs()
+  setInterval(fetchLogs, 3000)
+})
 </script>
 
 <template>
@@ -36,8 +50,13 @@ function goToDashboard() {
         </div>
         <span class="text-lg font-bold tracking-tight uppercase">CV-LIT <span class="text-blue-400 font-normal text-sm ml-2">UA Engineering</span></span>
       </div>
-      <div class="flex items-center space-x-4 text-xs font-medium">
-        <span class="text-slate-400">v1.2.0</span>
+      <div class="flex items-center space-x-6 text-xs font-medium">
+        <button @click="showLogs = !showLogs" 
+                :class="showLogs ? 'text-blue-400 font-bold' : 'text-slate-400 hover:text-white'"
+                class="transition-colors flex items-center space-x-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-width="2"/></svg>
+          <span>Logs Sistema</span>
+        </button>
         <div class="h-4 w-px bg-slate-700"></div>
         <div class="flex items-center space-x-2">
           <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
@@ -46,13 +65,11 @@ function goToDashboard() {
       </div>
     </header>
 
-    <div class="flex flex-1 overflow-hidden">
+    <div class="flex flex-1 overflow-hidden relative">
       <!-- Sidebar -->
       <aside class="w-64 bg-slate-800 text-slate-300 flex flex-col shrink-0 z-50">
         <nav class="flex-1 py-6">
-          <div class="px-6 mb-6">
-            <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Navegación</p>
-          </div>
+          <div class="px-6 mb-6 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Navegación</div>
           <div class="space-y-1">
             <button @click="goToDashboard" 
                     :class="currentView === 'dashboard' ? 'bg-blue-600 text-white' : 'hover:bg-slate-700 hover:text-white'"
@@ -78,26 +95,48 @@ function goToDashboard() {
         <div class="p-4 bg-slate-900/50">
           <div class="flex items-center space-x-3">
             <div class="w-8 h-8 rounded bg-slate-700 flex items-center justify-center font-bold text-xs">UA</div>
-            <div class="text-[10px]">
-              <p class="font-bold text-white">Administrador</p>
-              <p class="text-slate-500">Ingeniería UA</p>
+            <div class="text-[10px] min-w-0">
+              <p class="font-bold text-white truncate">Administrador</p>
+              <p class="text-slate-500 truncate">Ingeniería UA</p>
             </div>
           </div>
         </div>
       </aside>
 
       <!-- Main Content Area -->
-      <main class="flex-1 overflow-y-auto p-8 relative">
-        <Transition name="fade" mode="out-in">
-          <Dashboard v-if="currentView === 'dashboard'" 
-                    @select-camera="goToCalibration" 
-                    @notify="notify" />
-          <Calibration v-else-if="currentView === 'calibration'" 
-                     :initial-cam-id="selectedCamId" 
-                     @notify="notify" />
-          <ROIAnalysis v-else-if="currentView === 'roi'" 
+      <main class="flex-1 overflow-hidden flex flex-col relative">
+        <div class="flex-1 overflow-y-auto p-8 relative">
+          <Transition name="fade" mode="out-in">
+            <Dashboard v-if="currentView === 'dashboard'" 
+                      @select-camera="goToCalibration" 
                       @notify="notify" />
-        </Transition>
+            <Calibration v-else-if="currentView === 'calibration'" 
+                       :initial-cam-id="selectedCamId" 
+                       @notify="notify" />
+            <ROIAnalysis v-else-if="currentView === 'roi'" 
+                        @notify="notify" />
+          </Transition>
+        </div>
+
+        <!-- Log Console Panel -->
+        <div v-if="showLogs" class="h-48 bg-slate-900 border-t border-slate-700 text-slate-300 font-mono text-[10px] overflow-hidden flex flex-col shrink-0 shadow-2xl">
+          <div class="px-4 py-2 bg-slate-800 flex justify-between items-center shrink-0">
+            <div class="flex items-center space-x-4">
+               <span class="font-bold uppercase tracking-widest text-slate-400">Consola de Eventos Backend</span>
+               <button @click="logs = []" class="text-blue-400 hover:text-blue-300 font-bold uppercase tracking-tighter">[Limpiar]</button>
+            </div>
+            <button @click="showLogs = false" class="text-slate-500 hover:text-white font-bold text-sm">×</button>
+          </div>
+          <div class="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-thin">
+            <div v-for="(log, idx) in logs.slice().reverse()" :key="idx" class="flex space-x-4 border-b border-slate-800 pb-1">
+              <span class="text-slate-600">[{{ log.time }}]</span>
+              <span :class="log.type === 'error' ? 'text-red-400' : (log.type === 'success' ? 'text-emerald-400' : 'text-blue-400')" class="font-bold uppercase w-16">
+                {{ log.type }}
+              </span>
+              <span class="text-slate-300 leading-relaxed">{{ log.msg }}</span>
+            </div>
+          </div>
+        </div>
       </main>
     </div>
 
@@ -121,10 +160,14 @@ function goToDashboard() {
 </template>
 
 <style>
-.fade-enter-active, .fade-leave-active { transition: opacity 0.15s ease; }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.1s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
 .list-enter-active, .list-leave-active { transition: all 0.3s ease; }
 .list-enter-from { opacity: 0; transform: translateY(20px); }
 .list-leave-to { opacity: 0; transform: scale(0.9); }
+
+.scrollbar-thin::-webkit-scrollbar { width: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: #0f172a; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
 </style>
