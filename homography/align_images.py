@@ -51,7 +51,7 @@ def load_sequence(input_dir: Path) -> list[Path]:
     return paths
 
 
-def align(img: np.ndarray, ref_gray: np.ndarray, ref_kp, ref_des) -> tuple[np.ndarray, dict]:
+def align(img: np.ndarray, ref_gray: np.ndarray, ref_kp, ref_des, ref_img: np.ndarray = None) -> tuple[np.ndarray, dict]:
     """Alinea img respecto a la referencia. Retorna (imagen_alineada, info)."""
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
@@ -59,14 +59,14 @@ def align(img: np.ndarray, ref_gray: np.ndarray, ref_kp, ref_des) -> tuple[np.nd
     kp, des = sift.detectAndCompute(gray, None)
 
     if des is None or len(kp) < 10:
-        return img.copy(), {"status": "no_features", "inliers": 0}
+        return img.copy(), {"status": "no_features", "inliers": 0, "viz": None}
 
     flann = cv2.FlannBasedMatcher({"algorithm": 1, "trees": 5}, {"checks": 50})
     matches = flann.knnMatch(ref_des, des, k=2)
     good = [m for m, n in matches if m.distance < LOWE_RATIO * n.distance]
 
     if len(good) < MIN_INLIERS:
-        return img.copy(), {"status": "low_matches", "inliers": len(good)}
+        return img.copy(), {"status": "low_matches", "inliers": len(good), "viz": None}
 
     src = np.float32([ref_kp[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
     dst = np.float32([kp[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
@@ -75,18 +75,42 @@ def align(img: np.ndarray, ref_gray: np.ndarray, ref_kp, ref_des) -> tuple[np.nd
     inliers = int(mask.ravel().sum()) if mask is not None else 0
 
     if H is None or inliers < MIN_INLIERS:
-        return img.copy(), {"status": "ransac_failed", "inliers": inliers}
+        return img.copy(), {"status": "ransac_failed", "inliers": inliers, "viz": None}
 
     h, w = ref_gray.shape
     aligned = cv2.warpPerspective(img, H, (w, h))
-    return aligned, {"status": "ok", "inliers": inliers, "H": H}
+    
+    # --- Generar Visualización de Diagnóstico ---
+    # 1. Blend (Overlay) solicitado por el usuario
+    # Redimensionamos a algo manejable pero visible (ej: 800x450)
+    v_size = (800, 450)
+    ref_res = cv2.resize(ref_img, v_size)
+    ali_res = cv2.resize(aligned, v_size)
+    blend = cv2.addWeighted(ref_res, 0.5, ali_res, 0.5, 0)
+    
+    # 2. Dibujar Matches (Inliers)
+    # Solo mostramos una selección para no saturar
+    matches_mask = mask.ravel().tolist()
+    viz_matches = cv2.drawMatches(ref_img, ref_kp, img, kp, good, None,
+                                  matchColor=(0, 255, 0),
+                                  singlePointColor=(0, 0, 255),
+                                  matchesMask=matches_mask,
+                                  flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+    viz_matches = cv2.resize(viz_matches, (1600, 450))
+    
+    # Combinar ambos en una tira de diagnóstico
+    diagnostics = np.hstack([cv2.resize(blend, (800, 450)), viz_matches[:450, :800]])
+    
+    return aligned, {"status": "ok", "inliers": inliers, "H": H, "viz": diagnostics}
 
 
 def run(input_dir: Path, output_dir: Path, ref_path: Path | None):
     print("\n── Coastal Alignment Pipeline · Tech4D Lab ──\n")
 
     out_aligned = output_dir / "aligned"
+    out_diag    = output_dir / "diagnostics"
     out_aligned.mkdir(parents=True, exist_ok=True)
+    out_diag.mkdir(parents=True, exist_ok=True)
 
     paths = load_sequence(input_dir)
     if not paths:
@@ -111,13 +135,15 @@ def run(input_dir: Path, output_dir: Path, ref_path: Path | None):
 
         if p == ref_file:
             aligned = img.copy()
-            info = {"status": "reference", "inliers": len(ref_kp)}
+            info = {"status": "reference", "inliers": len(ref_kp), "viz": None}
             H_flat = np.eye(3).flatten().tolist()
         else:
-            aligned, info = align(img, ref_gray, ref_kp, ref_des)
+            aligned, info = align(img, ref_gray, ref_kp, ref_des, ref_img=ref_img)
             H_flat = info["H"].flatten().tolist() if info.get("H") is not None else [None]*9
 
         cv2.imwrite(str(out_aligned / p.name), aligned)
+        if info.get("viz") is not None:
+            cv2.imwrite(str(out_diag / f"diag_{p.name}"), info["viz"])
 
         status_icon = "[OK]" if info["status"] in ("ok", "reference") else "[WARNING]"
         print(f"  [{i+1:03d}] {p.name}  {status_icon}  {info['status']}  ({info['inliers']} inliers)")

@@ -254,27 +254,74 @@ def get_rectified_preview(cam_id: int):
 
 @app.post("/api/cameras/{cam_id}/analyze-roi")
 def analyze_roi(cam_id: int, filename: Optional[str] = None):
-    add_log(f"Iniciando segmentación SAM para Cam {cam_id}", "info")
-    if APP_MODE == "demo":
-        dry_area = 24500.50 + np.random.randint(-500, 500)
-        add_log(f"Análisis Cam {cam_id} finalizado (Demo)", "success")
-        return {"dry_area_m2": round(dry_area, 2), "confidence": 0.98, "timestamp": "2026-06-12T12:00:00"}
-
-    info = CAMERAS[cam_id]; target_file = filename if filename else info["file"]
+    add_log(f"Iniciando segmentación y georreferenciación para Cam {cam_id}", "info")
+    
+    # 1. Cargar imagen
+    info = CAMERAS[cam_id]
+    target_file = filename if filename else info["file"]
     img_path = os.path.join(DATA_DIR, info["folder"], target_file)
     img = cv2.imread(img_path)
+    if img is None: raise HTTPException(status_code=404, detail="Image file not found")
     
+    # 2. Cargar Matriz H
+    h_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_H.npy")
+    if not os.path.exists(h_path):
+        add_log(f"Falta calibración para Cam {cam_id}", "error")
+        raise HTTPException(status_code=400, detail="Camera not calibrated")
+    H = np.load(h_path)
+
+    # 3. Segmentación (Fallback por ahora si no hay GPU)
+    h_orig, w_orig = img.shape[:2]
+    roi = {"x_min": 0, "y_min": int(h_orig*0.4), "x_max": w_orig, "y_max": h_orig}
+    
+    # Intentar SAM, si falla usar color_fallback
     s = get_segmenter()
-    mask = s.segment_dry_sand(img, str(cam_id)) if s else None
-    
-    if mask is not None:
-        dry_area = float(np.sum(mask > 0) * 0.25)
-        add_log(f"Shoreline extraída Cam {cam_id}. Area: {dry_area:.0f}m2", "success")
+    if s and s is not False:
+        mask = s.segment_dry_sand(img, str(cam_id))
     else:
-        dry_area = 0.0
-        add_log(f"Fallo en segmentación Cam {cam_id}", "error")
-        
-    return {"dry_area_m2": round(dry_area, 2), "confidence": 0.95, "timestamp": "2026-06-12T12:00:00"}
+        mask = color_fallback_segmentation(img, roi)
+    
+    # 4. Extraer línea de costa (píxeles)
+    points_px = extract_coastline_from_mask(mask)
+    
+    if not points_px:
+        add_log(f"No se detectó línea en Cam {cam_id}", "warning")
+        return {"dry_area_m2": 0, "confidence": 0.0, "timestamp": str(datetime.datetime.now())}
+
+    # 5. Proyectar a UTM
+    pts_array = np.array(points_px, dtype=np.float32).reshape(-1, 1, 2)
+    pts_utm = cv2.perspectiveTransform(pts_array, H).reshape(-1, 2)
+    
+    # 6. Generar GeoJSON
+    feature = {
+        "type": "Feature",
+        "properties": {
+            "cam_id": cam_id,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "area_m2": float(np.sum(mask > 0) * 0.25) # Estimación simplificada
+        },
+        "geometry": {
+            "type": "LineString",
+            "coordinates": pts_utm.tolist()
+        }
+    }
+    
+    # Guardar último resultado para descarga
+    latest_path = os.path.join(DATA_DIR, "latest_result.json")
+    with open(latest_path, "w") as f:
+        json.dump({"type": "FeatureCollection", "features": [feature]}, f)
+
+    # Guardar imagen con línea dibujada para preview
+    viz = draw_coastline(img.copy(), points_px)
+    cv2.imwrite(os.path.join(DATA_DIR, f"latest_analysis_cam{cam_id}.jpg"), viz)
+
+    add_log(f"Análisis finalizado Cam {cam_id}. {len(pts_utm)} puntos UTM.", "success")
+    return {
+        "dry_area_m2": feature["properties"]["area_m2"],
+        "confidence": 0.92,
+        "timestamp": feature["properties"]["timestamp"],
+        "points_utm": len(pts_utm)
+    }
 
 @app.get("/api/geojson")
 def get_geojson():

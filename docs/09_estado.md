@@ -33,9 +33,9 @@
 
 - [x] Obtener transectos GNSS del IEL (GCPs en EPSG:25830)
 - [x] Calibracion final de las 6 camaras con datos reales (perfiles generados en /calibration/)
-- [ ] Implementar proyeccion a EPSG:25830 (modulo 3.4)
-- [ ] Implementar postprocesado y exportacion GeoJSON (modulo 3.5)
+- [x] Implementar proyeccion a EPSG:25830 (modulo 3.4)
+- [x] Implementar postprocesado y exportacion GeoJSON (modulo 3.5)
 
 ## Bloqueos activos [BLOQUEO]
 
-1. **Ninguno**: El sistema ya cuenta con los GCPs necesarios para operar.
+1. **Ninguno**: El sistema es funcional end-to-end desde la descarga hasta la generación de GeoJSON georreferenciado.
