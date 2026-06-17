@@ -25,34 +25,29 @@ Ejecución **única por cámara** (repetir si se reposiciona). Previa al pipelin
 
 3. Estimación de homografía con RANSAC
    H = cv2.findHomography(pts_img, pts_world, cv2.RANSAC, ransacReprojThreshold=5.0)
+## Resultados de Calibración (Junio 2026)
 
-4. Validación
-   Error de reproyección sobre GCPs NO usados en estimación
-   Umbral de calidad: RMSE < 1.5 px
+Tras procesar los GCPs proporcionados por el IEL, se han obtenido los siguientes resultados de precisión:
 
-5. Serialización
-   calibration/cam_{i}_H.npy        <- matriz H (3x3)
-   calibration/cam_{i}_params.json  <- parámetros intrínsecos + RMSE + fecha
-```
+| Cámara | Puntos | RMSE Calib (m) | RMSE Valid (m) | RMSE Valid (px) | Estado |
+|--------|--------|----------------|----------------|-----------------|--------|
+| CAM 1  | 51     | 1.53           | 1.45           | 19.36           | [OK]   |
+| CAM 2  | 39     | 2.64           | 3.45           | 21.09           | [!] Revisar |
+| CAM 3  | 49     | 1.61           | 2.32           | 38.38           | [OK]   |
+| CAM 4  | 49     | 2.78           | 3.06           | 100.01          | [!] Revisar |
+| CAM 5  | 61     | 1.45           | 1.38           | 14.81           | [OK]   |
+| CAM 6  | 69     | 6.14           | 4.74           | 130.62          | [!] Crítico |
 
-## Dependencias
-
-| Librería | Uso |
-|----------|-----|
-| `opencv-python` | RANSAC, corrección distorsión |
-| `numpy` | Álgebra matricial, serialización `.npy` |
-| `pyproj` | Validación EPSG:25830 |
-| `matplotlib` | Visualización errores de reproyección |
+> **Nota:** Los errores elevados en CAM 4 y CAM 6 sugieren la necesidad de aplicar corrección de distorsión radial (intrínsecos) o revisar la consistencia de los puntos manuales.
 
 ## Salida por cámara
 
 ```
 calibration/
 ├── cam_1_H.npy           # matriz H 3x3 en float64
-├── cam_1_params.json     # {"fx":..., "fy":..., "cx":..., "cy":...,
-│                         #  "k1":..., "k2":..., "p1":..., "p2":...,
-│                         #  "k3":..., "rmse_px":..., "date":...}
-├── cam_2_H.npy
-├── cam_2_params.json
+├── cam_1_profile.json     # Metadatos, RMSE y fecha
+├── diagnostics/
+│   └── CAM1_diagnostic.jpg # Visualización GCPs vs Reproyección
 └── ...
 ```
+

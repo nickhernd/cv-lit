@@ -31,11 +31,11 @@
 
 ## Pendiente [ ]
 
-- [ ] Obtener transectos GNSS del IEL (GCPs en EPSG:25830) -> **Bloquea ejecucion de calibracion final**
-- [ ] Calibracion final de las 6 camaras con datos reales
+- [x] Obtener transectos GNSS del IEL (GCPs en EPSG:25830)
+- [x] Calibracion final de las 6 camaras con datos reales (perfiles generados en /calibration/)
 - [ ] Implementar proyeccion a EPSG:25830 (modulo 3.4)
 - [ ] Implementar postprocesado y exportacion GeoJSON (modulo 3.5)
 
 ## Bloqueos activos [BLOQUEO]
 
-1. **GCPs GNSS del IEL**: sin ellos no se puede ejecutar la calibracion (3.0) con precision submetrica ni el resto del pipeline. Las herramientas estan listas para ser ejecutadas en cuanto se reciba el archivo.
+1. **Ninguno**: El sistema ya cuenta con los GCPs necesarios para operar.

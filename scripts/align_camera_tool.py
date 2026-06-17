@@ -10,13 +10,21 @@ OUTPUT_BASE = Path("proces_images/output")
 def get_cameras():
     if not DATA_DIR.exists():
         return []
-    return [d.name for d in DATA_DIR.iterdir() if d.is_dir() and d.name.startswith("CAM_")]
+    # Aceptar tanto 'CAM_' como 'camera' para mayor flexibilidad
+    return sorted([d.name for d in DATA_DIR.iterdir() if d.is_dir() and (d.name.startswith("CAM_") or d.name.startswith("camera"))])
 
 def get_images(cam_dir):
     extensions = ["*.jpg", "*.jpeg", "*.JPG", "*.JPEG"]
     paths = []
-    for ext in extensions:
-        paths.extend(cam_dir.glob(ext))
+    # Intentar en la subcarpeta 'images' primero, si no en la raíz de la cámara
+    search_dirs = [cam_dir / "images", cam_dir]
+    
+    for s_dir in search_dirs:
+        if s_dir.exists():
+            for ext in extensions:
+                paths.extend(s_dir.glob(ext))
+            if paths: break # Si encontramos imágenes en 'images', no buscamos en la raíz
+            
     return sorted(paths)
 
 def main():
@@ -40,11 +48,11 @@ def main():
         print("Selección inválida.")
         return
 
-    cam_path = DATA_DIR / selected_cam / "images"
-    images = get_images(cam_path)
+    cam_base_path = DATA_DIR / selected_cam
+    images = get_images(cam_base_path)
     
     if not images:
-        print(f"No se encontraron imágenes en {cam_path}")
+        print(f"No se encontraron imágenes en {cam_base_path}")
         return
 
     # 2. Seleccionar Imagen de Referencia
@@ -68,7 +76,7 @@ def main():
     print(f"\nEjecutando alineación para {selected_cam}...")
     print(f"Referencia: {ref_image.name if ref_image else 'Automática (primera)'}")
     
-    run_alignment(cam_path, output_dir, ref_image)
+    run_alignment(images[0].parent, output_dir, ref_image)
     print(f"\nProceso finalizado. Resultados en: {output_dir}")
 
 if __name__ == "__main__":

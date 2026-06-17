@@ -301,12 +301,35 @@ async def upload_images(cam_id: int, files: List[UploadFile] = File(...)):
     add_log(f"Subidas {len(uploaded)} imágenes a Cam {cam_id}", "info")
     return {"status": "success", "uploaded": uploaded, "count": len(uploaded)}
 
+@app.get("/api/cameras/{cam_id}/images")
+def list_camera_images(cam_id: int):
+    if cam_id not in CAMERAS: raise HTTPException(status_code=404, detail="Camera not found")
+    cam_folder = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"])
+    if not os.path.exists(cam_folder):
+        return []
+    
+    images = []
+    for f in sorted(os.listdir(cam_folder)):
+        if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+            images.append({
+                "filename": f,
+                "size": os.path.getsize(os.path.join(cam_folder, f)),
+                "modified": os.path.getmtime(os.path.join(cam_folder, f))
+            })
+    return images
+
 @app.delete("/api/cameras/{cam_id}/images/{filename}")
 def delete_camera_image(cam_id: int, filename: str):
+    if cam_id not in CAMERAS: raise HTTPException(status_code=404, detail="Camera not found")
     file_path = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"], filename)
-    os.remove(file_path)
-    add_log(f"Imagen {filename} eliminada de Cam {cam_id}", "info")
-    return {"status": "success"}
+    if os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+            add_log(f"Imagen {filename} eliminada de Cam {cam_id}", "info")
+            return {"status": "success"}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=404, detail="File not found")
 
 @app.post("/api/cameras/{cam_id}/import-rods")
 async def import_rods(cam_id: int, file: UploadFile = File(...)):

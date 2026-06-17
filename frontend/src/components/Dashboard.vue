@@ -90,7 +90,7 @@ onMounted(fetchData)
        <p class="text-sm font-bold text-slate-500 uppercase tracking-widest">Generado el {{ new Date().toLocaleDateString() }} - CV-LIT UA Engineering</p>
     </div>
 
-    <!-- TELEMETRY GRID -->
+    <!-- TELEMETRY GRID (Deshabilitado temporalmente)
     <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
       <div v-for="(val, label) in { 'Carga CPU': '24.2%', 'RAM': '4.8 GB', 'Almacén': '1.2 TB', 'Latencia': 'Estable' }" :key="label"
            class="card-standard p-4 flex flex-col justify-center shadow-sm">
@@ -98,6 +98,7 @@ onMounted(fetchData)
         <p class="text-xl font-bold text-slate-900">{{ val }}</p>
       </div>
     </div>
+    -->
 
     <!-- MAIN METRICS -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
