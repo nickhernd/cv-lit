@@ -323,6 +323,95 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
         "points_utm": len(pts_utm)
     }
 
+# ── Alineación con preview blend 50/50 ────────────────────────────────────────
+@app.post("/api/cameras/{cam_id}/align-preview")
+async def align_preview(
+    cam_id: int,
+    target: UploadFile = File(...),
+    reference: Optional[UploadFile] = File(None),
+):
+    """
+    Alinea 'target' respecto a la imagen de referencia del perfil (o a 'reference' si se sube).
+    Devuelve un PNG con el blend 50/50 en B&W para diagnóstico visual.
+    """
+    # ── 1. Cargar referencia ──────────────────────────────────────────────────
+    if reference is not None:
+        ref_data = await reference.read()
+        ref_arr  = np.frombuffer(ref_data, np.uint8)
+        ref_img  = cv2.imdecode(ref_arr, cv2.IMREAD_COLOR)
+    else:
+        # Leer desde perfil guardado en disco
+        profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_profile.json")
+        if not os.path.exists(profile_path):
+            raise HTTPException(400, "No hay perfil para esta cámara. Establece una referencia primero.")
+        with open(profile_path) as f:
+            profile = json.load(f)
+        ref_filename = profile.get("reference_image")
+        if not ref_filename:
+            raise HTTPException(400, "No hay imagen de referencia establecida en el perfil.")
+        ref_path = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"], ref_filename)
+        ref_img  = cv2.imread(ref_path)
+
+    if ref_img is None:
+        raise HTTPException(500, "No se pudo leer la imagen de referencia.")
+
+    # ── 2. Cargar imagen a alinear ────────────────────────────────────────────
+    tgt_data = await target.read()
+    tgt_arr  = np.frombuffer(tgt_data, np.uint8)
+    tgt_img  = cv2.imdecode(tgt_arr, cv2.IMREAD_COLOR)
+    if tgt_img is None:
+        raise HTTPException(400, "No se pudo leer la imagen target.")
+
+    # ── 3. Alinear con SIFT+FLANN (más robusto que ORB para vistas costeras) ──
+    MIN_INLIERS   = 30
+    RANSAC_THRESH = 5.0
+    SIFT_FEATURES = 3000
+    LOWE_RATIO    = 0.75
+
+    ref_gray = cv2.cvtColor(ref_img, cv2.COLOR_BGR2GRAY)
+    tgt_gray = cv2.cvtColor(tgt_img, cv2.COLOR_BGR2GRAY)
+
+    sift = cv2.SIFT_create(nfeatures=SIFT_FEATURES)
+    ref_kp, ref_des = sift.detectAndCompute(ref_gray, None)
+    tgt_kp, tgt_des = sift.detectAndCompute(tgt_gray, None)
+
+    if tgt_des is None or len(tgt_kp) < 10:
+        raise HTTPException(422, "La imagen target tiene muy pocas features detectables.")
+
+    flann   = cv2.FlannBasedMatcher({"algorithm": 1, "trees": 5}, {"checks": 50})
+    matches = flann.knnMatch(ref_des, tgt_des, k=2)
+    good    = [m for m, n in matches if m.distance < LOWE_RATIO * n.distance]
+
+    if len(good) < MIN_INLIERS:
+        raise HTTPException(422, f"Pocos matches ({len(good)}). Imágenes demasiado distintas.")
+
+    src = np.float32([ref_kp[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
+    dst = np.float32([tgt_kp[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+
+    H, mask = cv2.findHomography(dst, src, cv2.RANSAC, RANSAC_THRESH)
+    inliers  = int(mask.ravel().sum()) if mask is not None else 0
+
+    if H is None or inliers < MIN_INLIERS:
+        raise HTTPException(422, f"RANSAC fallido ({inliers} inliers). No se puede alinear.")
+
+    h, w    = ref_gray.shape
+    aligned = cv2.warpPerspective(tgt_img, H, (w, h))
+
+    add_log(f"Alineación Cam {cam_id}: {inliers} inliers RANSAC", "info")
+
+    # ── 4. Blend 50/50 en escala de grises ───────────────────────────────────
+    ref_bw     = cv2.cvtColor(ref_img, cv2.COLOR_BGR2GRAY)
+    aligned_bw = cv2.cvtColor(aligned,  cv2.COLOR_BGR2GRAY)
+    aligned_bw = cv2.resize(aligned_bw, (w, h))  # garantizar mismo tamaño
+
+    blend = cv2.addWeighted(ref_bw, 0.5, aligned_bw, 0.5, 0)
+
+    # ── 5. Devolver PNG ───────────────────────────────────────────────────────
+    import io
+    from fastapi.responses import StreamingResponse
+    _, buf = cv2.imencode(".png", blend)
+    return StreamingResponse(io.BytesIO(buf.tobytes()), media_type="image/png")
+
 @app.get("/api/geojson")
 def get_geojson():
     path = os.path.join(DATA_DIR, "latest_result.json")

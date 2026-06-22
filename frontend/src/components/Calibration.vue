@@ -54,6 +54,41 @@ async function fetchImages() {
   } catch (err) { console.error(err) }
 }
 
+async function runAlignment() {
+  alignState.value = 'loading'
+  blendUrl.value   = ''
+  alignError.value = ''
+
+  try {
+    // Obtener la imagen target como Blob desde su URL del backend
+    const tgtResp = await fetch(imageUrl.value)  // URL de la imagen seleccionada en paso 2
+    if (!tgtResp.ok) throw new Error('No se pudo cargar la imagen target')
+    const tgtBlob = await tgtResp.blob()
+
+    const form = new FormData()
+    form.append('target', tgtBlob, 'target.jpg')
+    // No enviamos 'reference' → el backend la lee del perfil JSON automáticamente
+
+    const resp = await fetch(
+      `http://localhost:8000/api/cameras/${selectedCamId.value}/align-preview`,
+      { method: 'POST', body: form }
+    )
+
+    if (!resp.ok) {
+      const err = await resp.json()
+      throw new Error(err.detail ?? 'Error desconocido')
+    }
+
+    if (blendUrl.value) URL.revokeObjectURL(blendUrl.value) // limpiar anterior
+    blendUrl.value   = URL.createObjectURL(await resp.blob())
+    alignState.value = 'done'
+
+  } catch (e) {
+    alignError.value = e.message
+    alignState.value = 'error'
+  }
+}
+
 async function fetchProfile() {
   if (!selectedCamId.value) return
   loading.value = true
@@ -155,7 +190,7 @@ function handleImageClick(event) {
   const y = event.clientY - rect.top
   const relX = (x / event.target.clientWidth) * 100
   const relY = (y / event.target.clientHeight) * 100
-  
+
   const newGcp = {
     pixel: [x, y],
     utm: [0, 0],
@@ -163,7 +198,7 @@ function handleImageClick(event) {
     type: 'calib',
     rel: [relX, relY]
   }
-  
+
   currentProfile.value.gcps.push(newGcp)
   selectedGcpIdx.value = currentProfile.value.gcps.length - 1
   saveAnnotations()
@@ -206,7 +241,7 @@ onMounted(() => {
 
     <!-- TABS -->
     <div class="flex bg-white rounded-md shadow-sm border border-slate-200 overflow-hidden">
-      <button v-for="step in steps" :key="step.id" 
+      <button v-for="step in steps" :key="step.id"
               @click="currentStep = step.id"
               :disabled="!selectedCamId && step.id > 1"
               :class="[
@@ -255,7 +290,7 @@ onMounted(() => {
               <button @click="fetchImages" class="text-blue-600 hover:underline">↻</button>
             </div>
             <div class="flex-1 overflow-y-auto divide-y divide-slate-100">
-               <div v-for="img in availableImages" :key="img.filename" 
+               <div v-for="img in availableImages" :key="img.filename"
                     @click="selectedImage = img.filename"
                     :class="selectedImage === img.filename ? 'bg-blue-50' : 'hover:bg-slate-50'"
                     class="p-3 cursor-pointer flex items-center space-x-3 transition-colors group">
@@ -300,7 +335,8 @@ onMounted(() => {
 
     <!-- Resto de los pasos (3, 4, 5) mantienen la lógica similar pero con estilos unificados -->
     <!-- PASO 3: ALINEACION (Simplified visual) -->
-    <div v-if="currentStep === 3" class="card-standard p-12 flex flex-col items-center space-y-8">
+    <!-- Parte de la Alineación no se hace mediante los puntos se hace con el script de alinar las imagens -->
+    <div v-if="currentStep === 3" class="card-standard p- qlex flex-col items-center space-y-8">
        <div class="grid grid-cols-2 gap-8 w-full">
           <div class="space-y-3">
              <p class="text-[10px] font-bold text-slate-400 uppercase">Referencia Base</p>
@@ -325,8 +361,8 @@ onMounted(() => {
     <div v-if="currentStep === 4" class="grid grid-cols-1 lg:grid-cols-4 gap-6">
        <div class="lg:col-span-3 card-standard overflow-hidden bg-slate-900 flex flex-col relative min-h-[600px]">
           <img :src="imageUrl" @click="handleImageClick" class="w-full h-full object-contain cursor-crosshair select-none">
-          
-          <div v-for="(gcp, idx) in currentProfile.gcps" :key="idx" 
+
+          <div v-for="(gcp, idx) in currentProfile.gcps" :key="idx"
                class="absolute -translate-x-1/2 -translate-y-1/2"
                :style="{ left: gcp.rel[0] + '%', top: gcp.rel[1] + '%' }">
             <div @click.stop="selectedGcpIdx = idx"
@@ -366,7 +402,7 @@ onMounted(() => {
           <div class="card-standard flex flex-col h-[500px]">
             <div class="card-header uppercase tracking-wider text-[10px]">Listado de Varillas ({{ currentProfile.gcps.length }})</div>
             <div class="flex-1 overflow-y-auto divide-y divide-slate-100 custom-scrollbar">
-               <div v-for="(gcp, idx) in currentProfile.gcps" :key="idx" 
+               <div v-for="(gcp, idx) in currentProfile.gcps" :key="idx"
                     @click="selectedGcpIdx = idx"
                     class="p-3 text-xs flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors"
                     :class="selectedGcpIdx === idx ? 'bg-blue-50 border-l-4 border-blue-600' : ''">
@@ -378,7 +414,7 @@ onMounted(() => {
                </div>
             </div>
             <div class="p-4 border-t border-slate-100 bg-slate-50">
-              <button @click="calculateHomography" :disabled="currentProfile.gcps.length < 4 || calculating" 
+              <button @click="calculateHomography" :disabled="currentProfile.gcps.length < 4 || calculating"
                       class="btn-standard w-full uppercase text-xs shadow-md">
                 {{ calculating ? 'Calculando...' : 'Generar Perfil' }}
               </button>
@@ -390,7 +426,7 @@ onMounted(() => {
     <!-- PASO 5: VALIDACION -->
     <div v-if="currentStep === 5" class="card-standard p-12 text-center space-y-10 min-h-[600px] flex flex-col justify-center">
        <div class="inline-block bg-emerald-100 text-emerald-800 px-6 py-2 rounded-full text-xs font-bold uppercase tracking-widest border border-emerald-200 shadow-sm">Estación Calibrada con Éxito</div>
-       
+
        <div class="max-w-4xl mx-auto space-y-8">
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="p-4 bg-white rounded-lg border border-slate-100 shadow-sm">
@@ -413,7 +449,7 @@ onMounted(() => {
               </div>
             </div>
           </div>
-          
+
           <div class="aspect-video bg-slate-900 rounded-lg border border-slate-800 overflow-hidden shadow-2xl relative">
             <img :src="rectifiedUrl" class="w-full h-full object-contain">
             <div class="absolute top-4 left-4 bg-black/50 text-white text-[9px] font-bold px-3 py-1 rounded-full uppercase tracking-widest">Vista Rectificada (UTM)</div>
