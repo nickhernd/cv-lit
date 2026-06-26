@@ -1,0 +1,8 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{n}{H}\PYG{p}{,} \PYG{n}{mask} \PYG{o}{=} \PYG{n}{cv2}\PYG{o}{.}\PYG{n}{findHomography}\PYG{p}{(}
+    \PYG{n}{pts\PYGZus{}img}\PYG{p}{,}            \PYG{c+c1}{\PYGZsh{} puntos imagen (u,v)}
+    \PYG{n}{pts\PYGZus{}world}\PYG{p}{,}          \PYG{c+c1}{\PYGZsh{} coordenadas UTM (X,Y) en EPSG:25830}
+    \PYG{n}{cv2}\PYG{o}{.}\PYG{n}{RANSAC}\PYG{p}{,}
+    \PYG{n}{ransacReprojThreshold}\PYG{o}{=}\PYG{l+m+mf}{5.0}   \PYG{c+c1}{\PYGZsh{} umbral de reproyección (px)}
+\PYG{p}{)}
+\end{MintedVerbatim}

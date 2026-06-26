@@ -1,0 +1,5 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+./start\PYGZus{}dev.sh
+\PYG{c+c1}{\PYGZsh{} Backend:  http://localhost:8000}
+\PYG{c+c1}{\PYGZsh{} Frontend: http://localhost:5173}
+\end{MintedVerbatim}

@@ -1,0 +1,7 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{k+kd}{const}\PYG{+w}{ }\PYG{n+nx}{phase}\PYG{+w}{    }\PYG{o}{=}\PYG{+w}{ }\PYG{n+nx}{ref}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}idle\PYGZsq{}}\PYG{p}{)}\PYG{+w}{   }\PYG{c+c1}{// idle|configuring|processing|reviewing|committed}
+\PYG{k+kd}{const}\PYG{+w}{ }\PYG{n+nx}{jobId}\PYG{+w}{    }\PYG{o}{=}\PYG{+w}{ }\PYG{n+nx}{ref}\PYG{p}{(}\PYG{k+kc}{null}\PYG{p}{)}\PYG{+w}{     }\PYG{c+c1}{// UUID del job backend activo}
+\PYG{k+kd}{const}\PYG{+w}{ }\PYG{n+nx}{results}\PYG{+w}{  }\PYG{o}{=}\PYG{+w}{ }\PYG{n+nx}{ref}\PYG{p}{([])}\PYG{+w}{       }\PYG{c+c1}{// Array de AlignmentResult del lote}
+\PYG{k+kd}{const}\PYG{+w}{ }\PYG{n+nx}{selected}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{n+nx}{ref}\PYG{p}{(}\PYG{k+kc}{null}\PYG{p}{)}\PYG{+w}{     }\PYG{c+c1}{// filename seleccionado en filmstrip}
+\PYG{k+kd}{const}\PYG{+w}{ }\PYG{n+nx}{viewMode}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{n+nx}{ref}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}diff\PYGZsq{}}\PYG{p}{)}\PYG{+w}{   }\PYG{c+c1}{// \PYGZsq{}diff\PYGZsq{} | \PYGZsq{}blend\PYGZsq{} | \PYGZsq{}aligned\PYGZsq{}}
+\end{MintedVerbatim}

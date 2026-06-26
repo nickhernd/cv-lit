@@ -1,0 +1,25 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{k+kn}{import}\PYG{+w}{ }\PYG{n+nn}{cv2}\PYG{o}{,}\PYG{+w}{ }\PYG{n+nn}{json}\PYG{o}{,}\PYG{+w}{ }\PYG{n+nn}{numpy}\PYG{+w}{ }\PYG{k}{as}\PYG{+w}{ }\PYG{n+nn}{np}
+
+\PYG{n}{IMG}   \PYG{o}{=} \PYG{l+s+s2}{\PYGZdq{}proces\PYGZus{}images/data/camera1/IMAGEN\PYGZus{}REF.jpg\PYGZdq{}}
+\PYG{n}{MASKS} \PYG{o}{=} \PYG{l+s+s2}{\PYGZdq{}calibration/alignment\PYGZus{}masks.json\PYGZdq{}}
+\PYG{n}{CAM}   \PYG{o}{=} \PYG{l+s+s2}{\PYGZdq{}CAM\PYGZus{}1\PYGZdq{}}
+
+\PYG{n}{img} \PYG{o}{=} \PYG{n}{cv2}\PYG{o}{.}\PYG{n}{imread}\PYG{p}{(}\PYG{n}{IMG}\PYG{p}{)}
+\PYG{n}{h}\PYG{p}{,} \PYG{n}{w} \PYG{o}{=} \PYG{n}{img}\PYG{o}{.}\PYG{n}{shape}\PYG{p}{[:}\PYG{l+m+mi}{2}\PYG{p}{]}
+\PYG{n}{overlay} \PYG{o}{=} \PYG{n}{img}\PYG{o}{.}\PYG{n}{copy}\PYG{p}{()}
+
+\PYG{k}{with} \PYG{n+nb}{open}\PYG{p}{(}\PYG{n}{MASKS}\PYG{p}{)} \PYG{k}{as} \PYG{n}{f}\PYG{p}{:}
+    \PYG{n}{cfg} \PYG{o}{=} \PYG{n}{json}\PYG{o}{.}\PYG{n}{load}\PYG{p}{(}\PYG{n}{f}\PYG{p}{)}
+
+\PYG{k}{for} \PYG{n}{r} \PYG{o+ow}{in} \PYG{n}{cfg}\PYG{p}{[}\PYG{n}{CAM}\PYG{p}{][}\PYG{l+s+s2}{\PYGZdq{}regions\PYGZdq{}}\PYG{p}{]:}
+    \PYG{n}{x0}\PYG{p}{,} \PYG{n}{y0} \PYG{o}{=} \PYG{n+nb}{int}\PYG{p}{(}\PYG{n}{r}\PYG{p}{[}\PYG{l+s+s2}{\PYGZdq{}x0\PYGZdq{}}\PYG{p}{]}\PYG{o}{*}\PYG{n}{w}\PYG{p}{),} \PYG{n+nb}{int}\PYG{p}{(}\PYG{n}{r}\PYG{p}{[}\PYG{l+s+s2}{\PYGZdq{}y0\PYGZdq{}}\PYG{p}{]}\PYG{o}{*}\PYG{n}{h}\PYG{p}{)}
+    \PYG{n}{x1}\PYG{p}{,} \PYG{n}{y1} \PYG{o}{=} \PYG{n+nb}{int}\PYG{p}{(}\PYG{n}{r}\PYG{p}{[}\PYG{l+s+s2}{\PYGZdq{}x1\PYGZdq{}}\PYG{p}{]}\PYG{o}{*}\PYG{n}{w}\PYG{p}{),} \PYG{n+nb}{int}\PYG{p}{(}\PYG{n}{r}\PYG{p}{[}\PYG{l+s+s2}{\PYGZdq{}y1\PYGZdq{}}\PYG{p}{]}\PYG{o}{*}\PYG{n}{h}\PYG{p}{)}
+    \PYG{n}{cv2}\PYG{o}{.}\PYG{n}{rectangle}\PYG{p}{(}\PYG{n}{overlay}\PYG{p}{,} \PYG{p}{(}\PYG{n}{x0}\PYG{p}{,}\PYG{n}{y0}\PYG{p}{),} \PYG{p}{(}\PYG{n}{x1}\PYG{p}{,}\PYG{n}{y1}\PYG{p}{),} \PYG{p}{(}\PYG{l+m+mi}{0}\PYG{p}{,}\PYG{l+m+mi}{255}\PYG{p}{,}\PYG{l+m+mi}{0}\PYG{p}{),} \PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{)}
+    \PYG{n}{cv2}\PYG{o}{.}\PYG{n}{putText}\PYG{p}{(}\PYG{n}{overlay}\PYG{p}{,} \PYG{n}{r}\PYG{p}{[}\PYG{l+s+s2}{\PYGZdq{}label\PYGZdq{}}\PYG{p}{],} \PYG{p}{(}\PYG{n}{x0}\PYG{o}{+}\PYG{l+m+mi}{10}\PYG{p}{,} \PYG{n}{y0}\PYG{o}{+}\PYG{l+m+mi}{30}\PYG{p}{),}
+                \PYG{n}{cv2}\PYG{o}{.}\PYG{n}{FONT\PYGZus{}HERSHEY\PYGZus{}SIMPLEX}\PYG{p}{,} \PYG{l+m+mf}{0.8}\PYG{p}{,} \PYG{p}{(}\PYG{l+m+mi}{0}\PYG{p}{,}\PYG{l+m+mi}{0}\PYG{p}{,}\PYG{l+m+mi}{0}\PYG{p}{),} \PYG{l+m+mi}{2}\PYG{p}{)}
+
+\PYG{n}{result} \PYG{o}{=} \PYG{n}{cv2}\PYG{o}{.}\PYG{n}{addWeighted}\PYG{p}{(}\PYG{n}{img}\PYG{p}{,} \PYG{l+m+mf}{0.5}\PYG{p}{,} \PYG{n}{overlay}\PYG{p}{,} \PYG{l+m+mf}{0.5}\PYG{p}{,} \PYG{l+m+mi}{0}\PYG{p}{)}
+\PYG{n}{cv2}\PYG{o}{.}\PYG{n}{imwrite}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}/tmp/mask\PYGZus{}check.jpg\PYGZdq{}}\PYG{p}{,} \PYG{n}{result}\PYG{p}{)}
+\PYG{n+nb}{print}\PYG{p}{(}\PYG{l+s+sa}{f}\PYG{l+s+s2}{\PYGZdq{}Guardado en /tmp/mask\PYGZus{}check.jpg  (}\PYG{l+s+si}{\PYGZob{}}\PYG{n}{w}\PYG{l+s+si}{\PYGZcb{}}\PYG{l+s+s2}{x}\PYG{l+s+si}{\PYGZob{}}\PYG{n}{h}\PYG{l+s+si}{\PYGZcb{}}\PYG{l+s+s2}{)\PYGZdq{}}\PYG{p}{)}
+\end{MintedVerbatim}

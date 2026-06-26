@@ -1,0 +1,7 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} Descarga estándar (últimas 2 semanas, 12:00h)}
+python3\PYG{+w}{ }acces\PYGZus{}api/scheduled\PYGZus{}download.py
+
+\PYG{c+c1}{\PYGZsh{} Diagnóstico de estado de cámaras}
+python3\PYG{+w}{ }scripts/verify\PYGZus{}setup.py
+\end{MintedVerbatim}

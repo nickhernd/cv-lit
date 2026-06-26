@@ -1,0 +1,6 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{n+nb}{cd}\PYG{+w}{ }frontend
+npm\PYG{+w}{ }install
+npm\PYG{+w}{ }run\PYG{+w}{ }dev\PYG{+w}{       }\PYG{c+c1}{\PYGZsh{} modo desarrollo}
+npm\PYG{+w}{ }run\PYG{+w}{ }build\PYG{+w}{     }\PYG{c+c1}{\PYGZsh{} build de producción (dist/)}
+\end{MintedVerbatim}

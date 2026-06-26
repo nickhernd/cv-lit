@@ -1,0 +1,4 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} Prototipo completo: ROI → Segmentación SAM → Línea de costa}
+python3\PYG{+w}{ }proces\PYGZus{}images/test\PYGZus{}mes3\PYGZus{}pipeline.py\PYG{+w}{ }\PYGZhy{}\PYGZhy{}cam\PYG{+w}{ }\PYG{l+m}{1}
+\end{MintedVerbatim}

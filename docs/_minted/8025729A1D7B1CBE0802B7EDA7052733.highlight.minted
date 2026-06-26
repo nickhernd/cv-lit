@@ -1,0 +1,12 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{k+kn}{from}\PYG{+w}{ }\PYG{n+nn}{segment\PYGZus{}anything}\PYG{+w}{ }\PYG{k+kn}{import} \PYG{n}{sam\PYGZus{}model\PYGZus{}registry}\PYG{p}{,} \PYG{n}{SamAutomaticMaskGenerator}
+
+\PYG{n}{sam} \PYG{o}{=} \PYG{n}{sam\PYGZus{}model\PYGZus{}registry}\PYG{p}{[}\PYG{l+s+s2}{\PYGZdq{}vit\PYGZus{}h\PYGZdq{}}\PYG{p}{](}\PYG{n}{checkpoint}\PYG{o}{=}\PYG{n}{SAM\PYGZus{}CHECKPOINT}\PYG{p}{)}
+\PYG{n}{mask\PYGZus{}generator} \PYG{o}{=} \PYG{n}{SamAutomaticMaskGenerator}\PYG{p}{(}
+    \PYG{n}{sam}\PYG{p}{,}
+    \PYG{n}{points\PYGZus{}per\PYGZus{}side}\PYG{o}{=}\PYG{l+m+mi}{32}\PYG{p}{,}
+    \PYG{n}{pred\PYGZus{}iou\PYGZus{}thresh}\PYG{o}{=}\PYG{l+m+mf}{0.86}\PYG{p}{,}
+    \PYG{n}{stability\PYGZus{}score\PYGZus{}thresh}\PYG{o}{=}\PYG{l+m+mf}{0.92}
+\PYG{p}{)}
+\PYG{n}{masks} \PYG{o}{=} \PYG{n}{mask\PYGZus{}generator}\PYG{o}{.}\PYG{n}{generate}\PYG{p}{(}\PYG{n}{roi\PYGZus{}img}\PYG{p}{)}
+\end{MintedVerbatim}

@@ -1,0 +1,15 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} Pasada 1: con máscara de zonas estables}
+\PYG{n}{H}\PYG{p}{,} \PYG{n}{inliers}\PYG{p}{,} \PYG{n}{n\PYGZus{}good}\PYG{p}{,} \PYG{n}{fail} \PYG{o}{=} \PYG{n}{\PYGZus{}try\PYGZus{}align}\PYG{p}{(}\PYG{n}{gray}\PYG{p}{,} \PYG{n}{ref\PYGZus{}kp}\PYG{p}{,} \PYG{n}{ref\PYGZus{}des}\PYG{p}{,}
+                                       \PYG{n}{mask}\PYG{o}{=}\PYG{n}{feat\PYGZus{}mask}\PYG{p}{,}
+                                       \PYG{n}{threshold}\PYG{o}{=}\PYG{n}{MIN\PYGZus{}INLIERS}\PYG{p}{)}  \PYG{c+c1}{\PYGZsh{} 15}
+\PYG{k}{if} \PYG{n}{inliers} \PYG{o}{\PYGZgt{}=} \PYG{n}{MIN\PYGZus{}INLIERS}\PYG{p}{:}
+    \PYG{n}{result}\PYG{o}{.}\PYG{n}{used\PYGZus{}mask} \PYG{o}{=} \PYG{k+kc}{True}
+    \PYG{k}{return} \PYG{n}{H}\PYG{p}{,} \PYG{n}{inliers}
+
+\PYG{c+c1}{\PYGZsh{} Pasada 2 (fallback): toda la imagen, umbral más alto}
+\PYG{n}{H}\PYG{p}{,} \PYG{n}{inliers}\PYG{p}{,} \PYG{n}{n\PYGZus{}good}\PYG{p}{,} \PYG{n}{fail} \PYG{o}{=} \PYG{n}{\PYGZus{}try\PYGZus{}align}\PYG{p}{(}\PYG{n}{gray}\PYG{p}{,} \PYG{n}{ref\PYGZus{}kp\PYGZus{}full}\PYG{p}{,} \PYG{n}{ref\PYGZus{}des\PYGZus{}full}\PYG{p}{,}
+                                       \PYG{n}{mask}\PYG{o}{=}\PYG{k+kc}{None}\PYG{p}{,}
+                                       \PYG{n}{threshold}\PYG{o}{=}\PYG{n}{MIN\PYGZus{}INLIERS\PYGZus{}FULL}\PYG{p}{)}  \PYG{c+c1}{\PYGZsh{} 30}
+\PYG{n}{result}\PYG{o}{.}\PYG{n}{used\PYGZus{}mask} \PYG{o}{=} \PYG{k+kc}{False}
+\end{MintedVerbatim}

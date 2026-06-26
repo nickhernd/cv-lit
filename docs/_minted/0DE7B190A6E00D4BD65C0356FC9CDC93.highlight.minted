@@ -1,0 +1,5 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYGZsh{} Descarga diaria a las 13:00h (12h solar + margen de publicación API)
+0 13 * * * cd /home/nickhernd/Desktop/cv\PYGZhy{}lit \PYGZam{}\PYGZam{} \PYGZbs{}
+  python3 acces\PYGZus{}api/scheduled\PYGZus{}download.py \PYGZgt{}\PYGZgt{} data/logs/cron.log 2\PYGZgt{}\PYGZam{}1
+\end{MintedVerbatim}

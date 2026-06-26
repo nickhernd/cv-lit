@@ -1,0 +1,40 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+cv\PYGZhy{}lit/
++\PYGZhy{}\PYGZhy{} acces\PYGZus{}api/              \PYGZsh{} Módulo Obscape API
+|   +\PYGZhy{}\PYGZhy{} obscape\PYGZus{}api.py      \PYGZsh{} Cliente REST
+|   +\PYGZhy{}\PYGZhy{} scheduled\PYGZus{}download.py
++\PYGZhy{}\PYGZhy{} backend/                \PYGZsh{} Servidor FastAPI
+|   +\PYGZhy{}\PYGZhy{} main.py             \PYGZsh{} App principal + routers
+|   +\PYGZhy{}\PYGZhy{} batch\PYGZus{}alignment.py  \PYGZsh{} Pipeline de alineación masiva  [NUEVO]
+|   +\PYGZhy{}\PYGZhy{} config.py           \PYGZsh{} Constantes globales
+|   +\PYGZhy{}\PYGZhy{} routers/
+|       +\PYGZhy{}\PYGZhy{} alignment.py    \PYGZsh{} Endpoints unitarios de alineación
++\PYGZhy{}\PYGZhy{} calibration/            \PYGZsh{} Perfiles y máscaras por cámara
+|   +\PYGZhy{}\PYGZhy{} cam\PYGZus{}N\PYGZus{}H.npy         \PYGZsh{} Matriz H 3×3 en float64
+|   +\PYGZhy{}\PYGZhy{} cam\PYGZus{}N\PYGZus{}profile.json  \PYGZsh{} Metadatos, RMSE, fecha
+|   +\PYGZhy{}\PYGZhy{} roi\PYGZus{}config.json     \PYGZsh{} ROIs por cámara
+|   +\PYGZhy{}\PYGZhy{} alignment\PYGZus{}masks.json\PYGZsh{} Zonas SIFT estables  [NUEVO]
+|   +\PYGZhy{}\PYGZhy{} diagnostics/        \PYGZsh{} Imágenes de diagnóstico
++\PYGZhy{}\PYGZhy{} data/                   \PYGZsh{} Imágenes y resultados (excl. Git)
+|   +\PYGZhy{}\PYGZhy{} CAM\PYGZus{}N/
+|   |   +\PYGZhy{}\PYGZhy{} images/         \PYGZsh{} Originales
+|   |   +\PYGZhy{}\PYGZhy{} aligned/        \PYGZsh{} Salida del commit de batch
+|   +\PYGZhy{}\PYGZhy{} logs/
++\PYGZhy{}\PYGZhy{} docs/                   \PYGZsh{} Documentación técnica
+|   +\PYGZhy{}\PYGZhy{} memoria.tex         \PYGZsh{} Esta memoria  [NUEVO]
+|   +\PYGZhy{}\PYGZhy{} reports/
++\PYGZhy{}\PYGZhy{} frontend/               \PYGZsh{} Interfaz Vue 3
+|   +\PYGZhy{}\PYGZhy{} src/components/
+|       +\PYGZhy{}\PYGZhy{} App.vue
+|       +\PYGZhy{}\PYGZhy{} Calibration.vue
+|       +\PYGZhy{}\PYGZhy{} BatchAlignment.vue  [NUEVO]
++\PYGZhy{}\PYGZhy{} homography/
+|   +\PYGZhy{}\PYGZhy{} align\PYGZus{}images.py     \PYGZsh{} CLI standalone de alineación
++\PYGZhy{}\PYGZhy{} proces\PYGZus{}images/          \PYGZsh{} Algoritmos de procesamiento
+|   +\PYGZhy{}\PYGZhy{} calibration\PYGZus{}tool.py
+|   +\PYGZhy{}\PYGZhy{} extract\PYGZus{}coastline.py
+|   +\PYGZhy{}\PYGZhy{} segmentation\PYGZus{}sam.py
+|   +\PYGZhy{}\PYGZhy{} recalibrate.py
++\PYGZhy{}\PYGZhy{} scripts/                \PYGZsh{} Herramientas de operación
++\PYGZhy{}\PYGZhy{} tests/
+\end{MintedVerbatim}

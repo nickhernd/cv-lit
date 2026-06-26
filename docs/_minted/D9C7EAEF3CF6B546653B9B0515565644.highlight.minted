@@ -1,0 +1,6 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{n}{edges\PYGZus{}ref} \PYG{o}{=} \PYG{n}{cv2}\PYG{o}{.}\PYG{n}{Canny}\PYG{p}{(}\PYG{n}{ref\PYGZus{}gray}\PYG{p}{,} \PYG{l+m+mi}{40}\PYG{p}{,} \PYG{l+m+mi}{120}\PYG{p}{)}
+\PYG{n}{edges\PYGZus{}ali} \PYG{o}{=} \PYG{n}{cv2}\PYG{o}{.}\PYG{n}{Canny}\PYG{p}{(}\PYG{n}{aligned\PYGZus{}gray}\PYG{p}{,} \PYG{l+m+mi}{40}\PYG{p}{,} \PYG{l+m+mi}{120}\PYG{p}{)}
+\PYG{n}{edge\PYGZus{}diff} \PYG{o}{=} \PYG{n}{cv2}\PYG{o}{.}\PYG{n}{dilate}\PYG{p}{(}\PYG{n}{cv2}\PYG{o}{.}\PYG{n}{absdiff}\PYG{p}{(}\PYG{n}{edges\PYGZus{}ref}\PYG{p}{,} \PYG{n}{edges\PYGZus{}ali}\PYG{p}{),} \PYG{n}{kernel\PYGZus{}5x5}\PYG{p}{)}
+\PYG{n}{composite}\PYG{p}{[}\PYG{n}{edge\PYGZus{}diff} \PYG{o}{\PYGZgt{}} \PYG{l+m+mi}{0}\PYG{p}{]} \PYG{o}{=} \PYG{p}{(}\PYG{l+m+mi}{255}\PYG{p}{,} \PYG{l+m+mi}{255}\PYG{p}{,} \PYG{l+m+mi}{0}\PYG{p}{)}  \PYG{c+c1}{\PYGZsh{} cian en BGR}
+\end{MintedVerbatim}

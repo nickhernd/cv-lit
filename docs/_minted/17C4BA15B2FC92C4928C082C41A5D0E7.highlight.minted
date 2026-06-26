@@ -1,0 +1,13 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} Herramienta completa de calibración}
+python3\PYG{+w}{ }proces\PYGZus{}images/calibration\PYGZus{}tool.py\PYG{+w}{ }\PYGZhy{}\PYGZhy{}cam\PYG{+w}{ }\PYG{l+m}{1}\PYG{+w}{ }\PYGZhy{}\PYGZhy{}image\PYG{+w}{ }/ruta/foto.jpg
+
+\PYG{c+c1}{\PYGZsh{} Lanzador visual rápido (CAM 1, imagen más reciente)}
+python3\PYG{+w}{ }scripts/visualizar\PYGZus{}calibracion.py
+
+\PYG{c+c1}{\PYGZsh{} Recalibración rápida (cámara movida levemente)}
+python3\PYG{+w}{ }proces\PYGZus{}images/recalibrate.py\PYG{+w}{ }\PYGZhy{}\PYGZhy{}cam\PYG{+w}{ }\PYG{l+m}{1}\PYG{+w}{ }\PYGZhy{}\PYGZhy{}image\PYG{+w}{ }/ruta/nueva\PYGZus{}foto.jpg
+
+\PYG{c+c1}{\PYGZsh{} Verificar motor matemático}
+python3\PYG{+w}{ }proces\PYGZus{}images/test\PYGZus{}calibration\PYGZus{}logic.py
+\end{MintedVerbatim}

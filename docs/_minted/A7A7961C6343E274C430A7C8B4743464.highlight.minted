@@ -1,0 +1,17 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+conda\PYG{+w}{ }create\PYG{+w}{ }\PYGZhy{}n\PYG{+w}{ }cv\PYGZhy{}lit\PYG{+w}{ }\PYG{n+nv}{python}\PYG{o}{=}\PYG{l+m}{3}.11
+conda\PYG{+w}{ }activate\PYG{+w}{ }cv\PYGZhy{}lit
+
+\PYG{c+c1}{\PYGZsh{} Visión + álgebra}
+pip\PYG{+w}{ }install\PYG{+w}{ }opencv\PYGZhy{}python\PYG{+w}{ }numpy\PYG{+w}{ }scipy\PYG{+w}{ }pandas
+
+\PYG{c+c1}{\PYGZsh{} Backend API}
+pip\PYG{+w}{ }install\PYG{+w}{ }fastapi\PYG{+w}{ }uvicorn\PYG{+w}{ }python\PYGZhy{}multipart
+
+\PYG{c+c1}{\PYGZsh{} Segmentación SAM}
+pip\PYG{+w}{ }install\PYG{+w}{ }torch\PYG{+w}{ }torchvision
+pip\PYG{+w}{ }install\PYG{+w}{ }git+https://github.com/facebookresearch/segment\PYGZhy{}anything.git
+
+\PYG{c+c1}{\PYGZsh{} Geo}
+pip\PYG{+w}{ }install\PYG{+w}{ }gdal\PYG{+w}{ }pyproj\PYG{+w}{ }shapely
+\end{MintedVerbatim}

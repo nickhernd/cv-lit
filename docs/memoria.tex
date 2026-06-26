@@ -5,28 +5,28 @@
 %% ============================================================
 \documentclass[12pt,a4paper,spanish]{report}
 
-% ── Codificación y tipografía ────────────────────────────────
+% -- Codificación y tipografía --------------------------------
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{babel}
 \usepackage{lmodern}
 \usepackage{microtype}
 
-% ── Geometría ────────────────────────────────────────────────
+% -- Geometría ------------------------------------------------
 \usepackage[
   top=2.5cm, bottom=2.5cm,
   left=3.0cm, right=2.5cm,
   headheight=15pt
 ]{geometry}
 
-% ── Color y gráficos ─────────────────────────────────────────
+% -- Color y gráficos -----------------------------------------
 \usepackage[dvipsnames,svgnames,table]{xcolor}
 \usepackage{graphicx}
 \usepackage{float}
 \usepackage{wrapfig}
 \usepackage{subcaption}
 
-% ── Tablas ───────────────────────────────────────────────────
+% -- Tablas ---------------------------------------------------
 \usepackage{booktabs}
 \usepackage{longtable}
 \usepackage{multirow}
@@ -35,7 +35,7 @@
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
 \newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
 
-% ── Código fuente ────────────────────────────────────────────
+% -- Código fuente --------------------------------------------
 \usepackage{listings}
 \usepackage{minted}
 \setminted{
@@ -60,10 +60,10 @@
   numbersep=6pt
 }
 
-% ── Matemáticas ──────────────────────────────────────────────
+% -- Matemáticas ----------------------------------------------
 \usepackage{amsmath,amssymb}
 
-% ── Cabeceras y pies ─────────────────────────────────────────
+% -- Cabeceras y pies -----------------------------------------
 \usepackage{fancyhdr}
 \pagestyle{fancy}
 \fancyhf{}
@@ -72,7 +72,7 @@
 \fancyfoot[C]{\thepage}
 \renewcommand{\headrulewidth}{0.4pt}
 
-% ── Hiperenlaces ─────────────────────────────────────────────
+% -- Hiperenlaces ---------------------------------------------
 \usepackage[
   colorlinks=true,
   linkcolor=NavyBlue,
@@ -82,7 +82,7 @@
   pdfauthor={Tech4D Lab — Universidad de Alicante}
 ]{hyperref}
 
-% ── Cajas de información ─────────────────────────────────────
+% -- Cajas de información -------------------------------------
 \usepackage{tcolorbox}
 \tcbuselibrary{skins,breakable,listings}
 \newtcolorbox{infobox}[1][]{
@@ -101,7 +101,7 @@
   breakable, left=4pt, right=4pt, top=2pt, bottom=2pt
 }
 
-% ── Diagrama de flujo (TikZ) ─────────────────────────────────
+% -- Diagrama de flujo (TikZ) ---------------------------------
 \usepackage{tikz}
 \usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, shadows}
 \tikzset{
@@ -119,7 +119,7 @@
   label/.style={font=\tiny\sffamily, color=gray!80}
 }
 
-% ── Misc ─────────────────────────────────────────────────────
+% -- Misc -----------------------------------------------------
 \usepackage{enumitem}
 \usepackage{setspace}
 \usepackage{titlesec}
@@ -140,10 +140,9 @@
   {\normalfont\large\bfseries\color{NavyBlue!60}}
   {\thesubsection}{1em}{}
 
-% ── Metadatos ────────────────────────────────────────────────
+% -- Metadatos ------------------------------------------------
 \title{%
   \vspace{-1.5cm}
-  {\includegraphics[width=3cm]{img_cam1_mask_propuesta.jpg}\hfill}\\[1cm]
   \textbf{\Huge Memoria Técnica}\\[0.4cm]
   {\Large\textcolor{NavyBlue}{cv-lit}}\\[0.2cm]
   {\large Sistema de Monitorización Automática}\\
@@ -367,43 +366,43 @@ Tailwind CSS  & 3.x          & Estilos \\
 \begin{codebox}[Árbol del repositorio]
 \begin{minted}{text}
 cv-lit/
-├── acces_api/              # Módulo Obscape API
-│   ├── obscape_api.py      # Cliente REST
-│   └── scheduled_download.py
-├── backend/                # Servidor FastAPI
-│   ├── main.py             # App principal + routers
-│   ├── batch_alignment.py  # Pipeline de alineación masiva  [NUEVO]
-│   ├── config.py           # Constantes globales
-│   └── routers/
-│       └── alignment.py    # Endpoints unitarios de alineación
-├── calibration/            # Perfiles y máscaras por cámara
-│   ├── cam_N_H.npy         # Matriz H 3×3 en float64
-│   ├── cam_N_profile.json  # Metadatos, RMSE, fecha
-│   ├── roi_config.json     # ROIs por cámara
-│   ├── alignment_masks.json# Zonas SIFT estables  [NUEVO]
-│   └── diagnostics/        # Imágenes de diagnóstico
-├── data/                   # Imágenes y resultados (excl. Git)
-│   ├── CAM_N/
-│   │   ├── images/         # Originales
-│   │   └── aligned/        # Salida del commit de batch
-│   └── logs/
-├── docs/                   # Documentación técnica
-│   ├── memoria.tex         # Esta memoria  [NUEVO]
-│   └── reports/
-├── frontend/               # Interfaz Vue 3
-│   └── src/components/
-│       ├── App.vue
-│       ├── Calibration.vue
-│       └── BatchAlignment.vue  [NUEVO]
-├── homography/
-│   └── align_images.py     # CLI standalone de alineación
-├── proces_images/          # Algoritmos de procesamiento
-│   ├── calibration_tool.py
-│   ├── extract_coastline.py
-│   ├── segmentation_sam.py
-│   └── recalibrate.py
-├── scripts/                # Herramientas de operación
-└── tests/
++-- acces_api/              # Módulo Obscape API
+|   +-- obscape_api.py      # Cliente REST
+|   +-- scheduled_download.py
++-- backend/                # Servidor FastAPI
+|   +-- main.py             # App principal + routers
+|   +-- batch_alignment.py  # Pipeline de alineación masiva  [NUEVO]
+|   +-- config.py           # Constantes globales
+|   +-- routers/
+|       +-- alignment.py    # Endpoints unitarios de alineación
++-- calibration/            # Perfiles y máscaras por cámara
+|   +-- cam_N_H.npy         # Matriz H 3×3 en float64
+|   +-- cam_N_profile.json  # Metadatos, RMSE, fecha
+|   +-- roi_config.json     # ROIs por cámara
+|   +-- alignment_masks.json# Zonas SIFT estables  [NUEVO]
+|   +-- diagnostics/        # Imágenes de diagnóstico
++-- data/                   # Imágenes y resultados (excl. Git)
+|   +-- CAM_N/
+|   |   +-- images/         # Originales
+|   |   +-- aligned/        # Salida del commit de batch
+|   +-- logs/
++-- docs/                   # Documentación técnica
+|   +-- memoria.tex         # Esta memoria  [NUEVO]
+|   +-- reports/
++-- frontend/               # Interfaz Vue 3
+|   +-- src/components/
+|       +-- App.vue
+|       +-- Calibration.vue
+|       +-- BatchAlignment.vue  [NUEVO]
++-- homography/
+|   +-- align_images.py     # CLI standalone de alineación
++-- proces_images/          # Algoritmos de procesamiento
+|   +-- calibration_tool.py
+|   +-- extract_coastline.py
+|   +-- segmentation_sam.py
+|   +-- recalibrate.py
++-- scripts/                # Herramientas de operación
++-- tests/
 \end{minted}
 \end{codebox}
 
@@ -535,12 +534,12 @@ H, mask = cv2.findHomography(
 \toprule
 \textbf{Cámara} & \textbf{GCPs} & \textbf{RMSE Cal. (m)} & \textbf{RMSE Val. (m)} & \textbf{RMSE Val. (px)} & \textbf{Estado} \\
 \midrule
-CAM~1 & 51 & 1.53 & \textbf{1.45} & 19.36 & \textcolor{OliveGreen}{\checkmark}~OK \\
-CAM~2 & 39 & 2.64 & 3.45          & 21.09 & \textcolor{Goldenrod}{!}~Revisar \\
-CAM~3 & 49 & 1.61 & 2.32          & 38.38 & \textcolor{OliveGreen}{\checkmark}~OK \\
-CAM~4 & 49 & 2.78 & 3.06          & 100.01 & \textcolor{Goldenrod}{!}~Revisar \\
-CAM~5 & 61 & 1.45 & \textbf{1.38} & 14.81 & \textcolor{OliveGreen}{\checkmark}~OK \\
-CAM~6 & 69 & 6.14 & 4.74          & 130.62 & \textcolor{BrickRed}{\times}~Crítico \\
+CAM~1 & 51 & 1.53 & \textbf{1.45} & 19.36 & \textcolor{OliveGreen}{OK} \\
+CAM~2 & 39 & 2.64 & 3.45          & 21.09 & \textcolor{Goldenrod}{Revisar} \\
+CAM~3 & 49 & 1.61 & 2.32          & 38.38 & \textcolor{OliveGreen}{OK} \\
+CAM~4 & 49 & 2.78 & 3.06          & 100.01 & \textcolor{Goldenrod}{Revisar} \\
+CAM~5 & 61 & 1.45 & \textbf{1.38} & 14.81 & \textcolor{OliveGreen}{OK} \\
+CAM~6 & 69 & 6.14 & 4.74          & 130.62 & \textcolor{BrickRed}{Critico} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1074,21 +1073,21 @@ const viewMode = ref('diff')   // 'diff' | 'blend' | 'aligned'
 
 \begin{codebox}[Vista de revisión — esquema]
 \begin{minted}{text}
-┌──────────────────────┬──────────────────────────────────────────────────┐
-│ RESUMEN              │ [Mapa delta]  [Blend 50/50]  [Alineada]          │
-│  Aprobadas: 44       ├──────────────────────┬───────────────────────────┤
-│  Omitidas:   3       │                      │                           │
-│  Fallidas:   0       │     ORIGINAL         │    DELTA / BLEND / ALI    │
-├──────────────────────│     <img>            │    <img>                  │
-│ FILMSTRIP            │                      │                           │
-│ ● img_001  OK        ├──────────────────────┴───────────────────────────┤
-│ ▶ img_002  ~2.1px    │  Leyenda: ■negro=OK ■rojo=error ■cian=bordes    │
-│ ● img_003  FAIL      │                                                   │
-│ ● img_004  SKIP      │  inliers: 152  delta: 1.4 px  [✓ Aprobada]      │
-│   ...                │                                                   │
-├──────────────────────┴──────────────────────────────────────────────────┤
-│  [Confirmar lote (44)]                    [Descartar sin guardar]        │
-└─────────────────────────────────────────────────────────────────────────┘
++----------------------+--------------------------------------------------+
+| RESUMEN              | [Mapa delta]  [Blend 50/50]  [Alineada]          |
+|  Aprobadas: 44       +----------------------+---------------------------+
+|  Omitidas:   3       |                      |                           |
+|  Fallidas:   0       |     ORIGINAL         |    DELTA / BLEND / ALI    |
++----------------------|     <img>            |    <img>                  |
+| FILMSTRIP            |                      |                           |
+| ● img_001  OK        +----------------------+---------------------------+
+| ▶ img_002  ~2.1px    |  Leyenda: ■negro=OK ■rojo=error ■cian=bordes    |
+| ● img_003  FAIL      |                                                   |
+| ● img_004  SKIP      |  inliers: 152  delta: 1.4 px  [✓ Aprobada]      |
+|   ...                |                                                   |
++----------------------+--------------------------------------------------+
+|  [Confirmar lote (44)]                    [Descartar sin guardar]        |
++-------------------------------------------------------------------------+
 \end{minted}
 \end{codebox}
 
@@ -1343,12 +1342,12 @@ $\delta_\text{px}$ alineación & $< 3$~px & Drift residual post-homografía \\
 \toprule
 \textbf{Mes} & \textbf{Objetivo} & \textbf{Estado} & \textbf{Nota} \\
 \midrule
-1 & Preparación datos + diseño interfaces & \textcolor{OliveGreen}{\checkmark} & Completado \\
-2 & Calibración geométrica                & \textcolor{OliveGreen}{\checkmark} & 6 perfiles generados \\
-3 & Segmentación (prototipo)              & \textcolor{OliveGreen}{\checkmark} & SAM funcional \\
-4 & Extracción línea + georreferenciación & \textcolor{OliveGreen}{\checkmark} & GeoJSON en EPSG:25830 \\
-5 & Validación y robustez                 & \textcolor{Goldenrod}{$\sim$}      & CAM 4 y 6 pendientes \\
-6 & Integración y entrega                 & \textcolor{gray}{$\circ$}          & Próximo hito \\
+1 & Preparación datos + diseño interfaces & \textcolor{OliveGreen}{Hecho} & Completado \\
+2 & Calibración geométrica                & \textcolor{OliveGreen}{Hecho} & 6 perfiles generados \\
+3 & Segmentación (prototipo)              & \textcolor{OliveGreen}{Hecho} & SAM funcional \\
+4 & Extracción línea + georreferenciación & \textcolor{OliveGreen}{Hecho} & GeoJSON en EPSG:25830 \\
+5 & Validación y robustez                 & \textcolor{Goldenrod}{Parcial} & CAM 4 y 6 pendientes \\
+6 & Integración y entrega                 & \textcolor{gray}{Pendiente}   & Próximo hito \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1356,17 +1355,17 @@ $\delta_\text{px}$ alineación & $< 3$~px & Drift residual post-homografía \\
 \section{Completado en la iteración de junio 2026}
 
 \begin{itemize}[leftmargin=1.5em]
-  \item[$\checkmark$] Módulo de alineación masiva no-destructiva (\texttt{batch\_alignment.py})
+  \item[$\bullet$] Módulo de alineación masiva no-destructiva (\texttt{batch\_alignment.py})
     \begin{itemize}
       \item Router FastAPI \texttt{/api/batch/} con 10 endpoints
       \item Pipeline async SIFT+FLANN+RANSAC sobre lote completo
       \item Mapa de delta compuesto (heatmap HOT + edge-diff cian + métrica Farneback)
       \item Two-phase commit: staging \texttt{/tmp/} → escritura permanente sólo en commit
     \end{itemize}
-  \item[$\checkmark$] Interfaz de validación por lotes (\texttt{BatchAlignment.vue})
-  \item[$\checkmark$] Corrección de máscaras SIFT para CAM~1 (problema de gaviotas)
-  \item[$\checkmark$] Integración en paso 3 del flujo de calibración (\texttt{Calibration.vue})
-  \item[$\checkmark$] Documentación completa (esta memoria)
+  \item[$\bullet$] Interfaz de validación por lotes (\texttt{BatchAlignment.vue})
+  \item[$\bullet$] Corrección de máscaras SIFT para CAM~1 (problema de gaviotas)
+  \item[$\bullet$] Integración en paso 3 del flujo de calibración (\texttt{Calibration.vue})
+  \item[$\bullet$] Documentación completa (esta memoria)
 \end{itemize}
 
 \section{Fase 3 — Automatización y robustez (mes 5)}

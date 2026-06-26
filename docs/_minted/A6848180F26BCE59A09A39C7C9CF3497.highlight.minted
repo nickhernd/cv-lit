@@ -1,0 +1,16 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{k+kd}{function}\PYG{+w}{ }\PYG{n+nx}{\PYGZus{}poll}\PYG{p}{()}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{  }\PYG{c+c1}{// GET /api/batch/\PYGZob{}jobId\PYGZcb{}/status}
+\PYG{+w}{  }\PYG{k}{if}\PYG{+w}{ }\PYG{p}{(}\PYG{n+nx}{data}\PYG{p}{.}\PYG{n+nx}{status}\PYG{+w}{ }\PYG{o}{===}\PYG{+w}{ }\PYG{l+s+s1}{\PYGZsq{}ready\PYGZsq{}}\PYG{p}{)}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{    }\PYG{n+nx}{clearInterval}\PYG{p}{(}\PYG{n+nx}{pollTimer}\PYG{p}{)}
+\PYG{+w}{    }\PYG{k}{await}\PYG{+w}{ }\PYG{n+nx}{\PYGZus{}loadResults}\PYG{p}{()}\PYG{+w}{   }\PYG{c+c1}{// carga métricas completas}
+\PYG{+w}{    }\PYG{n+nx}{phase}\PYG{p}{.}\PYG{n+nx}{value}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{l+s+s1}{\PYGZsq{}reviewing\PYGZsq{}}
+\PYG{+w}{  }\PYG{p}{\PYGZcb{}}
+\PYG{+w}{  }\PYG{k}{if}\PYG{+w}{ }\PYG{p}{(}\PYG{n+nx}{data}\PYG{p}{.}\PYG{n+nx}{status}\PYG{+w}{ }\PYG{o}{===}\PYG{+w}{ }\PYG{l+s+s1}{\PYGZsq{}failed\PYGZsq{}}\PYG{p}{)}\PYG{+w}{ }\PYG{p}{\PYGZob{}}
+\PYG{+w}{    }\PYG{n+nx}{clearInterval}\PYG{p}{(}\PYG{n+nx}{pollTimer}\PYG{p}{)}
+\PYG{+w}{    }\PYG{n+nx}{emit}\PYG{p}{(}\PYG{l+s+s1}{\PYGZsq{}notify\PYGZsq{}}\PYG{p}{,}\PYG{+w}{ }\PYG{n+nx}{data}\PYG{p}{.}\PYG{n+nx}{error}\PYG{p}{,}\PYG{+w}{ }\PYG{l+s+s1}{\PYGZsq{}error\PYGZsq{}}\PYG{p}{)}
+\PYG{+w}{    }\PYG{n+nx}{phase}\PYG{p}{.}\PYG{n+nx}{value}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{l+s+s1}{\PYGZsq{}configuring\PYGZsq{}}
+\PYG{+w}{  }\PYG{p}{\PYGZcb{}}
+\PYG{+w}{  }\PYG{n+nx}{progress}\PYG{p}{.}\PYG{n+nx}{value}\PYG{+w}{ }\PYG{o}{=}\PYG{+w}{ }\PYG{n+nx}{data}\PYG{p}{.}\PYG{n+nx}{progress\PYGZus{}current}\PYG{+w}{ }\PYG{o}{/}\PYG{+w}{ }\PYG{n+nx}{data}\PYG{p}{.}\PYG{n+nx}{progress\PYGZus{}total}
+\PYG{p}{\PYGZcb{}}
+\end{MintedVerbatim}

@@ -1,0 +1,4 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} Arrastra los GCPs existentes sobre la imagen nueva}
+python3\PYG{+w}{ }proces\PYGZus{}images/recalibrate.py\PYG{+w}{ }\PYGZhy{}\PYGZhy{}cam\PYG{+w}{ }\PYG{l+m}{1}\PYG{+w}{ }\PYGZhy{}\PYGZhy{}image\PYG{+w}{ }/ruta/nueva\PYGZus{}foto.jpg
+\end{MintedVerbatim}
