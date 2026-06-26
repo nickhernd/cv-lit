@@ -2,8 +2,9 @@
   "_comment": "Zonas estables para extracción de features SIFT en alineación. Coordenadas en fracción de imagen (0.0-1.0). Cada cámara puede tener múltiples regiones. Ajustar con imágenes reales.",
   "CAM_1": {
     "regions": [
-      {"label": "horizonte",       "x0": 0.00, "y0": 0.24, "x1": 1.00, "y1": 0.38},
-      {"label": "zona_inf_izq",    "x0": 0.00, "y0": 0.68, "x1": 0.38, "y1": 1.00}
+      {"label": "horizonte_mar",   "x0": 0.00, "y0": 0.31, "x1": 1.00, "y1": 0.40},
+      {"label": "arena_baja",      "x0": 0.00, "y0": 0.73, "x1": 0.60, "y1": 0.88},
+      {"label": "vegetacion_dcha", "x0": 0.60, "y0": 0.73, "x1": 1.00, "y1": 0.92}
     ]
   },
   "CAM_2": {
