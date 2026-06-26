@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
+import BatchAlignment from './BatchAlignment.vue'
 
 const props = defineProps({
   initialCamId: { type: Number, default: null }
@@ -41,16 +42,18 @@ async function fetchCameras() {
 
 async function fetchImages() {
   if (!selectedCamId.value) return
+  // Limpiar inmediatamente para evitar que imágenes de la cámara anterior
+  // aparezcan en el contexto de la nueva (race condition entre fetches)
+  availableImages.value = []
+  selectedImage.value   = ''
+  const camSnapshot = selectedCamId.value
   try {
-    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/images`)
-    availableImages.value = await res.json()
-    // Si hay imágenes y no hay seleccionada, o la seleccionada no existe, poner la primera
-    if (availableImages.value.length > 0) {
-      const exists = availableImages.value.find(img => img.filename === selectedImage.value)
-      if (!exists) selectedImage.value = availableImages.value[0].filename
-    } else {
-      selectedImage.value = ''
-    }
+    const res = await fetch(`http://localhost:8000/api/cameras/${camSnapshot}/images`)
+    const imgs = await res.json()
+    // Descartar la respuesta si el usuario ya cambió de cámara mientras esperábamos
+    if (camSnapshot !== selectedCamId.value) return
+    availableImages.value = imgs
+    if (imgs.length > 0) selectedImage.value = imgs[0].filename
   } catch (err) { console.error(err) }
 }
 
@@ -322,7 +325,7 @@ onMounted(() => {
               </div>
               <div class="space-x-2">
                 <button v-if="currentProfile.reference_image !== selectedImage" @click="setAsReference(selectedImage)" class="btn-secondary py-1 text-[10px]">Set como Referencia</button>
-                <button @click="currentStep = 3" class="btn-standard py-1 text-[10px]">Alinear a Base</button>
+                <button @click="currentStep = 3" :disabled="!currentProfile.reference_image" class="btn-standard py-1 text-[10px] disabled:opacity-40 disabled:cursor-not-allowed" :title="!currentProfile.reference_image ? 'Primero establece una imagen de referencia' : ''">Alinear lote completo →</button>
               </div>
             </div>
           </div>
@@ -333,28 +336,16 @@ onMounted(() => {
        </div>
     </div>
 
-    <!-- Resto de los pasos (3, 4, 5) mantienen la lógica similar pero con estilos unificados -->
-    <!-- PASO 3: ALINEACION (Simplified visual) -->
-    <!-- Parte de la Alineación no se hace mediante los puntos se hace con el script de alinar las imagens -->
-    <div v-if="currentStep === 3" class="card-standard p- qlex flex-col items-center space-y-8">
-       <div class="grid grid-cols-2 gap-8 w-full">
-          <div class="space-y-3">
-             <p class="text-[10px] font-bold text-slate-400 uppercase">Referencia Base</p>
-             <div class="aspect-video bg-slate-100 rounded border-2 border-slate-200 overflow-hidden">
-                <img v-if="currentProfile.reference_image" :src="`http://localhost:8000/api/cameras/${selectedCamId}/image?file=${currentProfile.reference_image}`" class="w-full h-full object-contain">
-             </div>
-          </div>
-          <div class="space-y-3">
-             <p class="text-[10px] font-bold text-slate-400 uppercase">Imagen a Alinear</p>
-             <div class="aspect-video bg-slate-100 rounded border-2 border-blue-600 overflow-hidden">
-                <img :src="imageUrl" class="w-full h-full object-contain">
-             </div>
-          </div>
-       </div>
-       <div class="flex space-x-4">
-          <button @click="currentStep = 2" class="btn-secondary">Volver</button>
-          <button @click="currentStep = 4" class="btn-standard uppercase px-8">Confirmar Alineación</button>
-       </div>
+    <!-- PASO 3: ALINEACION MASIVA POR LOTES -->
+    <div v-if="currentStep === 3" class="card-standard p-4 flex flex-col min-h-[600px]">
+      <BatchAlignment
+        :cam-id="selectedCamId"
+        :image-list="availableImages"
+        :initial-base="currentProfile.reference_image || ''"
+        @notify="(msg, type) => emit('notify', msg, type)"
+        @committed="currentStep = 4"
+        @discard="currentStep = 2"
+      />
     </div>
 
     <!-- PASO 4: MARCACION (GCPs) -->

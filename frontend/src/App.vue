@@ -34,6 +34,7 @@ function goToDashboard() {
   currentView.value = 'dashboard'
 }
 
+
 onMounted(() => {
   fetchLogs()
   setInterval(fetchLogs, 3000)
@@ -83,7 +84,7 @@ onMounted(() => {
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M9 20l-5.447-2.724A2 2 0 013 15.483V6.517a2 2 0 011.553-1.793L9 3.5l5.447 1.224A2 2 0 0116 6.517v8.966a2 2 0 01-1.553 1.793L9 18.5z"></path></svg>
               <span>Análisis ROI</span>
             </button>
-            <button @click="goToCalibration()" 
+            <button @click="goToCalibration()"
                     :class="currentView === 'calibration' ? 'bg-blue-600 text-white' : 'hover:bg-slate-700 hover:text-white'"
                     class="w-full flex items-center space-x-3 px-6 py-3 transition-colors text-sm font-medium">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m10 4a2 2 0 100-4m0 4a2 2 0 110-4m-4 2a2 2 0 100-4m0 4a2 2 0 110-4"></path></svg>
@@ -113,7 +114,7 @@ onMounted(() => {
             <Calibration v-else-if="currentView === 'calibration'" 
                        :initial-cam-id="selectedCamId" 
                        @notify="notify" />
-            <ROIAnalysis v-else-if="currentView === 'roi'" 
+            <ROIAnalysis v-else-if="currentView === 'roi'"
                         @notify="notify" />
           </Transition>
         </div>

@@ -17,6 +17,7 @@ Sistema de detección automática de línea de costa. Guardamar del Segura (Alic
 - [Estado actual](09_estado.md) — tareas completadas, pendientes, bloqueos
 - [ROI](10_roi.md) — definición de regiones de interés por cámara
 - [Interfaces](11_interfaces.md) — especificación de UI/UX para entrada, resultados y exportación
+- [Alineación masiva](14_batch_alignment.md) — módulo de validación por lotes, arquitectura de estados, lógica de delta
 
 ---
 

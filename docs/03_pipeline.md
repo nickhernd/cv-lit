@@ -10,6 +10,13 @@
 Imágenes cámaras (Obscape API / dataset manual)
       |
       v
+[3.0b] Alineación masiva por lotes (BatchAlignment)
+      +-- Selección de imagen base de referencia
+      +-- SIFT + FLANN + RANSAC → homografía temporal por imagen
+      +-- Interfaz de validación: mapa de delta + filmstrip
+      \-- Commit → imágenes alineadas en CAM_X/aligned/ (no-destructivo)
+      |
+      v
 [3.1] Adquisición y preprocesado
       +-- Normalización radiométrica
       +-- Corrección de contraste/balance

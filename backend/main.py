@@ -14,6 +14,7 @@ import sys
 import datetime
 
 from config import CAMERAS, DATA_DIR, CALIBRATION_DIR
+from batch_alignment import router as batch_router
 
 # Configurar path para modulos de procesamiento
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -29,6 +30,7 @@ except ImportError:
     print("[WARNING] No se pudieron importar los modulos de procesamiento.")
 
 app = FastAPI(title="CV-Lit API")
+app.include_router(batch_router)
 
 # Detectar Modo (Real vs Demo)
 APP_MODE = os.getenv("APP_MODE", "real").lower()

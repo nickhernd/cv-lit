@@ -21,7 +21,7 @@ from datetime import datetime
 import argparse
 import re
 import sys
-
+import json
 
 # ── Configuración ──────────────────────────────────────────
 MIN_INLIERS   = 50     # Mínimo de inliers RANSAC para aceptar la alineación
@@ -29,6 +29,24 @@ RANSAC_THRESH = 5.0    # Umbral de reproyección RANSAC (píxeles)
 SIFT_FEATURES = 3000   # Número de keypoints SIFT
 LOWE_RATIO    = 0.75   # Ratio test de Lowe
 # ───────────────────────────────────────────────────────────
+
+MASKS_PATH = Path(__file__).parent.parent / "calibration" / "alignment_masks.json"
+
+def build_mask_for_cam(cam_id: int, h: int, w: int):
+    """Carga alignment_masks.json y genera máscara binaria para SIFT. None = sin restricción."""
+    if not MASKS_PATH.exists():
+        return None
+    with open(MASKS_PATH) as f:
+        cfg = json.load(f)
+    key = f"CAM_{cam_id}"
+    if key not in cfg:
+        return None
+    canvas = np.zeros((h, w), dtype=np.uint8)
+    for r in cfg[key].get("regions", []):
+        x0, y0 = int(r["x0"] * w), int(r["y0"] * h)
+        x1, y1 = int(r["x1"] * w), int(r["y1"] * h)
+        cv2.rectangle(canvas, (x0, y0), (x1, y1), 255, -1)
+    return canvas
 
 
 def parse_filename(path: Path) -> datetime:
@@ -51,12 +69,18 @@ def load_sequence(input_dir: Path) -> list[Path]:
     return paths
 
 
-def align(img: np.ndarray, ref_gray: np.ndarray, ref_kp, ref_des, ref_img: np.ndarray = None) -> tuple[np.ndarray, dict]:
+def align(img: np.ndarray, ref_gray: np.ndarray, ref_kp, ref_des,
+          ref_img: np.ndarray = None, feat_mask: np.ndarray = None) -> tuple[np.ndarray, dict]:
     """Alinea img respecto a la referencia. Retorna (imagen_alineada, info)."""
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     sift = cv2.SIFT_create(nfeatures=SIFT_FEATURES)
-    kp, des = sift.detectAndCompute(gray, None)
+    # Escalar máscara al tamaño de esta imagen si es necesario
+    mask_use = None
+    if feat_mask is not None:
+        mask_use = cv2.resize(feat_mask, (gray.shape[1], gray.shape[0]),
+                              interpolation=cv2.INTER_NEAREST)
+    kp, des = sift.detectAndCompute(gray, mask_use)
 
     if des is None or len(kp) < 10:
         return img.copy(), {"status": "no_features", "inliers": 0, "viz": None}
@@ -120,8 +144,15 @@ def run(input_dir: Path, output_dir: Path, ref_path: Path | None):
     ref_file = ref_path or paths[0]
     ref_img  = cv2.imread(str(ref_file))
     ref_gray = cv2.cvtColor(ref_img, cv2.COLOR_BGR2GRAY)
+    h_ref, w_ref = ref_gray.shape
+
+    # Máscara de zonas estables (si --cam está disponible)
+    feat_mask = build_mask_for_cam(args.cam, h_ref, w_ref) if hasattr(args, 'cam') and args.cam else None
+    if feat_mask is not None:
+        print(f"  Máscara de alineación activa para CAM {args.cam}")
+
     sift = cv2.SIFT_create(nfeatures=SIFT_FEATURES)
-    ref_kp, ref_des = sift.detectAndCompute(ref_gray, None)
+    ref_kp, ref_des = sift.detectAndCompute(ref_gray, feat_mask)
     print(f"  Referencia: {ref_file.name}  ({len(ref_kp)} keypoints)\n")
 
     records = []
@@ -138,7 +169,7 @@ def run(input_dir: Path, output_dir: Path, ref_path: Path | None):
             info = {"status": "reference", "inliers": len(ref_kp), "viz": None}
             H_flat = np.eye(3).flatten().tolist()
         else:
-            aligned, info = align(img, ref_gray, ref_kp, ref_des, ref_img=ref_img)
+            aligned, info = align(img, ref_gray, ref_kp, ref_des, ref_img=ref_img, feat_mask=feat_mask)
             H_flat = info["H"].flatten().tolist() if info.get("H") is not None else [None]*9
 
         cv2.imwrite(str(out_aligned / p.name), aligned)
@@ -169,5 +200,7 @@ if __name__ == "__main__":
     ap.add_argument("--input",  "-i", required=True, type=Path)
     ap.add_argument("--output", "-o", required=True, type=Path)
     ap.add_argument("--ref",    "-r", default=None,  type=Path)
+    ap.add_argument("--cam",    "-c", default=None,  type=int,
+                    help="ID de cámara (1-6) para aplicar máscara de zonas estables")
     args = ap.parse_args()
     run(args.input, args.output, args.ref)
