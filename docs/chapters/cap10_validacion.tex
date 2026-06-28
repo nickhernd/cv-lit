@@ -1,0 +1,56 @@
+\chapter{Validación y Métricas de Calidad}
+\label{ch:validation}
+% ==============================================================
+
+\section{Estrategia de validación}
+
+Comparación de la línea detectada contra \textbf{transectos GNSS independientes} del IEL:
+puntos \textbf{no usados} en la calibración de homografía.
+
+\section{Métricas}
+
+\begin{equation}
+  \text{RMSE} = \sqrt{\frac{1}{N} \sum_{i=1}^{N} d_i^2}
+  \qquad
+  \text{MAE} = \frac{1}{N} \sum_{i=1}^{N} d_i
+\end{equation}
+
+donde $d_i$ es la distancia mínima en metros del punto GNSS $i$ a la polilínea detectada.
+
+\section{Criterios de aceptación}
+
+\begin{table}[H]
+\centering
+\caption{Umbrales de calidad del sistema}
+\begin{tabular}{L{4cm} C{3cm} L{5.5cm}}
+\toprule
+\textbf{Métrica} & \textbf{Objetivo} & \textbf{Condición} \\
+\midrule
+RMSE geométrico    & $< 1{,}5$~m & Condiciones estándar (12:00h, sin interferencias) \\
+MAE geométrico     & $< 1{,}0$~m & Objetivo secundario \\
+Cobertura temporal & $\geq 90\%$ & Imágenes a 12:00h procesadas sin error \\
+$\delta_\text{px}$ alineación & $< 3$~px & Drift residual post-homografía \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Factores de error a monitorizar}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Calidad de imagen}: niebla, reflejo solar, lluvia, espuma excesiva.
+  \item \textbf{Nivel de marea}: afecta la posición real de la línea (calibrar en diferentes estados de marea).
+  \item \textbf{Deriva de cámara}: movimiento del soporte por viento, mantenimiento u otras causas.
+  \item \textbf{Precisión GCPs}: exactitud del levantamiento GNSS del IEL (instrumental + propagación de error).
+\end{itemize}
+
+\section{Validación en QGIS}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item Configurar CRS del proyecto en \textbf{EPSG:25830}.
+  \item Cargar GCPs del IEL como capa de puntos.
+  \item Arrastrar los GeoJSON de \texttt{data/processed/lines/} al proyecto.
+  \item Usar ``Distancia a la polilínea más cercana'' para calcular $d_i$.
+  \item Comparar con ortofoto PNOA (WMS/WMTS del IGN) para validación visual.
+\end{enumerate}
+
+% ==============================================================

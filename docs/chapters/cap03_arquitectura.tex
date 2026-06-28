@@ -1,0 +1,127 @@
+\chapter{Arquitectura del Sistema}
+\label{ch:architecture}
+% ==============================================================
+
+\section{Stack tecnológico}
+
+\begin{table}[H]
+\centering
+\caption{Dependencias principales}
+\label{tab:stack}
+\begin{tabular}{L{4cm} L{3.5cm} L{5cm}}
+\toprule
+\textbf{Componente} & \textbf{Versión} & \textbf{Rol} \\
+\midrule
+Python        & 3.11         & Runtime principal \\
+FastAPI       & $\geq$ 0.110 & API REST backend \\
+OpenCV        & 4.x          & Procesamiento de imagen \\
+NumPy/SciPy   & --           & Álgebra matricial \\
+SAM (Meta AI) & --           & Segmentación semántica \\
+PyTorch       & $\geq$ 2.0   & Backend SAM \\
+GDAL/pyproj   & --           & Transformaciones EPSG \\
+Vue 3 + Vite  & --           & Interfaz web \\
+Tailwind CSS  & 3.x          & Estilos \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\newpage
+\section{Estructura de directorios}
+
+\begin{codebox}[Árbol del repositorio]
+\begin{minted}{text}
+cv-lit/
++-- acces_api/              # Módulo Obscape API
+|   +-- obscape_api.py      # Cliente REST
+|   +-- scheduled_download.py
++-- backend/                # Servidor FastAPI
+|   +-- main.py             # App principal + routers
+|   +-- batch_alignment.py  # Pipeline de alineación masiva  [NUEVO]
+|   +-- config.py           # Constantes globales
+|   +-- routers/
+|       +-- alignment.py    # Endpoints unitarios de alineación
++-- calibration/            # Perfiles y máscaras por cámara
+|   +-- cam_N_H.npy         # Matriz H 3×3 en float64
+|   +-- cam_N_profile.json  # Metadatos, RMSE, fecha
+|   +-- roi_config.json     # ROIs por cámara
+|   +-- alignment_masks.json# Zonas SIFT estables  [NUEVO]
+|   +-- diagnostics/        # Imágenes de diagnóstico
++-- data/                   # Imágenes y resultados (excl. Git)
+|   +-- CAM_N/
+|   |   +-- images/         # Originales
+|   |   +-- aligned/        # Salida del commit de batch
+|   +-- logs/
++-- docs/                   # Documentación técnica
+|   +-- memoria.tex         # Esta memoria  [NUEVO]
+|   +-- reports/
++-- frontend/               # Interfaz Vue 3
+|   +-- src/components/
+|       +-- App.vue
+|       +-- Calibration.vue
+|       +-- BatchAlignment.vue  [NUEVO]
++-- homography/
+|   +-- align_images.py     # CLI standalone de alineación
++-- proces_images/          # Algoritmos de procesamiento
+|   +-- calibration_tool.py
+|   +-- extract_coastline.py
+|   +-- segmentation_sam.py
+|   +-- recalibrate.py
++-- scripts/                # Herramientas de operación
++-- tests/
+\end{minted}
+\end{codebox}
+
+\section{Pipeline de procesamiento}
+
+La figura~\ref{fig:pipeline} muestra el grafo completo de procesamiento desde la adquisición
+hasta la exportación del GeoJSON georreferenciado.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.8cm and 1.5cm]
+
+  % Nodos
+  \node[block, fill=Teal!12, draw=Teal!70] (api)
+    {API Obscape\\{\tiny Descarga imágenes (14d)}};
+
+  \node[block, fill=Orange!10, draw=Orange!70, below=of api] (batch)
+    {\textbf{[3.0b] Alineación masiva}\\{\tiny SIFT + RANSAC · commit no-destructivo}};
+
+  \node[block, below=of batch] (preproc)
+    {[3.1] Preprocesado\\{\tiny Normalización + recorte ROI}};
+
+  \node[block, below=of preproc] (sam)
+    {[3.2] Segmentación SAM\\{\tiny Máscara arena/agua}};
+
+  \node[block, below=of sam] (extract)
+    {[3.3] Extracción línea de costa\\{\tiny cv2.findContours}};
+
+  \node[block, below=of extract] (proj)
+    {[3.4] Proyección homografía\\{\tiny $(u,v) \rightarrow$ EPSG:25830}};
+
+  \node[block, fill=OliveGreen!10, draw=OliveGreen!70, below=of proj] (export)
+    {[3.5] Exportación GeoJSON\\{\tiny EPSG:25830 · área seca m²}};
+
+  \node[block, fill=NavyBlue!8, draw=NavyBlue!50, right=2.5cm of batch] (calib)
+    {[3.0] Calibración offline\\{\tiny GCPs GNSS · RANSAC · H por cámara}};
+
+  % Flechas verticales
+  \draw[arrow] (api) -- (batch);
+  \draw[arrow] (batch) -- (preproc);
+  \draw[arrow] (preproc) -- (sam);
+  \draw[arrow] (sam) -- (extract);
+  \draw[arrow] (extract) -- (proj);
+  \draw[arrow] (proj) -- (export);
+
+  % Calibración lateral
+  \draw[arrow, dashed, color=NavyBlue!50] (calib) -- (proj)
+    node[midway, right, label] {H\textsubscript{i}};
+  \draw[arrow, dashed, color=NavyBlue!50] (calib) -- (batch)
+    node[midway, right, label] {máscaras};
+
+\end{tikzpicture}
+\caption{Pipeline completo de procesamiento cv-lit}
+\label{fig:pipeline}
+\end{figure}
+
+% ==============================================================

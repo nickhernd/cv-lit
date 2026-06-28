@@ -1,0 +1,136 @@
+\chapter{Interfaz Web}
+\label{ch:frontend}
+% ==============================================================
+
+\section{Arquitectura frontend}
+
+La interfaz web está construida con \textbf{Vue 3} + \textbf{Vite} + \textbf{Tailwind CSS},
+sin gestión de estado global (no Pinia): cada componente mantiene su propio estado reactivo
+con \texttt{ref()} y \texttt{reactive()}.
+
+Para iniciar el entorno de desarrollo:
+
+\begin{codebox}[]
+\begin{minted}{bash}
+./start_dev.sh
+# Backend:  http://localhost:8000
+# Frontend: http://localhost:5173
+\end{minted}
+\end{codebox}
+
+\section{Componente BatchAlignment.vue}
+
+Componente principal del módulo de alineación masiva. Integrado en el \textbf{paso 3}
+del flujo de calibración (\texttt{Calibration.vue}).
+
+\subsection{Variables de estado}
+
+\begin{codebox}[]
+\begin{minted}{javascript}
+const phase    = ref('idle')   // idle|configuring|processing|reviewing|committed
+const jobId    = ref(null)     // UUID del job backend activo
+const results  = ref([])       // Array de AlignmentResult del lote
+const selected = ref(null)     // filename seleccionado en filmstrip
+const viewMode = ref('diff')   // 'diff' | 'blend' | 'aligned'
+\end{minted}
+\end{codebox}
+
+\subsection{Props y eventos}
+
+\begin{table}[H]
+\centering
+\caption{Props del componente BatchAlignment}
+\begin{tabular}{L{3cm} L{2.5cm} L{7cm}}
+\toprule
+\textbf{Prop} & \textbf{Tipo} & \textbf{Descripción} \\
+\midrule
+\texttt{camId}       & Number & ID de cámara (1--6) \\
+\texttt{imageList}   & Array  & Lista de imágenes disponibles \\
+\texttt{initialBase} & String & Imagen base por defecto (del perfil de calibración) \\
+\midrule
+\textbf{Emit} & \textbf{Payload} & \textbf{Descripción} \\
+\midrule
+\texttt{notify}    & (msg, type) & Toast del sistema \\
+\texttt{committed} & \{jobId, committed\} & Lote confirmado con éxito \\
+\texttt{discard}   & — & Usuario descartó el job \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Layout de la fase reviewing}
+
+\begin{codebox}[Vista de revisión — esquema]
+\begin{minted}{text}
++----------------------+--------------------------------------------------+
+| RESUMEN              | [Mapa delta]  [Blend 50/50]  [Alineada]          |
+|  Aprobadas: 44       +----------------------+---------------------------+
+|  Omitidas:   3       |                      |                           |
+|  Fallidas:   0       |     ORIGINAL         |    DELTA / BLEND / ALI    |
++----------------------|     <img>            |    <img>                  |
+| FILMSTRIP            |                      |                           |
+| ● img_001  OK        +----------------------+---------------------------+
+| ▶ img_002  ~2.1px    |  Leyenda: ■negro=OK ■rojo=error ■cian=bordes    |
+| ● img_003  FAIL      |                                                   |
+| ● img_004  SKIP      |  inliers: 152  delta: 1.4 px  [✓ Aprobada]      |
+|   ...                |                                                   |
++----------------------+--------------------------------------------------+
+|  [Confirmar lote (44)]                    [Descartar sin guardar]        |
++-------------------------------------------------------------------------+
+\end{minted}
+\end{codebox}
+
+\subsection{Indicadores del filmstrip}
+
+\begin{table}[H]
+\centering
+\caption{Código de color en el filmstrip}
+\begin{tabular}{C{2.5cm} L{4cm} L{6cm}}
+\toprule
+\textbf{Color} & \textbf{Estado} & \textbf{Condición} \\
+\midrule
+\cellcolor{NavyBlue!30} Azul   & Referencia  & Imagen base seleccionada \\
+\cellcolor{OliveGreen!30} Verde & OK          & $\delta_\text{px} \leq 3$ \\
+\cellcolor{Goldenrod!50} Amarillo & Drift     & $\delta_\text{px} > 3$ \\
+\cellcolor{Orange!40} Ámbar   & Desaprobada & \texttt{approved = false} (manual) \\
+\cellcolor{BrickRed!30} Rojo   & Fallida     & RANSAC insuficiente \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Polling de progreso}
+
+El frontend consulta el estado del job cada \textbf{800~ms} durante la fase de procesamiento:
+
+\begin{codebox}[]
+\begin{minted}{javascript}
+function _poll() {
+  // GET /api/batch/{jobId}/status
+  if (data.status === 'ready') {
+    clearInterval(pollTimer)
+    await _loadResults()   // carga métricas completas
+    phase.value = 'reviewing'
+  }
+  if (data.status === 'failed') {
+    clearInterval(pollTimer)
+    emit('notify', data.error, 'error')
+    phase.value = 'configuring'
+  }
+  progress.value = data.progress_current / data.progress_total
+}
+\end{minted}
+\end{codebox}
+
+\section{Flujo completo de uso}
+
+\begin{enumerate}[leftmargin=1.5em, label=\textbf{\arabic*.}]
+  \item Dashboard → seleccionar cámara → pestaña \textit{Calibración} → paso 3.
+  \item Elegir imagen base de referencia del lote.
+  \item Pulsar ``Alinear lote completo'' → barra de progreso en tiempo real.
+  \item Revisar filmstrip: verde = OK, rojo = error.
+  \item Para cada imagen roja o amarilla: inspeccionar mapa de delta / blend.
+  \item Desaprobar imágenes concretas (opcional) con toggle en el visor.
+  \item Pulsar ``Confirmar lote'' → imágenes aprobadas a \texttt{data/CAM\_X/aligned/}.
+  \item Las imágenes originales en \texttt{data/CAM\_X/images/} quedan \textbf{intactas}.
+\end{enumerate}
+
+% ==============================================================

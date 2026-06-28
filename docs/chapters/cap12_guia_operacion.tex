@@ -1,0 +1,86 @@
+\chapter{Guía de Operación}
+\label{ch:ops}
+% ==============================================================
+
+\section{Inicio rápido}
+
+\begin{codebox}[Arrancar el sistema completo]
+\begin{minted}{bash}
+# 1. Activar entorno Conda
+conda activate cv-lit
+
+# 2. Iniciar backend + frontend en paralelo
+./start_dev.sh
+# Backend:  http://localhost:8000 (FastAPI + docs en /docs)
+# Frontend: http://localhost:5173 (Vue 3 + Vite)
+\end{minted}
+\end{codebox}
+
+\section{Descarga de imágenes}
+
+\begin{codebox}[]
+\begin{minted}{bash}
+# Descarga estándar (últimas 2 semanas, 12:00h)
+python3 acces_api/scheduled_download.py
+
+# Diagnóstico de estado de cámaras
+python3 scripts/verify_setup.py
+\end{minted}
+\end{codebox}
+
+\section{Calibración}
+
+\begin{codebox}[]
+\begin{minted}{bash}
+# Herramienta completa de calibración
+python3 proces_images/calibration_tool.py --cam 1 --image /ruta/foto.jpg
+
+# Lanzador visual rápido (CAM 1, imagen más reciente)
+python3 scripts/visualizar_calibracion.py
+
+# Recalibración rápida (cámara movida levemente)
+python3 proces_images/recalibrate.py --cam 1 --image /ruta/nueva_foto.jpg
+
+# Verificar motor matemático
+python3 proces_images/test_calibration_logic.py
+\end{minted}
+\end{codebox}
+
+\section{Alineación masiva (CLI)}
+
+Para usar el módulo de alineación sin interfaz web:
+
+\begin{codebox}[]
+\begin{minted}{bash}
+# Alinear todas las imágenes de una carpeta respecto a la primera
+python3 homography/align_images.py \
+  --input  /ruta/imagenes/ \
+  --output /ruta/salida/ \
+  --cam 1                    # aplica máscaras SIFT de CAM_1
+
+# Especificar imagen de referencia manualmente
+python3 homography/align_images.py \
+  --input  /ruta/imagenes/ \
+  --output /ruta/salida/ \
+  --ref    imagen_base.jpg \
+  --cam 2
+\end{minted}
+\end{codebox}
+
+Salidas:
+\begin{itemize}[leftmargin=1.5em]
+  \item \texttt{/output/aligned/} — imágenes alineadas
+  \item \texttt{/output/diagnostics/} — visualizaciones de matches
+  \item \texttt{/output/homographies.csv} — métricas y matrices $H$ por imagen
+\end{itemize}
+
+\section{Pipeline de extracción}
+
+\begin{codebox}[]
+\begin{minted}{bash}
+# Prototipo completo: ROI → Segmentación SAM → Línea de costa
+python3 proces_images/test_mes3_pipeline.py --cam 1
+\end{minted}
+\end{codebox}
+
+% ==============================================================

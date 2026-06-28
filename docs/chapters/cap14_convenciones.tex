@@ -1,0 +1,27 @@
+\chapter{Convenciones de código y Git}
+\label{app:conventions}
+
+\section{Estrategia de ramas}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{main}: código estable y validado.
+  \item \textbf{feature/nombre-modulo}: nuevas funcionalidades.
+  \item \textbf{fix/descripcion-error}: correcciones.
+  \item \textbf{docs/nombre-doc}: documentación.
+\end{itemize}
+
+Todo cambio debe pasar por Pull Request antes de integrar en \texttt{main}.
+
+\section{Nomenclatura de ficheros}
+
+Las imágenes descargadas usan el formato determinista:
+\begin{center}
+\texttt{UNIX\_YYYYMMDD\_HHMMSS\_REFERENCIA.jpg}
+\end{center}
+
+\section{Proyección obligatoria}
+
+\textbf{Toda coordenada geográfica en el sistema debe estar en EPSG:25830.}
+Nunca almacenar en WGS84 (EPSG:4326) salvo para visualización en APIs de mapas.
+
+% ==============================================================

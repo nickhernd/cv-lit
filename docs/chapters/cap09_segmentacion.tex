@@ -1,0 +1,82 @@
+\chapter{Segmentación y Extracción de Línea de Costa}
+\label{ch:segmentation}
+% ==============================================================
+
+\section{Segmentación semántica con SAM}
+
+Se utiliza \textbf{Segment Anything Model (SAM)} de Meta AI en modo \textit{zero-shot}:
+sin datos de entrenamiento específicos de Guardamar.
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Modo de uso}: prompt basado en puntos semilla o bounding boxes de la ROI.
+  \item \textbf{Salida}: mapa probabilístico arena seca / arena húmeda / agua.
+  \item \textbf{Post-SAM}: umbral adaptativo + filtrado morfológico → máscara binaria.
+\end{itemize}
+
+\begin{codebox}[Segmentación (extracto segmentation\_sam.py)]
+\begin{minted}{python}
+from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+
+sam = sam_model_registry["vit_h"](checkpoint=SAM_CHECKPOINT)
+mask_generator = SamAutomaticMaskGenerator(
+    sam,
+    points_per_side=32,
+    pred_iou_thresh=0.86,
+    stability_score_thresh=0.92
+)
+masks = mask_generator.generate(roi_img)
+\end{minted}
+\end{codebox}
+
+\section{Extracción de línea de costa}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item Cálculo de contornos sobre la máscara binaria:
+        \texttt{cv2.findContours(mask, cv2.RETR\_EXTERNAL, cv2.CHAIN\_APPROX\_SIMPLE)}
+  \item Selección del contorno correspondiente al borde arena húmeda -- arena seca.
+  \item Resultado: polilínea en coordenadas píxel $(u, v)$.
+\end{enumerate}
+
+\section{Proyección a EPSG:25830}
+
+Aplicación de la homografía~\eqref{eq:homography} para transformar cada punto $(u,v)$
+de la polilínea a coordenadas métricas:
+
+\begin{codebox}[]
+\begin{minted}{python}
+def pixel_to_utm(H, pts_px):
+    """pts_px: Nx2 array de (u,v). Retorna Nx2 en UTM EPSG:25830."""
+    pts_h = np.hstack([pts_px, np.ones((len(pts_px), 1))])
+    result = (H @ pts_h.T).T
+    return result[:, :2] / result[:, 2:3]   # normalización homogénea
+\end{minted}
+\end{codebox}
+
+\section{Exportación GeoJSON}
+
+\begin{codebox}[Estructura del GeoJSON de salida]
+\begin{minted}{json}
+{
+  "type": "FeatureCollection",
+  "crs": {
+    "type": "name",
+    "properties": { "name": "EPSG:25830" }
+  },
+  "features": [{
+    "type": "Feature",
+    "geometry": {
+      "type": "LineString",
+      "coordinates": [[711234.5, 4209876.3], ["..."]]
+    },
+    "properties": {
+      "ID_Camara":     1,
+      "Timestamp":     "2026-04-30T12:00:00Z",
+      "Confianza_IA":  0.93,
+      "Area_Seca_m2":  14250.7
+    }
+  }]
+}
+\end{minted}
+\end{codebox}
+
+% ==============================================================

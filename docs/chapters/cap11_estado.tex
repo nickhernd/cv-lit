@@ -1,0 +1,58 @@
+\chapter{Estado del Proyecto y Roadmap}
+\label{ch:roadmap}
+% ==============================================================
+
+\section{Estado actual (junio 2026)}
+
+\begin{table}[H]
+\centering
+\caption{Estado de hitos del proyecto}
+\label{tab:roadmap}
+\begin{tabular}{C{1cm} L{5cm} C{1.5cm} L{5cm}}
+\toprule
+\textbf{Mes} & \textbf{Objetivo} & \textbf{Estado} & \textbf{Nota} \\
+\midrule
+1 & Preparación datos + diseño interfaces & \textcolor{OliveGreen}{Hecho} & Completado \\
+2 & Calibración geométrica                & \textcolor{OliveGreen}{Hecho} & 6 perfiles generados \\
+3 & Segmentación (prototipo)              & \textcolor{OliveGreen}{Hecho} & SAM funcional \\
+4 & Extracción línea + georreferenciación & \textcolor{OliveGreen}{Hecho} & GeoJSON en EPSG:25830 \\
+5 & Validación y robustez                 & \textcolor{Goldenrod}{Parcial} & CAM 4 y 6 pendientes \\
+6 & Integración y entrega                 & \textcolor{gray}{Pendiente}   & Próximo hito \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Completado en la iteración de junio 2026}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item[$\bullet$] Módulo de alineación masiva no-destructiva (\texttt{batch\_alignment.py})
+    \begin{itemize}
+      \item Router FastAPI \texttt{/api/batch/} con 10 endpoints
+      \item Pipeline async SIFT+FLANN+RANSAC sobre lote completo
+      \item Mapa de delta compuesto (heatmap HOT + edge-diff cian + métrica Farneback)
+      \item Two-phase commit: staging \texttt{/tmp/} → escritura permanente sólo en commit
+    \end{itemize}
+  \item[$\bullet$] Interfaz de validación por lotes (\texttt{BatchAlignment.vue})
+  \item[$\bullet$] Corrección de máscaras SIFT para CAM~1 (problema de gaviotas)
+  \item[$\bullet$] Integración en paso 3 del flujo de calibración (\texttt{Calibration.vue})
+  \item[$\bullet$] Documentación completa (esta memoria)
+\end{itemize}
+
+\section{Fase 3 — Automatización y robustez (mes 5)}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Procesamiento por lotes}: integrar backend para procesar todas las imágenes de 12:00h.
+  \item \textbf{Filtros de calidad}: rechazo automático de imágenes con niebla o baja confianza de SAM.
+  \item \textbf{Persistencia GeoJSON}: guardar histórico de líneas de costa en base de datos/sistema de ficheros.
+  \item \textbf{Recalibración CAM~4 y CAM~6}: reducir RMSE por debajo de 1.5~m.
+\end{enumerate}
+
+\section{Fase 4 — Entrega e integración (mes 6)}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item Dashboard de histórico: gráficas de evolución del área seca.
+  \item Exportación masiva: informes mensuales de variación de línea de costa.
+  \item Manual de usuario: documentación final para el personal del Ayuntamiento.
+\end{enumerate}
+
+% ==============================================================

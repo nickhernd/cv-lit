@@ -1,0 +1,215 @@
+\chapter{Máscaras de Zonas Estables SIFT}
+\label{ch:masks}
+% ==============================================================
+
+\section{Problema: objetos dinámicos en SIFT}
+
+Sin restricciones de zona, SIFT detecta features en \textbf{cualquier región} de la imagen,
+incluyendo objetos dinámicos que producen correspondencias erróneas:
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Gaviotas y pájaros} en vuelo (zona de cielo/horizonte bajo)
+  \item \textbf{Olas y espuma} de mar (bordes dinámicos muy contrastados)
+  \item \textbf{Personas y bañistas} en la playa
+  \item \textbf{Sombras dinámicas} de nubes
+\end{itemize}
+
+Resultado: matches entre objetos en posiciones distintas entre tomas → homografía sesgada
+→ imágenes ``giradas'' o desplazadas incorrectamente.
+
+\section{Solución: máscaras de regiones estables}
+
+El fichero \texttt{calibration/alignment\_masks.json} define zonas con \textbf{coordenadas
+fraccionarias} $(0.0 \ldots 1.0)$ independientes de la resolución real de la imagen:
+
+\begin{equation}
+  x_\text{frac} = \frac{x_\text{px}}{W_\text{imagen}}, \quad
+  y_\text{frac} = \frac{y_\text{px}}{H_\text{imagen}}
+\end{equation}
+
+\begin{codebox}[alignment\_masks.json — estructura]
+\begin{minted}{json}
+{
+  "CAM_1": {
+    "regions": [
+      {"label": "horizonte_mar",   "x0": 0.00, "y0": 0.31, "x1": 1.00, "y1": 0.40},
+      {"label": "arena_baja",      "x0": 0.00, "y0": 0.73, "x1": 0.60, "y1": 0.88},
+      {"label": "vegetacion_dcha", "x0": 0.60, "y0": 0.73, "x1": 1.00, "y1": 0.92}
+    ]
+  }
+}
+\end{minted}
+\end{codebox}
+
+\section{Zonas por cámara}
+
+\begin{table}[H]
+\centering
+\caption{Configuración de máscaras SIFT por cámara}
+\label{tab:masks}
+\begin{tabular}{C{1.5cm} L{3.5cm} C{3.5cm} L{4.5cm}}
+\toprule
+\textbf{Cámara} & \textbf{Zona 1} & \textbf{Zona 2} & \textbf{Justificación} \\
+\midrule
+CAM~1 & Horizonte mar (y=0.31--0.40) & Arena baja + Vegetación dcha & Excluye cielo con gaviotas \\
+CAM~2 & Horizonte (y=0.26--0.40)    & El Peñón (x=0.58--0.88)     & El Peñón de Ifach es referencia fija excelente \\
+CAM~3 & Horizonte (y=0.34--0.48)    & Edificio dcha (x=0.72--1.00) & Edificio como anclaje vertical \\
+CAM~4 & Horizonte (y=0.30--0.44)    & Edificio izq (x=0.00--0.28)  & Edificio como anclaje vertical \\
+CAM~5 & Horizonte (y=0.28--0.42)    & Zona izq (x=0.00--0.32)      & \\
+CAM~6 & Horizonte (y=0.32--0.46)    & Edificios izq (x=0.00--0.35) & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Visualización de zonas estables por cámara}
+
+Las figuras siguientes muestran, sobre una imagen real de cada cámara, las regiones activas
+(coloreadas semitransparentes) donde SIFT extrae keypoints.
+\textbf{Verde} = zona 1 (horizonte/mar), \textbf{naranja} = zona 2 (estructura fija secundaria),
+\textbf{cian} = zona 3 (cuando existe). Las regiones sin color son ignoradas por SIFT.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{mask_cam1.jpg}
+  \caption{CAM~1 — horizonte del mar ($y=0{,}31$--$0{,}40$) + arena baja izq + vegetación dcha.
+           Zona diseñada para evitar las gaviotas que vuelan en $y < 0{,}30$.}
+  \label{fig:mask-cam1-vis}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{mask_cam2.jpg}
+  \caption{CAM~2 — horizonte del mar ($y=0{,}26$--$0{,}40$) + zona derecha donde aparece
+           el Peñón de Ifach ($x=0{,}58$--$0{,}88$). El peñón actúa como ancla geométrica
+           muy robusta al ser una estructura rocosa estática y muy contrastada.}
+  \label{fig:mask-cam2-vis}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{mask_cam3.jpg}
+  \caption{CAM~3 — horizonte del mar ($y=0{,}34$--$0{,}48$) + edificios y palmeras en la
+           esquina derecha ($x=0{,}72$--$1{,}00$). Las estructuras urbanas ofrecen
+           features muy estables en todos los horarios.}
+  \label{fig:mask-cam3-vis}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{mask_cam4.jpg}
+  \caption{CAM~4 — horizonte del mar ($y=0{,}30$--$0{,}44$) + paseo marítimo/edificios en
+           la esquina izquierda ($x=0{,}00$--$0{,}28$). La infraestructura urbana proporciona
+           features angulares muy discriminantes.}
+  \label{fig:mask-cam4-vis}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{mask_cam5.jpg}
+  \caption{CAM~5 — horizonte del mar ($y=0{,}28$--$0{,}42$) + franja izquierda de
+           playa/agua ($x=0{,}00$--$0{,}32$). La zona izquierda incluye la línea de
+           costa y parte del mar cercano, con textura de olas reproducible.}
+  \label{fig:mask-cam5-vis}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{mask_cam6.jpg}
+  \caption{CAM~6 — horizonte del mar ($y=0{,}32$--$0{,}46$) + bloque de edificios en la
+           esquina izquierda ($x=0{,}00$--$0{,}35$). Los edificios tienen fachadas con
+           ventanas y balcones que generan features muy estables.}
+  \label{fig:mask-cam6-vis}
+\end{figure}
+
+\begin{warnbox}[Nota sobre CAM\_2 — zona ``peñón'']
+La región etiquetada como \texttt{penon} ($x=0{,}58$--$0{,}88$, $y=0{,}36$--$0{,}72$) en la
+imagen de muestra (mayo 2026, sin visibilidad del Peñón) aparece sobre el mar abierto.
+En imágenes de alta visibilidad, el Peñón de Ifach asoma en esa zona y actúa como referencia
+excelente. Si la cámara opera regularmente con baja visibilidad horizontal, considerar sustituir
+esta región por otra zona costera estable.
+\end{warnbox}
+
+\section{Corrección CAM\_1: problema de gaviotas}
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{img_cam1_mask_actual.jpg}
+    \caption{Máscara anterior — zona ``horizonte'' comienza en $y=0{,}24$, alcanzando el cielo con gaviotas}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{img_cam1_mask_propuesta.jpg}
+    \caption{Máscara corregida — \texttt{horizonte\_mar} comienza en $y=0{,}31$ (mar), más arena baja y vegetación}
+  \end{subfigure}
+  \caption{Comparativa de máscaras SIFT para CAM~1 (imagen 4608$\times$2682~px)}
+  \label{fig:mask-cam1}
+\end{figure}
+
+\begin{infobox}[Por qué CAM\_1 es problemática]
+La cámara apunta hacia el norte sobre la playa. En imágenes de mañana, 5--10 gaviotas
+sobrevuelan habitualmente en la banda $y \approx 0{,}14 \ldots 0{,}30$ (cielo bajo).
+
+SIFT detecta las aves como features de alto contraste con gran confianza. Al estar en
+posiciones distintas entre tomas, generan matches cruzados que sesgan la homografía.
+
+La corrección: \texttt{horizonte\_mar} ($y=0{,}31 \ldots 0{,}40$) está en la franja de agua
+cerca del horizonte, donde los features son reproducibles y estables.
+\end{infobox}
+
+\subsection{Coordenadas en píxeles (imagen 4608$\times$2682)}
+
+\begin{table}[H]
+\centering
+\caption{Conversión fracción → píxeles para CAM\_1}
+\begin{tabular}{L{4cm} C{4cm} C{4cm}}
+\toprule
+\textbf{Zona} & \textbf{Esquina sup-izq (px)} & \textbf{Esquina inf-der (px)} \\
+\midrule
+\texttt{horizonte\_mar}   & (0,~831)    & (4608,~1072) \\
+\texttt{arena\_baja}      & (0,~1957)   & (2764,~2360) \\
+\texttt{vegetacion\_dcha} & (2764,~1957)& (4608,~2467) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Cómo ajustar una máscara}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item Abrir una imagen real de la cámara en un visor que muestre coordenadas de píxel.
+  \item Identificar las regiones estables (sin gaviotas, olas ni personas).
+  \item Anotar las coordenadas en píxeles de las esquinas.
+  \item Convertir a fracciones: $x_f = x_\text{px}/W$, $y_f = y_\text{px}/H$.
+  \item Editar \texttt{calibration/alignment\_masks.json}.
+  \item Ejecutar el script de verificación:
+\end{enumerate}
+
+\begin{codebox}[Script de verificación visual de máscaras]
+\begin{minted}{python}
+import cv2, json, numpy as np
+
+IMG   = "proces_images/data/camera1/IMAGEN_REF.jpg"
+MASKS = "calibration/alignment_masks.json"
+CAM   = "CAM_1"
+
+img = cv2.imread(IMG)
+h, w = img.shape[:2]
+overlay = img.copy()
+
+with open(MASKS) as f:
+    cfg = json.load(f)
+
+for r in cfg[CAM]["regions"]:
+    x0, y0 = int(r["x0"]*w), int(r["y0"]*h)
+    x1, y1 = int(r["x1"]*w), int(r["y1"]*h)
+    cv2.rectangle(overlay, (x0,y0), (x1,y1), (0,255,0), -1)
+    cv2.putText(overlay, r["label"], (x0+10, y0+30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,0,0), 2)
+
+result = cv2.addWeighted(img, 0.5, overlay, 0.5, 0)
+cv2.imwrite("/tmp/mask_check.jpg", result)
+print(f"Guardado en /tmp/mask_check.jpg  ({w}x{h})")
+\end{minted}
+\end{codebox}
+
+% ==============================================================

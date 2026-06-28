@@ -1,0 +1,251 @@
+\chapter{Módulo de Alineación Masiva}
+\label{ch:batch}
+% ==============================================================
+
+\section{Motivación}
+
+El flujo anterior validaba fotogramas de forma \textbf{unitaria}: una llamada API por imagen,
+sin visión global del lote. Esto presentaba tres problemas:
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Escalabilidad}: con 24 imágenes/día por 6 cámaras, revisar manualmente cada
+        alineación era inviable.
+  \item \textbf{Detección de deriva}: sin comparativa global era difícil detectar si una
+        cámara había girado ligeramente con el tiempo.
+  \item \textbf{Objetos dinámicos}: SIFT sin restricciones detectaba gaviotas y olas como
+        features, produciendo homografías sesgadas.
+\end{enumerate}
+
+\section{Arquitectura de estados}
+
+El módulo implementa una \textbf{máquina de estados no-destructiva} de 5 fases:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.6cm and 1.8cm]
+  \node[block, fill=gray!8] (idle) {idle};
+  \node[block, fill=SkyBlue!15, right=of idle] (config) {configuring};
+  \node[block, fill=Orange!15, right=of config] (proc) {processing};
+  \node[block, fill=OliveGreen!15, right=of proc] (review) {reviewing};
+  \node[block, fill=NavyBlue!15, right=of review] (commit) {committed};
+
+  \draw[arrow] (idle) -- (config) node[midway,above,label]{start};
+  \draw[arrow] (config) -- (proc) node[midway,above,label]{launch};
+  \draw[arrow] (proc) -- (review) node[midway,above,label]{ready};
+  \draw[arrow] (review) -- (commit) node[midway,above,label]{commit};
+
+  % discard arco
+  \draw[arrow, bend right=30, color=BrickRed!60]
+    (review.south) to node[below,label]{\textcolor{BrickRed}{discard}} (idle.south);
+  \draw[arrow, bend right=25, color=BrickRed!60]
+    (proc.south) to node[below,label,pos=0.3]{\textcolor{BrickRed}{discard}} (idle.south);
+\end{tikzpicture}
+\caption{Máquina de estados del módulo BatchAlignment}
+\label{fig:state-machine}
+\end{figure}
+
+\begin{infobox}[Principio de no-destructividad]
+Todo el trabajo intermedio vive en \texttt{/tmp/cv\_lit\_batch/\{job\_id\}/}.
+Los originales de cada cámara \textbf{nunca} se modifican.
+La escritura permanente ocurre \textbf{únicamente} al llamar al commit explícito.
+\end{infobox}
+
+\subsection{Estructura del directorio temporal por job}
+
+\begin{codebox}[]
+\begin{minted}{text}
+/tmp/cv_lit_batch/{job_id}/
+  aligned/    ← imágenes con warpPerspective aplicado (staging)
+  diff/       ← mapas de delta por imagen
+  blend/      ← blend 50/50 en escala de grises
+\end{minted}
+\end{codebox}
+
+\section{Pipeline de alineación: algoritmo}
+
+\subsection{Parámetros configurables}
+
+\begin{table}[H]
+\centering
+\caption{Parámetros del pipeline de alineación (\texttt{batch\_alignment.py})}
+\label{tab:align-params}
+\begin{tabular}{L{4cm} C{2.5cm} L{6cm}}
+\toprule
+\textbf{Constante} & \textbf{Valor} & \textbf{Descripción} \\
+\midrule
+\texttt{SIFT\_FEATURES}   & 3\,000 & Keypoints máximos por imagen \\
+\texttt{LOWE\_RATIO}      & 0.75   & Ratio test de Lowe para filtrar matches \\
+\texttt{MIN\_INLIERS}     & 15     & Inliers mínimos RANSAC (con máscara) \\
+\texttt{MIN\_INLIERS\_FULL} & 30   & Inliers mínimos sin máscara (fallback) \\
+\texttt{RANSAC\_THRESH}   & 5.0~px & Umbral de reproyección RANSAC \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Estrategia de dos pasadas}
+
+Para combinar la robustez de las máscaras con la resiliencia ante zonas escasas de features:
+
+\begin{codebox}[Lógica de dos pasadas (pseudocódigo)]
+\begin{minted}{python}
+# Pasada 1: con máscara de zonas estables
+H, inliers, n_good, fail = _try_align(gray, ref_kp, ref_des,
+                                       mask=feat_mask,
+                                       threshold=MIN_INLIERS)  # 15
+if inliers >= MIN_INLIERS:
+    result.used_mask = True
+    return H, inliers
+
+# Pasada 2 (fallback): toda la imagen, umbral más alto
+H, inliers, n_good, fail = _try_align(gray, ref_kp_full, ref_des_full,
+                                       mask=None,
+                                       threshold=MIN_INLIERS_FULL)  # 30
+result.used_mask = False
+\end{minted}
+\end{codebox}
+
+\subsection{Flujo completo del pipeline}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item Carga imagen base → extrae keypoints con SIFT (con y sin máscara).
+  \item Por cada imagen del lote (tarea de fondo asíncrona):
+    \begin{enumerate}[leftmargin=1em]
+      \item Detecta features → matching FLANN con ratio test de Lowe (0.75).
+      \item RANSAC → homografía $\mathbf{H}$ (dos pasadas).
+      \item \texttt{cv2.warpPerspective} → imagen alineada → \texttt{aligned/}.
+      \item \texttt{\_compute\_diff\_map} → mapa de delta → \texttt{diff/}.
+      \item \texttt{\_blend\_grayscale} → blend 50/50 → \texttt{blend/}.
+      \item \texttt{\_compute\_mean\_shift} → métrica escalar $\delta_{\text{px}}$.
+      \item Actualiza \texttt{job.progress\_current}.
+    \end{enumerate}
+  \item \texttt{job.status = "ready"} al finalizar.
+\end{enumerate}
+
+\section{Renderizado del mapa de delta}
+
+El mapa de delta es una imagen compuesta de tres capas superpuestas que proporciona tanto
+información visual intuitiva como métricas cuantitativas.
+
+\subsection{Capa 1 — Heatmap de diferencia absoluta}
+
+\begin{equation}
+  \Delta_\text{abs}(i,j) = \frac{1}{3}\sum_{c \in \{R,G,B\}} |I_\text{ref}(i,j,c) - I_\text{ali}(i,j,c)|
+\end{equation}
+
+Se normaliza y se aplica \texttt{COLORMAP\_HOT} de OpenCV:
+
+\begin{table}[H]
+\centering
+\caption{Leyenda del heatmap HOT}
+\begin{tabular}{C{2cm} L{8cm}}
+\toprule
+\textbf{Color} & \textbf{Significado} \\
+\midrule
+Negro & $\Delta = 0$ — alineación perfecta \\
+Rojo/naranja & Error de intensidad moderado \\
+Amarillo & Error alto \\
+Blanco & Error severo — zona mal alineada \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Capa 2 — Divergencia de bordes (overlay cian)}
+
+\begin{codebox}[]
+\begin{minted}{python}
+edges_ref = cv2.Canny(ref_gray, 40, 120)
+edges_ali = cv2.Canny(aligned_gray, 40, 120)
+edge_diff = cv2.dilate(cv2.absdiff(edges_ref, edges_ali), kernel_5x5)
+composite[edge_diff > 0] = (255, 255, 0)  # cian en BGR
+\end{minted}
+\end{codebox}
+
+Los bordes estructurales que \textbf{no coinciden} entre referencia y alineada aparecen en
+\textbf{cian}, identificando exactamente qué objeto se desplazó y en qué dirección.
+
+\subsection{Capa 3 — Métrica escalar $\delta_{\text{px}}$ (flujo óptico Farneback)}
+
+\begin{equation}
+  \delta_{\text{px}} = \text{mediana}\left(
+    \sqrt{v_x(i,j)^2 + v_y(i,j)^2}
+  \right)
+\end{equation}
+
+donde $(v_x, v_y)$ es el campo de flujo óptico residual post-warp calculado con Farneback.
+Mide cuántos píxeles de desplazamiento sistemático quedan tras la homografía.
+
+\textbf{Umbral de alerta} en la UI: $\delta_{\text{px}} > 3$.
+
+\section{API REST del módulo}
+
+\begin{table}[H]
+\centering
+\caption{Endpoints del router \texttt{/api/batch/}}
+\label{tab:api-batch}
+\begin{tabular}{C{1.5cm} L{5cm} L{6cm}}
+\toprule
+\textbf{Método} & \textbf{Ruta} & \textbf{Descripción} \\
+\midrule
+\texttt{POST}  & \texttt{/start}                    & Encola job + lanza pipeline en background \\
+\texttt{GET}   & \texttt{/\{id\}/status}             & Polling de progreso (fase processing) \\
+\texttt{GET}   & \texttt{/\{id\}/results}            & Lista completa de métricas (fase ready) \\
+\texttt{GET}   & \texttt{/\{id\}/preview/original/\{fn\}} & Imagen original sin transformar \\
+\texttt{GET}   & \texttt{/\{id\}/preview/aligned/\{fn\}} & Imagen alineada en staging \\
+\texttt{GET}   & \texttt{/\{id\}/preview/diff/\{fn\}} & Mapa de delta compuesto \\
+\texttt{GET}   & \texttt{/\{id\}/preview/blend/\{fn\}} & Blend 50/50 en escala de grises \\
+\texttt{PATCH} & \texttt{/\{id\}/approve/\{fn\}}    & Override de aprobación individual \\
+\texttt{POST}  & \texttt{/\{id\}/commit}             & Two-phase commit → \texttt{CAM\_X/aligned/} \\
+\texttt{DELETE}& \texttt{/\{id\}}                   & Descarta job y elimina temp dir \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Modelos de dominio}
+
+\begin{codebox}[Dataclasses principales (batch\_alignment.py)]
+\begin{minted}{python}
+@dataclass
+class AlignmentResult:
+    filename:      str
+    status:        str       # "ok" | "failed" | "reference"
+    inliers:       int       # inliers RANSAC
+    mean_shift_px: float     # mediana flujo óptico residual (px)
+    H:             Optional[List]  # homografía 3×3 como lista plana
+    approved:      bool = True     # override de aprobación por imagen
+    fail_reason:   Optional[str] = None  # no_features|low_matches|ransac_failed
+    used_mask:     bool = True     # True = pasada con máscara activa
+
+@dataclass
+class BatchJob:
+    job_id:           str
+    cam_id:           int
+    base_filename:    str
+    image_filenames:  List[str]
+    status:           str    # pending|processing|ready|committed|failed|discarded
+    results:          Dict[str, AlignmentResult]
+    progress_current: int
+    progress_total:   int
+\end{minted}
+\end{codebox}
+
+\section{Flujo de commit (two-phase write)}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.7cm and 2cm]
+  \node[block, fill=OliveGreen!10] (review) {reviewing};
+  \node[block, fill=NavyBlue!10, right=3.5cm of review] (staging)
+    {\texttt{/tmp/.../aligned/}\\{\tiny staging no-destructivo}};
+  \node[block, fill=BrickRed!8, below=of staging] (disk)
+    {\texttt{data/CAM\_X/aligned/}\\{\tiny escritura permanente}};
+  \node[block, fill=gray!8, below=of review] (discard)
+    {\texttt{shutil.rmtree(temp\_dir)}\\{\tiny discard — cero side-effects}};
+
+  \draw[arrow] (review) -- (staging) node[midway,above,label]{commit (approved=True)};
+  \draw[arrow] (staging) -- (disk) node[midway,right,label]{\texttt{shutil.copy2}};
+  \draw[arrow, color=BrickRed!60] (review) -- (discard) node[midway,left,label]{discard};
+\end{tikzpicture}
+\caption{Flujo de commit no-destructivo}
+\end{figure}
+
+% ==============================================================

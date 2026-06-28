@@ -1,0 +1,27 @@
+\chapter{Historial de cambios}
+\label{app:changelog}
+% ==============================================================
+
+\begin{table}[H]
+\centering
+\caption{Historial de versiones del sistema}
+\begin{tabular}{C{2.5cm} L{4cm} L{7cm}}
+\toprule
+\textbf{Fecha} & \textbf{Componente} & \textbf{Cambio} \\
+\midrule
+Ene 2026 & API client & Cliente Obscape + descarga con deduplicación \\
+Feb 2026 & Calibración & \texttt{calibration\_tool.py}: intrínsecos + validación ciega \\
+Mar 2026 & Calibración & \texttt{recalibrate.py}: recalibración por arrastre de GCPs \\
+Abr 2026 & Segmentación & Prototipo SAM + extracción de línea de costa \\
+May 2026 & Georreferenciación & Proyección a EPSG:25830 + exportación GeoJSON \\
+May 2026 & Calibración & Ejecución real con GCPs del IEL (6 cámaras) \\
+Jun 2026 & Backend & \texttt{batch\_alignment.py}: pipeline asíncrono + 10 endpoints \\
+Jun 2026 & Frontend & \texttt{BatchAlignment.vue}: máquina de estados 5 fases \\
+Jun 2026 & Máscaras SIFT & \texttt{alignment\_masks.json}: zonas estables por cámara \\
+Jun 2026 & CAM~1 & Corrección máscara: excluir cielo con gaviotas (y=0.24→0.31) \\
+Jun 2026 & Documentación & Esta memoria técnica en \LaTeX{} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% ============================================================

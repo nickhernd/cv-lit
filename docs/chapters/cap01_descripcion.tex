@@ -1,0 +1,75 @@
+\chapter{Descripción del Proyecto}
+\label{ch:overview}
+% ==============================================================
+
+\section{Contexto y motivación}
+
+La playa de Guardamar del Segura es un espacio de alto valor ecológico y turístico sujeto a
+procesos de erosión y acreción que requieren seguimiento sistemático. La medición manual de la
+línea de costa mediante levantamientos GNSS es costosa, puntual y no escala para cubrir todo el
+frente litoral con frecuencia horaria.
+
+El proyecto \textbf{cv-lit} surge para automatizar esta medición aprovechando la infraestructura
+de cámaras fijas ya desplegada por el servicio de vigilancia de la playa, convirtiendo cada
+fotografía en un dato georreferenciado de la posición de la interfaz arena--mar.
+
+\section{Partes implicadas}
+
+\begin{table}[H]
+\centering
+\caption{Actores del proyecto}
+\label{tab:actors}
+\begin{tabular}{L{4cm} L{9cm}}
+\toprule
+\textbf{Rol} & \textbf{Entidad} \\
+\midrule
+Cliente & Ayuntamiento de Guardamar del Segura \\
+Datos GNSS (GCPs) & Instituto de Ecología Litoral (IEL) \\
+Desarrollo & 1 ingeniero a tiempo parcial (Tech4D Lab, UA) \\
+Supervisión & Universidad de Alicante \\
+Duración & 6 meses (enero -- junio 2026) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Objetivos del sistema}
+
+El producto final es un \textbf{GeoJSON proyectado en EPSG:25830} con los siguientes atributos
+obligatorios por cada detección:
+
+\begin{table}[H]
+\centering
+\caption{Atributos del GeoJSON de salida}
+\label{tab:geojson-fields}
+\begin{tabular}{L{3.5cm} L{3.5cm} L{5.5cm}}
+\toprule
+\textbf{Campo} & \textbf{Tipo} & \textbf{Descripción} \\
+\midrule
+\texttt{ID\_Camara}    & Integer (1--6) & Identificador de cámara origen \\
+\texttt{Timestamp}     & ISO 8601 UTC   & Fecha y hora de captura \\
+\texttt{Confianza\_IA} & Float (0--1)   & Score de confianza del modelo SAM \\
+\texttt{Area\_Seca\_m2}& Float          & Superficie de playa seca (m²) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Restricciones no negociables}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item Toda implementación \textbf{debe} producir GeoJSON en \textbf{EPSG:25830}.
+  \item Fase horaria prioritaria: \textbf{12:00h solar local}.
+  \item Modelo de segmentación: \textbf{SAM} (Segment Anything Model, Meta AI).
+  \item Cada cámara tiene su propio perfil de calibración \textit{independiente}.
+  \item Criterio de aceptación de precisión: \textbf{RMSE~$<$~1,5~m} en condiciones estándar.
+\end{itemize}
+
+\section{Entregables}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item Aplicación ejecutable configurada y documentada (esta memoria).
+  \item Perfiles de calibración por cámara (6~ficheros \texttt{.npy} / \texttt{.json}).
+  \item Interfaz web de operación y validación por lotes.
+  \item Informe de validación con métricas RMSE y MAE.
+\end{enumerate}
+
+% ==============================================================

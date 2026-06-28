@@ -1,0 +1,152 @@
+\chapter{Calibración Geométrica}
+\label{ch:calibration}
+% ==============================================================
+
+\section{Fundamento matemático}
+
+La calibración estima la \textbf{homografía planar} $\mathbf{H}$ (matriz $3\times3$) que
+transforma coordenadas de imagen $(u,v)$ a coordenadas métricas $(X,Y)$ en EPSG:25830:
+
+\begin{equation}
+  \begin{pmatrix} X \\ Y \\ 1 \end{pmatrix}
+  \sim
+  \mathbf{H}
+  \begin{pmatrix} u \\ v \\ 1 \end{pmatrix}
+  \label{eq:homography}
+\end{equation}
+
+La hipótesis de planaridad es válida dado que el objeto de interés (línea de costa) es
+aproximadamente plano a escala de cada cámara.
+
+\subsection{Corrección de distorsión radial}
+
+Antes de estimar $\mathbf{H}$, los puntos imagen se corrigen con los parámetros intrínsecos:
+
+\begin{equation}
+  \mathbf{K} = \begin{pmatrix} f_x & 0 & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{pmatrix},
+  \quad
+  \mathbf{D} = (k_1, k_2, p_1, p_2, k_3)
+\end{equation}
+
+Implementado via \texttt{cv2.calibrateCamera()} con tablero de ajedrez o GCPs propios.
+
+\subsection{Estimación RANSAC}
+
+\begin{codebox}[Estimación de homografía con RANSAC]
+\begin{minted}{python}
+H, mask = cv2.findHomography(
+    pts_img,            # puntos imagen (u,v)
+    pts_world,          # coordenadas UTM (X,Y) en EPSG:25830
+    cv2.RANSAC,
+    ransacReprojThreshold=5.0   # umbral de reproyección (px)
+)
+\end{minted}
+\end{codebox}
+
+\section{Proceso de calibración por cámara}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Recepción de GCPs} del IEL: puntos de control con coordenadas $(X,Y,Z)$
+        en EPSG:25830 y su correspondiente píxel imagen $(u,v)$. Mínimo 4 pares; recomendado $\geq 8$.
+  \item \textbf{Marcado interactivo} con \texttt{calibration\_tool.py}:
+        \begin{itemize}
+          \item Click izquierdo → punto de \textit{calibración} (verde)
+          \item Click derecho → punto de \textit{validación} (azul, no usado en H)
+          \item Tecla \texttt{h} → estimación RANSAC
+          \item Tecla \texttt{s} → guardar perfil
+          \item Tecla \texttt{p} → exportar imagen de diagnóstico
+        \end{itemize}
+  \item \textbf{Validación ciega}: el RMSE se calcula por separado sobre los puntos de
+        validación (no vistos en RANSAC), garantizando una estimación honesta del error.
+  \item \textbf{Guardar perfil}: \texttt{calibration/cam\_N\_profile.json} con $\mathbf{H}$,
+        metadatos, RMSE calibración/validación y fecha.
+\end{enumerate}
+
+\section{Resultados de calibración (junio 2026)}
+
+\begin{table}[H]
+\centering
+\caption{Resultados de precisión por cámara}
+\label{tab:calibration-results}
+\begin{tabular}{C{1.8cm} C{1.8cm} C{2.5cm} C{2.5cm} C{2.5cm} C{2.2cm}}
+\toprule
+\textbf{Cámara} & \textbf{GCPs} & \textbf{RMSE Cal. (m)} & \textbf{RMSE Val. (m)} & \textbf{RMSE Val. (px)} & \textbf{Estado} \\
+\midrule
+CAM~1 & 51 & 1.53 & \textbf{1.45} & 19.36 & \textcolor{OliveGreen}{OK} \\
+CAM~2 & 39 & 2.64 & 3.45          & 21.09 & \textcolor{Goldenrod}{Revisar} \\
+CAM~3 & 49 & 1.61 & 2.32          & 38.38 & \textcolor{OliveGreen}{OK} \\
+CAM~4 & 49 & 2.78 & 3.06          & 100.01 & \textcolor{Goldenrod}{Revisar} \\
+CAM~5 & 61 & 1.45 & \textbf{1.38} & 14.81 & \textcolor{OliveGreen}{OK} \\
+CAM~6 & 69 & 6.14 & 4.74          & 130.62 & \textcolor{BrickRed}{Critico} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{warnbox}[Cámaras con error elevado]
+Los errores de CAM~4 (100~px) y CAM~6 (130~px) superan ampliamente el umbral de aceptación
+y sugieren una de estas causas:
+\begin{itemize}
+  \item Distorsión radial no corregida (requiere parámetros intrínsecos reales).
+  \item Inconsistencia en los puntos manuales (GCPs marcados con baja precisión).
+  \item Movimiento de la cámara entre la toma de referencia y la calibración.
+\end{itemize}
+\textbf{Acción recomendada:} recalibrar con \texttt{recalibrate.py --cam 4} y \texttt{--cam 6}
+sobre imágenes actuales, revisando la distribución espacial de los GCPs.
+\end{warnbox}
+
+\section{Imágenes de diagnóstico}
+
+Las imágenes de la figura~\ref{fig:diagnostics} muestran la reproyección de GCPs sobre las
+imágenes de referencia. Los vectores de error se representan magnificados $\times10$.
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{../calibration/diagnostics/CAM1_diagnostic.jpg}
+    \caption{CAM~1 — RMSE val. 1.45~m}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{../calibration/diagnostics/CAM2_diagnostic.jpg}
+    \caption{CAM~2 — RMSE val. 3.45~m}
+  \end{subfigure}
+
+  \vspace{0.4cm}
+  \begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{../calibration/diagnostics/CAM3_diagnostic.jpg}
+    \caption{CAM~3 — RMSE val. 2.32~m}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{../calibration/diagnostics/CAM4_diagnostic.jpg}
+    \caption{CAM~4 — RMSE val. 3.06~m \textcolor{Goldenrod}{(revisar)}}
+  \end{subfigure}
+
+  \vspace{0.4cm}
+  \begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{../calibration/diagnostics/CAM5_diagnostic.jpg}
+    \caption{CAM~5 — RMSE val. 1.38~m}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.48\textwidth}
+    \includegraphics[width=\textwidth]{../calibration/diagnostics/CAM6_diagnostic.jpg}
+    \caption{CAM~6 — RMSE val. 4.74~m \textcolor{BrickRed}{(crítico)}}
+  \end{subfigure}
+
+  \caption{Diagnóstico de calibración — reproyección de GCPs (vectores $\times10$)}
+  \label{fig:diagnostics}
+\end{figure}
+
+\section{Recalibración rápida}
+
+Si la cámara sufre un ligero movimiento (viento, mantenimiento), se puede actualizar la
+homografía sin reintroducir coordenadas UTM:
+
+\begin{codebox}[Recalibración]
+\begin{minted}{bash}
+# Arrastra los GCPs existentes sobre la imagen nueva
+python3 proces_images/recalibrate.py --cam 1 --image /ruta/nueva_foto.jpg
+\end{minted}
+\end{codebox}
+
+% ==============================================================

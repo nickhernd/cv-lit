@@ -1,0 +1,44 @@
+\chapter{Región de Interés (ROI)}
+\label{ch:roi}
+% ==============================================================
+
+\section{Criterios de delimitación}
+
+Para optimizar la segmentación con SAM y reducir ruido en la extracción de línea de costa,
+cada cámara tiene una ROI que excluye:
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Cielo}: píxeles por encima del horizonte.
+  \item \textbf{Infraestructura}: paseos marítimos, espigones, edificios fuera de la zona de interés.
+  \item \textbf{Mar profundo}: zona sin rotura de onda donde la línea de costa no es visible.
+\end{itemize}
+
+\section{Coordenadas por cámara}
+
+Las ROIs se almacenan en \texttt{calibration/roi\_config.json}:
+
+\begin{table}[H]
+\centering
+\caption{ROIs preliminares por cámara (a ajustar con imágenes de producción)}
+\label{tab:roi}
+\begin{tabular}{C{2cm} C{4.5cm} L{6cm}}
+\toprule
+\textbf{Cámara} & \textbf{ROI $(x_0, y_0, x_1, y_1)$ px} & \textbf{Justificación} \\
+\midrule
+CAM~1 & [0, 400, 1920, 1080]  & Recorte superior (horizonte $\approx y=400$) \\
+CAM~2 & [0, 350, 1920, 1080]  & Horizonte más bajo \\
+CAM~3 & [0, 450, 1920, 1080]  & Ángulo con más cielo visible \\
+CAM~4 & [0, 400, 1920, 1080]  & \\
+CAM~5 & [0, 380, 1920, 1080]  & \\
+CAM~6 & [0, 420, 1920, 1080]  & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{warnbox}[Nota de actualización]
+Estos valores son preliminares y se ajustarán tras la primera recepción de imágenes de
+producción de todas las cámaras de Guardamar. Verificar superposición ROI sobre imagen
+real para confirmar que no se pierde zona de intermarea.
+\end{warnbox}
+
+% ==============================================================

@@ -1,0 +1,73 @@
+\chapter{Infraestructura de Cámaras}
+\label{ch:cameras}
+% ==============================================================
+
+\section{Sistema Obscape}
+
+Las seis cámaras están gestionadas por la plataforma Obscape y se acceden via API REST
+autenticada. La tabla~\ref{tab:cameras} lista los parámetros de registro de cada estación.
+
+\begin{table}[H]
+\centering
+\caption{Estaciones Obscape en Guardamar del Segura}
+\label{tab:cameras}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{C{1.2cm} C{1.5cm} C{2.3cm} C{2.8cm} C{2.8cm} C{2cm}}
+\toprule
+\textbf{Cámara} & \textbf{Station} & \textbf{Referencia} & \textbf{Latitud (°N)} & \textbf{Longitud (°E)} & \textbf{Última act.} \\
+\midrule
+CAM~1 & 8213 & PTM61471 & 38.110327 & $-$0.643027 & 20-05-2026 \\
+CAM~2 & 8214 & PTM61474 & 38.096291 & $-$0.645725 & 20-05-2026 \\
+CAM~3 & 8212 & PTM61473 & 38.087348 & $-$0.646994 & 20-05-2026 \\
+CAM~4 & 8211 & PTM61475 & 38.087385 & $-$0.647078 & 20-05-2026 \\
+CAM~5 & 8209 & PTM61472 & 38.076774 & $-$0.648117 & 20-05-2026 \\
+CAM~6 & 8210 & PTM61470 & 38.076796 & $-$0.648114 & 20-05-2026 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\begin{warnbox}[Nota geográfica]
+CAM~3 y CAM~4 son casi coincidentes ($\Delta \approx 8$~m) y cubren el mismo tramo desde
+ángulos ligeramente distintos. Lo mismo ocurre con CAM~5 y CAM~6. Esto permite comparación
+cruzada de la línea detectada para validación interna.
+\end{warnbox}
+
+\section{Distribución geográfica}
+
+Las cámaras se distribuyen de norte a sur a lo largo de $\approx 3{,}5$~km de frente litoral.
+La cobertura solapada garantiza continuidad en la extracción de línea de costa sin lagunas.
+
+\section{Descarga automática de imágenes}
+
+El módulo \texttt{acces\_api/scheduled\_download.py} implementa una \textbf{ventana deslizante de
+14 días} que garantiza recuperación automática ante fallos puntuales de descarga:
+
+\begin{codebox}[Descarga estándar]
+\begin{minted}{bash}
+# Últimas 2 semanas, hora solar 12:00 (por defecto)
+python3 acces_api/scheduled_download.py
+
+# Personalizar ventana y hora
+python3 acces_api/scheduled_download.py --days 30 --hour 15
+
+# Descarga masiva histórica (todas las horas)
+python3 acces_api/scheduled_download.py --days 90 --hour all
+\end{minted}
+\end{codebox}
+
+El sistema evita duplicados comprobando la existencia del fichero antes de descargar y utiliza
+un nombre determinista: \texttt{UNIX\_YYYYMMDD\_HHMMSS\_REF.jpg}.
+
+\subsection{Automatización con Cron}
+
+Para descarga diaria autónoma:
+
+\begin{codebox}[/etc/cron.d/cvlit-download]
+\begin{minted}{text}
+# Descarga diaria a las 13:00h (12h solar + margen de publicación API)
+0 13 * * * cd /home/nickhernd/Desktop/cv-lit && \
+  python3 acces_api/scheduled_download.py >> data/logs/cron.log 2>&1
+\end{minted}
+\end{codebox}
+
+% ==============================================================
