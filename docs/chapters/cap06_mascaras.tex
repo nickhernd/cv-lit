@@ -32,9 +32,9 @@ fraccionarias} $(0.0 \ldots 1.0)$ independientes de la resolución real de la im
 {
   "CAM_1": {
     "regions": [
-      {"label": "horizonte_mar",   "x0": 0.00, "y0": 0.31, "x1": 1.00, "y1": 0.40},
+      {"label": "horizonte_mar",   "x0": 0.00, "y0": 0.39, "x1": 1.00, "y1": 0.48},
       {"label": "arena_baja",      "x0": 0.00, "y0": 0.73, "x1": 0.60, "y1": 0.88},
-      {"label": "vegetacion_dcha", "x0": 0.60, "y0": 0.73, "x1": 1.00, "y1": 0.92}
+      {"label": "vegetacion_dcha", "x0": 0.60, "y0": 0.73, "x1": 1.00, "y1": 1.00}
     ]
   }
 }
@@ -51,12 +51,12 @@ fraccionarias} $(0.0 \ldots 1.0)$ independientes de la resolución real de la im
 \toprule
 \textbf{Cámara} & \textbf{Zona 1} & \textbf{Zona 2} & \textbf{Justificación} \\
 \midrule
-CAM~1 & Horizonte mar (y=0.31--0.40) & Arena baja + Vegetación dcha & Excluye cielo con gaviotas \\
-CAM~2 & Horizonte (y=0.26--0.40)    & El Peñón (x=0.58--0.88)     & El Peñón de Ifach es referencia fija excelente \\
-CAM~3 & Horizonte (y=0.34--0.48)    & Edificio dcha (x=0.72--1.00) & Edificio como anclaje vertical \\
-CAM~4 & Horizonte (y=0.30--0.44)    & Edificio izq (x=0.00--0.28)  & Edificio como anclaje vertical \\
-CAM~5 & Horizonte (y=0.28--0.42)    & Zona izq (x=0.00--0.32)      & \\
-CAM~6 & Horizonte (y=0.32--0.46)    & Edificios izq (x=0.00--0.35) & \\
+CAM~1 & Horizonte mar (y=0.39--0.48) & Arena baja + Vegetación dcha (hasta fondo) & Excluye cielo con gaviotas \\
+CAM~2 & Horizonte (y=0.34--0.48)    & Vallas+Vegetación dcha (x=0.72--1.00)      & Zona estable con vallas y vegetación fija \\
+CAM~3 & Horizonte (y=0.42--0.56)    & Edificio dcha (x=0.72--1.00)               & Edificio como anclaje vertical \\
+CAM~4 & Horizonte (y=0.38--0.52)    & Edificio izq (x=0.00--0.28)                & Edificio como anclaje vertical \\
+CAM~5 & Horizonte (y=0.36--0.50)    & Zona dcha (x=0.68--1.00)                   & Zona derecha más estable \\
+CAM~6 & Horizonte (y=0.40--0.54)    & Edificios izq (x=0.00--0.35)               & \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -71,24 +71,24 @@ Las figuras siguientes muestran, sobre una imagen real de cada cámara, las regi
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{mask_cam1.jpg}
-  \caption{CAM~1 — horizonte del mar ($y=0{,}31$--$0{,}40$) + arena baja izq + vegetación dcha.
-           Zona diseñada para evitar las gaviotas que vuelan en $y < 0{,}30$.}
+  \caption{CAM~1 — horizonte del mar ($y=0{,}39$--$0{,}48$) + arena baja izq + vegetación dcha (hasta fondo).
+           Zona diseñada para evitar las gaviotas que vuelan en $y < 0{,}38$.}
   \label{fig:mask-cam1-vis}
 \end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{mask_cam2.jpg}
-  \caption{CAM~2 — horizonte del mar ($y=0{,}26$--$0{,}40$) + zona derecha donde aparece
-           el Peñón de Ifach ($x=0{,}58$--$0{,}88$). El peñón actúa como ancla geométrica
-           muy robusta al ser una estructura rocosa estática y muy contrastada.}
+  \caption{CAM~2 — horizonte del mar ($y=0{,}34$--$0{,}48$) + zona derecha con vallas y vegetación
+           ($x=0{,}72$--$1{,}00$). Las vallas y masa vegetal ofrecen features estables
+           cuando la visibilidad no permite distinguir el Peñón de Ifach.}
   \label{fig:mask-cam2-vis}
 \end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{mask_cam3.jpg}
-  \caption{CAM~3 — horizonte del mar ($y=0{,}34$--$0{,}48$) + edificios y palmeras en la
+  \caption{CAM~3 — horizonte del mar ($y=0{,}42$--$0{,}56$) + edificios y palmeras en la
            esquina derecha ($x=0{,}72$--$1{,}00$). Las estructuras urbanas ofrecen
            features muy estables en todos los horarios.}
   \label{fig:mask-cam3-vis}
@@ -97,7 +97,7 @@ Las figuras siguientes muestran, sobre una imagen real de cada cámara, las regi
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{mask_cam4.jpg}
-  \caption{CAM~4 — horizonte del mar ($y=0{,}30$--$0{,}44$) + paseo marítimo/edificios en
+  \caption{CAM~4 — horizonte del mar ($y=0{,}38$--$0{,}52$) + paseo marítimo/edificios en
            la esquina izquierda ($x=0{,}00$--$0{,}28$). La infraestructura urbana proporciona
            features angulares muy discriminantes.}
   \label{fig:mask-cam4-vis}
@@ -106,27 +106,26 @@ Las figuras siguientes muestran, sobre una imagen real de cada cámara, las regi
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{mask_cam5.jpg}
-  \caption{CAM~5 — horizonte del mar ($y=0{,}28$--$0{,}42$) + franja izquierda de
-           playa/agua ($x=0{,}00$--$0{,}32$). La zona izquierda incluye la línea de
-           costa y parte del mar cercano, con textura de olas reproducible.}
+  \caption{CAM~5 — horizonte del mar ($y=0{,}36$--$0{,}50$) + franja derecha estrecha
+           ($x=0{,}68$--$1{,}00$). La zona derecha captura vegetación y estructuras fijas
+           con mayor estabilidad que la franja izquierda anterior.}
   \label{fig:mask-cam5-vis}
 \end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{mask_cam6.jpg}
-  \caption{CAM~6 — horizonte del mar ($y=0{,}32$--$0{,}46$) + bloque de edificios en la
+  \caption{CAM~6 — horizonte del mar ($y=0{,}40$--$0{,}54$) + bloque de edificios en la
            esquina izquierda ($x=0{,}00$--$0{,}35$). Los edificios tienen fachadas con
            ventanas y balcones que generan features muy estables.}
   \label{fig:mask-cam6-vis}
 \end{figure}
 
-\begin{warnbox}[Nota sobre CAM\_2 — zona ``peñón'']
-La región etiquetada como \texttt{penon} ($x=0{,}58$--$0{,}88$, $y=0{,}36$--$0{,}72$) en la
-imagen de muestra (mayo 2026, sin visibilidad del Peñón) aparece sobre el mar abierto.
-En imágenes de alta visibilidad, el Peñón de Ifach asoma en esa zona y actúa como referencia
-excelente. Si la cámara opera regularmente con baja visibilidad horizontal, considerar sustituir
-esta región por otra zona costera estable.
+\begin{warnbox}[Nota sobre CAM\_2 — zona \texttt{vallas\_vegetacion}]
+La región etiquetada como \texttt{vallas\_vegetacion} ($x=0{,}72$--$1{,}00$, $y=0{,}36$--$0{,}72$)
+cubre la franja derecha donde aparecen las vallas y la vegetación costera, que son estructuras
+estáticas presentes en todas las condiciones de visibilidad. En días de alta visibilidad, el
+Peñón de Ifach puede asomar en esa misma zona como referencia adicional de gran contraste.
 \end{warnbox}
 
 \section{Corrección CAM\_1: problema de gaviotas}
@@ -140,7 +139,7 @@ esta región por otra zona costera estable.
   \hfill
   \begin{subfigure}[b]{0.48\textwidth}
     \includegraphics[width=\textwidth]{img_cam1_mask_propuesta.jpg}
-    \caption{Máscara corregida — \texttt{horizonte\_mar} comienza en $y=0{,}31$ (mar), más arena baja y vegetación}
+    \caption{Máscara corregida — \texttt{horizonte\_mar} comienza en $y=0{,}39$ (mar bajo), más arena baja y vegetación hasta el fondo}
   \end{subfigure}
   \caption{Comparativa de máscaras SIFT para CAM~1 (imagen 4608$\times$2682~px)}
   \label{fig:mask-cam1}
@@ -153,7 +152,7 @@ sobrevuelan habitualmente en la banda $y \approx 0{,}14 \ldots 0{,}30$ (cielo ba
 SIFT detecta las aves como features de alto contraste con gran confianza. Al estar en
 posiciones distintas entre tomas, generan matches cruzados que sesgan la homografía.
 
-La corrección: \texttt{horizonte\_mar} ($y=0{,}31 \ldots 0{,}40$) está en la franja de agua
+La corrección: \texttt{horizonte\_mar} ($y=0{,}39 \ldots 0{,}48$) está en la franja de agua
 cerca del horizonte, donde los features son reproducibles y estables.
 \end{infobox}
 
@@ -166,9 +165,9 @@ cerca del horizonte, donde los features son reproducibles y estables.
 \toprule
 \textbf{Zona} & \textbf{Esquina sup-izq (px)} & \textbf{Esquina inf-der (px)} \\
 \midrule
-\texttt{horizonte\_mar}   & (0,~831)    & (4608,~1072) \\
+\texttt{horizonte\_mar}   & (0,~1046)   & (4608,~1287) \\
 \texttt{arena\_baja}      & (0,~1957)   & (2764,~2360) \\
-\texttt{vegetacion\_dcha} & (2764,~1957)& (4608,~2467) \\
+\texttt{vegetacion\_dcha} & (2764,~1957)& (4608,~2682) \\
 \bottomrule
 \end{tabular}
 \end{table}

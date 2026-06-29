@@ -2,38 +2,38 @@
   "_comment": "Zonas estables para extracción de features SIFT en alineación. Coordenadas en fracción de imagen (0.0-1.0). Cada cámara puede tener múltiples regiones. Ajustar con imágenes reales.",
   "CAM_1": {
     "regions": [
-      {"label": "horizonte_mar",   "x0": 0.00, "y0": 0.31, "x1": 1.00, "y1": 0.40},
+      {"label": "horizonte_mar",   "x0": 0.00, "y0": 0.38, "x1": 1.00, "y1": 0.48},
       {"label": "arena_baja",      "x0": 0.00, "y0": 0.73, "x1": 0.60, "y1": 0.88},
-      {"label": "vegetacion_dcha", "x0": 0.60, "y0": 0.73, "x1": 1.00, "y1": 0.92}
+      {"label": "vegetacion_dcha", "x0": 0.60, "y0": 0.73, "x1": 1.00, "y1": 1.00}
     ]
   },
   "CAM_2": {
     "regions": [
-      {"label": "horizonte",       "x0": 0.00, "y0": 0.26, "x1": 1.00, "y1": 0.40},
-      {"label": "penon",           "x0": 0.58, "y0": 0.36, "x1": 0.88, "y1": 0.72}
+      {"label": "horizonte",          "x0": 0.00, "y0": 0.41, "x1": 1.00, "y1": 0.53},
+      {"label": "vallas_vegetacion",  "x0": 0.72, "y0": 0.41, "x1": 1.00, "y1": 0.80}
     ]
   },
   "CAM_3": {
     "regions": [
-      {"label": "horizonte",       "x0": 0.00, "y0": 0.34, "x1": 1.00, "y1": 0.48},
+      {"label": "horizonte",       "x0": 0.00, "y0": 0.45, "x1": 1.00, "y1": 0.56},
       {"label": "edificio_dcha",   "x0": 0.72, "y0": 0.36, "x1": 1.00, "y1": 0.88}
     ]
   },
   "CAM_4": {
     "regions": [
-      {"label": "horizonte",       "x0": 0.00, "y0": 0.30, "x1": 1.00, "y1": 0.44},
+      {"label": "horizonte",       "x0": 0.00, "y0": 0.45, "x1": 1.00, "y1": 0.57},
       {"label": "edificio_izq",    "x0": 0.00, "y0": 0.34, "x1": 0.28, "y1": 0.90}
     ]
   },
   "CAM_5": {
     "regions": [
-      {"label": "horizonte",       "x0": 0.00, "y0": 0.28, "x1": 1.00, "y1": 0.42},
-      {"label": "zona_izq",        "x0": 0.00, "y0": 0.38, "x1": 0.32, "y1": 0.85}
+      {"label": "horizonte",       "x0": 0.00, "y0": 0.42, "x1": 1.00, "y1": 0.53},
+      {"label": "zona_dcha",       "x0": 0.68, "y0": 0.45, "x1": 1.00, "y1": 0.85}
     ]
   },
   "CAM_6": {
     "regions": [
-      {"label": "horizonte",       "x0": 0.00, "y0": 0.32, "x1": 1.00, "y1": 0.46},
+      {"label": "horizonte",       "x0": 0.00, "y0": 0.47, "x1": 1.00, "y1": 0.58},
       {"label": "edificios_izq",   "x0": 0.00, "y0": 0.34, "x1": 0.35, "y1": 0.92}
     ]
   }

@@ -1,0 +1,35 @@
+\babel@toc {spanish}{}\relax 
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {1.1}{\ignorespaces Actores del proyecto}}{6}{table.caption.4}%
+\contentsline {table}{\numberline {1.2}{\ignorespaces Atributos del GeoJSON de salida}}{7}{table.caption.5}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {2.1}{\ignorespaces Estaciones Obscape en Guardamar del Segura}}{8}{table.caption.6}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {3.1}{\ignorespaces Dependencias principales}}{10}{table.caption.7}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {4.1}{\ignorespaces Resultados de precisión por cámara}}{14}{table.caption.9}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {5.1}{\ignorespaces Parámetros del pipeline de alineación (\texttt {batch\_alignment.py})}}{18}{table.caption.12}%
+\contentsline {table}{\numberline {5.2}{\ignorespaces Leyenda del heatmap HOT}}{19}{table.caption.13}%
+\contentsline {table}{\numberline {5.3}{\ignorespaces Endpoints del router \texttt {/api/batch/}}}{20}{table.caption.14}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {6.1}{\ignorespaces Configuración de máscaras SIFT por cámara}}{23}{table.caption.16}%
+\contentsline {table}{\numberline {6.2}{\ignorespaces Conversión fracción → píxeles para CAM\_1}}{27}{table.caption.24}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {7.1}{\ignorespaces Props del componente BatchAlignment}}{30}{table.caption.25}%
+\contentsline {table}{\numberline {7.2}{\ignorespaces Código de color en el filmstrip}}{30}{table.caption.26}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {8.1}{\ignorespaces ROIs preliminares por cámara (a ajustar con imágenes de producción)}}{32}{table.caption.27}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {10.1}{\ignorespaces Umbrales de calidad del sistema}}{35}{table.caption.28}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {11.1}{\ignorespaces Estado de hitos del proyecto}}{37}{table.caption.29}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {13.1}{\ignorespaces Requisitos hardware y software}}{41}{table.caption.30}%
+\contentsline {table}{\numberline {13.2}{\ignorespaces Parámetros de conexión Obscape}}{42}{table.caption.31}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {C.1}{\ignorespaces Historial de versiones del sistema}}{45}{table.caption.32}%
