@@ -30,6 +30,20 @@ SIFT_FEATURES = 3000   # Número de keypoints SIFT
 LOWE_RATIO    = 0.75   # Ratio test de Lowe
 # ───────────────────────────────────────────────────────────
 
+_CLAHE = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+
+def _check_lighting(gray: np.ndarray) -> tuple[bool, str]:
+    """Detecta condiciones de iluminación que degradan SIFT."""
+    mean = float(np.mean(gray))
+    std  = float(np.std(gray))
+    if mean > 200:
+        return False, "overexposed"
+    if mean < 30:
+        return False, "underexposed"
+    if std < 18:
+        return False, "low_contrast"
+    return True, ""
+
 MASKS_PATH = Path(__file__).parent.parent / "calibration" / "alignment_masks.json"
 
 def build_mask_for_cam(cam_id: int, h: int, w: int):
@@ -73,6 +87,12 @@ def align(img: np.ndarray, ref_gray: np.ndarray, ref_kp, ref_des,
           ref_img: np.ndarray = None, feat_mask: np.ndarray = None) -> tuple[np.ndarray, dict]:
     """Alinea img respecto a la referencia. Retorna (imagen_alineada, info)."""
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    ok, light_reason = _check_lighting(gray)
+    if not ok:
+        return img.copy(), {"status": "bad_lighting", "inliers": 0, "viz": None, "fail_reason": light_reason}
+
+    gray = _CLAHE.apply(gray)
 
     sift = cv2.SIFT_create(nfeatures=SIFT_FEATURES)
     # Escalar máscara al tamaño de esta imagen si es necesario
@@ -144,6 +164,7 @@ def run(input_dir: Path, output_dir: Path, ref_path: Path | None):
     ref_file = ref_path or paths[0]
     ref_img  = cv2.imread(str(ref_file))
     ref_gray = cv2.cvtColor(ref_img, cv2.COLOR_BGR2GRAY)
+    ref_gray = _CLAHE.apply(ref_gray)
     h_ref, w_ref = ref_gray.shape
 
     # Máscara de zonas estables (si --cam está disponible)
@@ -177,7 +198,8 @@ def run(input_dir: Path, output_dir: Path, ref_path: Path | None):
             cv2.imwrite(str(out_diag / f"diag_{p.name}"), info["viz"])
 
         status_icon = "[OK]" if info["status"] in ("ok", "reference") else "[WARNING]"
-        print(f"  [{i+1:03d}] {p.name}  {status_icon}  {info['status']}  ({info['inliers']} inliers)")
+        extra = f"  [{info.get('fail_reason','')}]" if info["status"] == "bad_lighting" else ""
+        print(f"  [{i+1:03d}] {p.name}  {status_icon}  {info['status']}  ({info['inliers']} inliers){extra}")
 
         records.append({
             "datetime":  dt.isoformat(),

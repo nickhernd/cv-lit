@@ -33,6 +33,20 @@ MIN_INLIERS      = 15    # más bajo con máscara (menos píxeles disponibles)
 MIN_INLIERS_FULL = 30    # umbral sin máscara (imagen completa)
 RANSAC_THRESH    = 5.0
 
+_CLAHE = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+
+def _check_lighting(gray: np.ndarray) -> tuple[bool, str]:
+    """Detecta condiciones de iluminación que degradan SIFT."""
+    mean = float(np.mean(gray))
+    std  = float(np.std(gray))
+    if mean > 200:
+        return False, "overexposed"
+    if mean < 30:
+        return False, "underexposed"
+    if std < 18:
+        return False, "low_contrast"
+    return True, ""
+
 TEMP_BASE    = Path("/tmp/cv_lit_batch")
 TEMP_BASE.mkdir(parents=True, exist_ok=True)
 
@@ -84,8 +98,9 @@ class AlignmentResult:
     mean_shift_px: float = 0.0     # mediana de flujo óptico residual
     H: Optional[List] = None       # matriz 3x3 como lista plana
     approved: bool = True          # override de aprobación por imagen
-    fail_reason: str = ""          # "no_features" | "low_matches" | "ransac_failed"
+    fail_reason: str = ""          # "no_features" | "low_matches" | "ransac_failed" | "bad_lighting:*"
     used_mask: bool = False        # True si la alineación usó máscara de zonas
+    lighting_issue: str = ""       # "overexposed" | "underexposed" | "low_contrast" | ""
 
 
 @dataclass
@@ -253,10 +268,20 @@ def _align_to_reference(
 
     Retorna (aligned_img, AlignmentResult, status_str).
     """
-    gray   = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     h_img, w_img = gray.shape
     h_ref, w_ref = ref_gray.shape
     used_mask = False
+
+    ok, light_reason = _check_lighting(gray)
+    if not ok:
+        return img.copy(), AlignmentResult(
+            filename="", status="failed", inliers=0,
+            fail_reason=f"bad_lighting:{light_reason}",
+            lighting_issue=light_reason,
+        ), f"bad_lighting:{light_reason}"
+
+    gray = _CLAHE.apply(gray)
 
     H, inliers, n_good, reason = None, 0, 0, "no_features"
 
@@ -319,6 +344,7 @@ async def _run_pipeline(job_id: str, image_paths: Dict[str, Path], base_path: Pa
         return
 
     ref_gray = cv2.cvtColor(ref_img, cv2.COLOR_BGR2GRAY)
+    ref_gray = _CLAHE.apply(ref_gray)
     h_ref, w_ref = ref_gray.shape
 
     # Máscara de zonas estables para SIFT (horizonte + estructuras fijas por cámara)
@@ -454,13 +480,14 @@ def get_results(job_id: str):
         r = job.results.get(fn)
         if r:
             items.append({
-                "filename":      r.filename,
-                "status":        r.status,
-                "inliers":       r.inliers,
-                "mean_shift_px": r.mean_shift_px,
-                "approved":      r.approved,
-                "fail_reason":   r.fail_reason,
-                "used_mask":     r.used_mask,
+                "filename":       r.filename,
+                "status":         r.status,
+                "inliers":        r.inliers,
+                "mean_shift_px":  r.mean_shift_px,
+                "approved":       r.approved,
+                "fail_reason":    r.fail_reason,
+                "used_mask":      r.used_mask,
+                "lighting_issue": r.lighting_issue,
             })
     return {"job_id": job_id, "base": job.base_filename, "items": items}
 
