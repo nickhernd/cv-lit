@@ -34,7 +34,7 @@ MIN_INLIERS_FULL = 30    # umbral sin máscara (imagen completa)
 RANSAC_THRESH    = 5.0
 
 # ── Corrección de iluminación ───────────────────────────────────────────────
-# SIFT es sensible a la iluminación: sol directo, reflejos en el agua o cielo
+# SIFT es sensible a la ón: sol directo, reflejos en el agua o cielo
 # sobreexpuesto generan keypoints en zonas dinámicas que producen matches falsos
 # y sesgan la homografía (pocos inliers reales en RANSAC).
 #
@@ -60,6 +60,13 @@ def _check_lighting(gray: np.ndarray) -> tuple[bool, str]:
 TEMP_BASE    = Path("/tmp/cv_lit_batch")
 TEMP_BASE.mkdir(parents=True, exist_ok=True)
 
+# ── Máscaras de zonas estables por cámara ───────────────────────────────────
+# Cada cámara tiene zonas con estructura fija (horizonte, edificios, vegetación)
+# que son buenos anclajes para SIFT porque no cambian entre tomas.
+# Las zonas dinámicas (agua, olas, personas, gaviotas) se excluyen porque
+# generan keypoints falsos que sesgan la homografía.
+# Configuración en calibration/alignment_masks.json — coordenadas fraccionarias
+# [0.0–1.0] para que escalen a cualquier resolución de cámara.
 MASKS_PATH   = Path(__file__).parent.parent / "calibration" / "alignment_masks.json"
 _masks_cache: dict = {}
 
@@ -86,15 +93,16 @@ def _build_mask(cam_id: int, h: int, w: int) -> Optional[np.ndarray]:
     masks = _load_masks()
     key = f"CAM_{cam_id}"
     if key not in masks:
-        return None
+        return None  # sin config → SIFT usa la imagen completa
 
     canvas = np.zeros((h, w), dtype=np.uint8)
     for region in masks[key].get("regions", []):
+        # Convertir fracción → píxel para la resolución actual
         x0 = int(region["x0"] * w)
         y0 = int(region["y0"] * h)
         x1 = int(region["x1"] * w)
         y1 = int(region["y1"] * h)
-        cv2.rectangle(canvas, (x0, y0), (x1, y1), 255, -1)
+        cv2.rectangle(canvas, (x0, y0), (x1, y1), 255, -1)  # 255 = zona activa
 
     return canvas
 
@@ -179,6 +187,8 @@ def _compute_diff_map(ref: np.ndarray, aligned: np.ndarray) -> np.ndarray:
 
     ref_f  = ref.astype(np.float32)
     ali_f  = aligned_r.astype(np.float32)
+
+    
 
     # ── Capa 1: heatmap de diferencia absoluta por canal ────────────────────
     diff_abs = np.abs(ref_f - ali_f).mean(axis=2)  # (H, W) float
@@ -297,22 +307,25 @@ def _align_to_reference(
 
     H, inliers, n_good, reason = None, 0, 0, "no_features"
 
-    # Paso 3a: alineación con máscara de zonas estables (calibration/alignment_masks.json)
-    # La máscara restringe SIFT a regiones sin objetos dinámicos (gaviotas, olas,
-    # personas). Coordenadas fraccionarias [0.0-1.0] → escala a cualquier resolución.
+    # Paso 3a: alineación con máscara de zonas estables.
+    # Umbral bajo (MIN_INLIERS=15) porque la máscara filtra ruido y los inliers
+    # que quedan son de alta calidad (estructuras fijas: horizonte, edificios).
     if feat_mask is not None and ref_des is not None:
         mask_scaled = cv2.resize(feat_mask, (w_img, h_img), interpolation=cv2.INTER_NEAREST)
         H, inliers, n_good, reason = _try_align(gray, ref_kp, ref_des, mask_scaled, MIN_INLIERS)
         if H is not None:
             used_mask = True
 
-    # Paso 3b: fallback sin máscara si la zona estable no da suficientes matches
+    # Paso 3b: fallback sin máscara si las zonas estables no dan suficientes matches.
+    # Ocurre en imágenes donde el horizonte está ocluido (niebla, lluvia) o la
+    # máscara recorta demasiado. Umbral más alto (MIN_INLIERS_FULL=30) para
+    # compensar el mayor ruido al usar la imagen completa.
     if H is None and ref_des_full is not None:
         H, inliers, n_good, reason = _try_align(
             gray, ref_kp_full, ref_des_full, None, MIN_INLIERS_FULL
         )
 
-    # Sin máscara configurada desde el principio
+    # Caso sin máscara configurada: camino directo sin restricción de zona.
     if H is None and feat_mask is None and ref_des is not None:
         H, inliers, n_good, reason = _try_align(gray, ref_kp, ref_des, None, MIN_INLIERS_FULL)
 
@@ -361,14 +374,16 @@ async def _run_pipeline(job_id: str, image_paths: Dict[str, Path], base_path: Pa
     ref_gray = _CLAHE.apply(ref_gray)
     h_ref, w_ref = ref_gray.shape
 
-    # Máscara de zonas estables para SIFT (horizonte + estructuras fijas por cámara)
+    # Máscara de zonas estables: restringe SIFT al horizonte y estructuras fijas.
+    # Si no hay config para esta cámara devuelve None y SIFT usa la imagen completa.
     feat_mask = _build_mask(job.cam_id, h_ref, w_ref)
 
     sift = cv2.SIFT_create(nfeatures=SIFT_FEATURES)
 
-    # Keypoints con máscara (zonas estables)
+    # Precalcular keypoints de la referencia una sola vez para todo el batch.
+    # Con máscara: keypoints solo en zonas estables (más precisos, menos ruido).
+    # Sin máscara: keypoints en toda la imagen (fallback si la máscara falla).
     ref_kp,      ref_des      = sift.detectAndCompute(ref_gray, feat_mask)
-    # Keypoints sin máscara (fallback si las zonas dan pocos matches)
     ref_kp_full, ref_des_full = sift.detectAndCompute(ref_gray, None) if feat_mask is not None else (ref_kp, ref_des)
 
     job.progress_total = len(image_paths)
