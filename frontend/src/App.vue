@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import Dashboard from './components/Dashboard.vue'
 import Calibration from './components/Calibration.vue'
 import ROIAnalysis from './components/ROIAnalysis.vue'
+import CoastlineAnalysis from './components/CoastlineAnalysis.vue'
 
 const currentView = ref('dashboard')
 const selectedCamId = ref(null)
@@ -90,6 +91,12 @@ onMounted(() => {
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m10 4a2 2 0 100-4m0 4a2 2 0 110-4m-4 2a2 2 0 100-4m0 4a2 2 0 110-4"></path></svg>
               <span>Calibración</span>
             </button>
+            <button @click="currentView = 'coastline'"
+                    :class="currentView === 'coastline' ? 'bg-blue-600 text-white' : 'hover:bg-slate-700 hover:text-white'"
+                    class="w-full flex items-center space-x-3 px-6 py-3 transition-colors text-sm font-medium">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M3 17c2-2 4-3 6-1s4 3 6 1 4-2 6-1M3 12c2-2 4-3 6-1s4 3 6 1 4-2 6-1"/></svg>
+              <span>Análisis Costa</span>
+            </button>
           </div>
         </nav>
         
@@ -111,11 +118,13 @@ onMounted(() => {
             <Dashboard v-if="currentView === 'dashboard'" 
                       @select-camera="goToCalibration" 
                       @notify="notify" />
-            <Calibration v-else-if="currentView === 'calibration'" 
-                       :initial-cam-id="selectedCamId" 
+            <Calibration v-else-if="currentView === 'calibration'"
+                       :initial-cam-id="selectedCamId"
                        @notify="notify" />
             <ROIAnalysis v-else-if="currentView === 'roi'"
                         @notify="notify" />
+            <CoastlineAnalysis v-else-if="currentView === 'coastline'"
+                               @notify="notify" />
           </Transition>
         </div>
 

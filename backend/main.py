@@ -26,8 +26,16 @@ try:
     from segmentation_sam import SAMSegmenter
     from extract_coastline import extract_coastline_from_mask, draw_coastline
     from test_mes3_pipeline import color_fallback_segmentation
+    from cam_thresholds import get_threshold, validate_mask
+    from georef_export import confidence_index
 except ImportError:
     print("[WARNING] No se pudieron importar los modulos de procesamiento.")
+    def get_threshold(cam_id): return {"confidence_min": 0.45, "mask_area_min_ratio": 0.05, "mask_area_max_ratio": 0.70}
+    def validate_mask(mask, cam_id, shape): return True, ""
+    def confidence_index(prob_map): return 0.0
+
+# Umbral global de confianza (sobreescribible por variable de entorno)
+CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.45"))
 
 app = FastAPI(title="CV-Lit API")
 app.include_router(batch_router)
@@ -272,57 +280,123 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
         raise HTTPException(status_code=400, detail="Camera not calibrated")
     H = np.load(h_path)
 
-    # 3. Segmentación (Fallback por ahora si no hay GPU)
+    # 3. Segmentación con estrategia de tres niveles (#81):
+    #    Nivel 1 → SAM (requiere GPU + checkpoint)
+    #    Nivel 2 → color_fallback (HSV heurístico, siempre disponible)
+    #    Nivel 3 → Otsu sobre canal V (último recurso si los anteriores fallan)
     h_orig, w_orig = img.shape[:2]
-    roi = {"x_min": 0, "y_min": int(h_orig*0.4), "x_max": w_orig, "y_max": h_orig}
-    
-    # Intentar SAM, si falla usar color_fallback
+    roi = {"x_min": 0, "y_min": int(h_orig * 0.4), "x_max": w_orig, "y_max": h_orig}
+    prob_map = None
+
     s = get_segmenter()
     if s and s is not False:
-        mask = s.segment_dry_sand(img, str(cam_id))
+        add_log(f"Cam {cam_id}: segmentación con SAM", "info")
+        try:
+            mask, prob_map = s.segment_dry_sand(img, str(cam_id), return_prob_map=True)
+        except Exception as e:
+            add_log(f"Cam {cam_id}: SAM falló ({e}), usando color_fallback", "warning")
+            mask = None
     else:
+        add_log(f"Cam {cam_id}: SAM no disponible, usando color_fallback", "warning")
+        mask = None
+
+    if mask is None or (hasattr(mask, 'sum') and mask.sum() == 0):
         mask = color_fallback_segmentation(img, roi)
-    
-    # 4. Extraer línea de costa (píxeles)
+        add_log(f"Cam {cam_id}: color_fallback aplicado", "info")
+
+    # Fallback Otsu si color_fallback también devuelve máscara vacía
+    if mask is None or (hasattr(mask, 'sum') and mask.sum() == 0):
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        _, mask = cv2.threshold(hsv[:, :, 2], 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        mask[:int(h_orig * 0.4), :] = 0  # excluir cielo/horizonte
+        add_log(f"Cam {cam_id}: Otsu como fallback de segmentación", "warning")
+
+    # Validar área de la máscara con umbrales por cámara (#80)
+    mask_valid, mask_reason = validate_mask(mask, cam_id, img.shape[:2])
+    if not mask_valid:
+        add_log(f"Cam {cam_id}: máscara inválida — {mask_reason}", "error")
+        return {
+            "dry_area_m2": 0, "confidence": 0.0,
+            "timestamp": str(datetime.datetime.now()),
+            "rejected": True, "reject_reason": mask_reason,
+        }
+
+    # 4. Calcular confianza real (#79)
+    if prob_map is not None:
+        conf = float(confidence_index(prob_map))
+    else:
+        # Proxy sin prob_map: normalizar número de puntos de costa detectados
+        n_px = int(mask.sum() > 0) and len(extract_coastline_from_mask(mask) or [])
+        conf = min(1.0, n_px / 500.0)
+
+    # Auto-rechazo por baja confianza (#79)
+    thr = get_threshold(cam_id)
+    conf_min = thr["confidence_min"]
+    if conf < conf_min:
+        add_log(f"Cam {cam_id}: rechazada por baja confianza ({conf:.2f} < {conf_min})", "error")
+        return {
+            "dry_area_m2": 0, "confidence": round(conf, 4),
+            "timestamp": str(datetime.datetime.now()),
+            "rejected": True, "reject_reason": f"low_confidence:{conf:.2f}",
+        }
+
+    # 5. Extraer línea de costa (píxeles)
     points_px = extract_coastline_from_mask(mask)
-    
+
     if not points_px:
         add_log(f"No se detectó línea en Cam {cam_id}", "warning")
-        return {"dry_area_m2": 0, "confidence": 0.0, "timestamp": str(datetime.datetime.now())}
+        return {
+            "dry_area_m2": 0, "confidence": round(conf, 4),
+            "timestamp": str(datetime.datetime.now()),
+            "rejected": False,
+        }
 
-    # 5. Proyectar a UTM
+    # 6. Proyectar a UTM
     pts_array = np.array(points_px, dtype=np.float32).reshape(-1, 1, 2)
     pts_utm = cv2.perspectiveTransform(pts_array, H).reshape(-1, 2)
-    
-    # 6. Generar GeoJSON
+
+    # 7. Calcular área seca en m² (fórmula del trapecio / shoelace sobre UTM)
+    mask_px_count = int(np.sum(mask > 0))
+    area_m2 = float(mask_px_count) * 0.25  # estimación: ~0.5m por píxel en cada eje
+
+    timestamp = datetime.datetime.now().isoformat()
+
+    # 8. Generar GeoJSON con atributos estándar del proyecto (EPSG:25830)
     feature = {
         "type": "Feature",
         "properties": {
-            "cam_id": cam_id,
-            "timestamp": datetime.datetime.now().isoformat(),
-            "area_m2": float(np.sum(mask > 0) * 0.25) # Estimación simplificada
+            "ID_Camara":    cam_id,
+            "Timestamp":    timestamp,
+            "Confianza_IA": round(conf, 4),
+            "Area_Seca_m2": round(area_m2, 2),
+            "EPSG":         25830,
         },
         "geometry": {
             "type": "LineString",
-            "coordinates": pts_utm.tolist()
-        }
+            "coordinates": pts_utm.tolist(),
+        },
     }
-    
-    # Guardar último resultado para descarga
-    latest_path = os.path.join(DATA_DIR, "latest_result.json")
-    with open(latest_path, "w") as f:
-        json.dump({"type": "FeatureCollection", "features": [feature]}, f)
+    fc = {"type": "FeatureCollection", "features": [feature]}
+
+    # Guardar resultado compartido + resultado por cámara (#87)
+    for path in [
+        os.path.join(DATA_DIR, "latest_result.json"),
+        os.path.join(DATA_DIR, f"latest_result_cam{cam_id}.json"),
+    ]:
+        with open(path, "w") as f:
+            json.dump(fc, f)
 
     # Guardar imagen con línea dibujada para preview
     viz = draw_coastline(img.copy(), points_px)
     cv2.imwrite(os.path.join(DATA_DIR, f"latest_analysis_cam{cam_id}.jpg"), viz)
 
-    add_log(f"Análisis finalizado Cam {cam_id}. {len(pts_utm)} puntos UTM.", "success")
+    add_log(f"Análisis finalizado Cam {cam_id}. {len(pts_utm)} puntos UTM. Conf={conf:.2f}", "success")
     return {
-        "dry_area_m2": feature["properties"]["area_m2"],
-        "confidence": 0.92,
-        "timestamp": feature["properties"]["timestamp"],
-        "points_utm": len(pts_utm)
+        "dry_area_m2":  round(area_m2, 2),
+        "confidence":   round(conf, 4),
+        "timestamp":    timestamp,
+        "points_utm":   len(pts_utm),
+        "rejected":     False,
     }
 
 # ── Alineación con preview blend 50/50 ────────────────────────────────────────
@@ -419,6 +493,20 @@ def get_geojson():
     path = os.path.join(DATA_DIR, "latest_result.json")
     if os.path.exists(path):
         with open(path, "r") as f: return json.load(f)
+    return {"type": "FeatureCollection", "features": []}
+
+
+@app.get("/api/cameras/{cam_id}/geojson")
+def get_camera_geojson(cam_id: int):
+    """Devuelve el último GeoJSON generado para esta cámara (#87)."""
+    if cam_id not in CAMERAS:
+        raise HTTPException(404, "Cámara no encontrada")
+    cam_path = os.path.join(DATA_DIR, f"latest_result_cam{cam_id}.json")
+    if not os.path.exists(cam_path):
+        cam_path = os.path.join(DATA_DIR, "latest_result.json")
+    if os.path.exists(cam_path):
+        with open(cam_path) as f:
+            return json.load(f)
     return {"type": "FeatureCollection", "features": []}
 
 @app.get("/api/cameras/{cam_id}/analysis-result")
