@@ -30,6 +30,20 @@ SIFT_FEATURES = 3000   # Número de keypoints SIFT
 LOWE_RATIO    = 0.75   # Ratio test de Lowe
 # ───────────────────────────────────────────────────────────
 
+# ── Corrección de iluminación ───────────────────────────────────────────────
+# SIFT es sensible a la iluminación: sol directo, reflejos en el agua o cielo
+# sobreexpuesto generan keypoints en zonas dinámicas (espuma, gaviotas, sombras)
+# que producen matches falsos y sesgan la homografía (pocos inliers reales).
+#
+# Solución en dos pasos aplicados ANTES de detectAndCompute:
+#   1. _check_lighting  → descarta imágenes con iluminación extrema (sobre/sub
+#                         exposición o contraste nulo) antes de entrar en SIFT.
+#   2. _CLAHE.apply     → ecualización de histograma adaptativa local (bloques
+#                         8×8 px). Normaliza el contraste entre imágenes de
+#                         distintas horas/condiciones sin alterar la geometría,
+#                         haciendo que una imagen a mediodía y otra con nubes
+#                         produzcan keypoints equivalentes en las mismas zonas.
+# ────────────────────────────────────────────────────────────────────────────
 _CLAHE = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
 
 def _check_lighting(gray: np.ndarray) -> tuple[bool, str]:
@@ -37,11 +51,11 @@ def _check_lighting(gray: np.ndarray) -> tuple[bool, str]:
     mean = float(np.mean(gray))
     std  = float(np.std(gray))
     if mean > 200:
-        return False, "overexposed"
+        return False, "overexposed"   # sol directo / reflejos saturados
     if mean < 30:
-        return False, "underexposed"
+        return False, "underexposed"  # amanecer / anochecer / imagen oscura
     if std < 18:
-        return False, "low_contrast"
+        return False, "low_contrast"  # niebla / calima / imagen lavada
     return True, ""
 
 MASKS_PATH = Path(__file__).parent.parent / "calibration" / "alignment_masks.json"
@@ -88,14 +102,19 @@ def align(img: np.ndarray, ref_gray: np.ndarray, ref_kp, ref_des,
     """Alinea img respecto a la referencia. Retorna (imagen_alineada, info)."""
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
+    # Paso 1: filtro de iluminación — descarta imágenes con luz extrema antes de SIFT
     ok, light_reason = _check_lighting(gray)
     if not ok:
         return img.copy(), {"status": "bad_lighting", "inliers": 0, "viz": None, "fail_reason": light_reason}
 
+    # Paso 2: normalización de contraste local — iguala condiciones entre tomas
     gray = _CLAHE.apply(gray)
 
     sift = cv2.SIFT_create(nfeatures=SIFT_FEATURES)
-    # Escalar máscara al tamaño de esta imagen si es necesario
+
+    # Paso 3: máscara de zonas estables — restringe SIFT a regiones sin objetos
+    # dinámicos (gaviotas, olas, personas). Definida en calibration/alignment_masks.json
+    # con coordenadas fraccionarias [0.0-1.0] independientes de la resolución.
     mask_use = None
     if feat_mask is not None:
         mask_use = cv2.resize(feat_mask, (gray.shape[1], gray.shape[0]),

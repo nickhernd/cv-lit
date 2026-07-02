@@ -33,6 +33,16 @@ MIN_INLIERS      = 15    # más bajo con máscara (menos píxeles disponibles)
 MIN_INLIERS_FULL = 30    # umbral sin máscara (imagen completa)
 RANSAC_THRESH    = 5.0
 
+# ── Corrección de iluminación ───────────────────────────────────────────────
+# SIFT es sensible a la iluminación: sol directo, reflejos en el agua o cielo
+# sobreexpuesto generan keypoints en zonas dinámicas que producen matches falsos
+# y sesgan la homografía (pocos inliers reales en RANSAC).
+#
+# Solución en dos pasos aplicados ANTES de detectAndCompute en _align_to_reference:
+#   1. _check_lighting  → descarta imágenes con iluminación extrema.
+#   2. _CLAHE.apply     → ecualización adaptativa local (bloques 8×8 px).
+#                         Normaliza contraste entre tomas de distintas horas.
+# ────────────────────────────────────────────────────────────────────────────
 _CLAHE = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
 
 def _check_lighting(gray: np.ndarray) -> tuple[bool, str]:
@@ -40,11 +50,11 @@ def _check_lighting(gray: np.ndarray) -> tuple[bool, str]:
     mean = float(np.mean(gray))
     std  = float(np.std(gray))
     if mean > 200:
-        return False, "overexposed"
+        return False, "overexposed"   # sol directo / reflejos saturados
     if mean < 30:
-        return False, "underexposed"
+        return False, "underexposed"  # amanecer / anochecer
     if std < 18:
-        return False, "low_contrast"
+        return False, "low_contrast"  # niebla / calima
     return True, ""
 
 TEMP_BASE    = Path("/tmp/cv_lit_batch")
@@ -273,6 +283,7 @@ def _align_to_reference(
     h_ref, w_ref = ref_gray.shape
     used_mask = False
 
+    # Paso 1: filtro de iluminación — descarta imágenes con luz extrema antes de SIFT
     ok, light_reason = _check_lighting(gray)
     if not ok:
         return img.copy(), AlignmentResult(
@@ -281,24 +292,27 @@ def _align_to_reference(
             lighting_issue=light_reason,
         ), f"bad_lighting:{light_reason}"
 
+    # Paso 2: normalización de contraste local — iguala condiciones entre tomas
     gray = _CLAHE.apply(gray)
 
     H, inliers, n_good, reason = None, 0, 0, "no_features"
 
-    # ── Paso 1: alineación con máscara ──────────────────────────────────────
+    # Paso 3a: alineación con máscara de zonas estables (calibration/alignment_masks.json)
+    # La máscara restringe SIFT a regiones sin objetos dinámicos (gaviotas, olas,
+    # personas). Coordenadas fraccionarias [0.0-1.0] → escala a cualquier resolución.
     if feat_mask is not None and ref_des is not None:
         mask_scaled = cv2.resize(feat_mask, (w_img, h_img), interpolation=cv2.INTER_NEAREST)
         H, inliers, n_good, reason = _try_align(gray, ref_kp, ref_des, mask_scaled, MIN_INLIERS)
         if H is not None:
             used_mask = True
 
-    # ── Paso 2: fallback sin máscara si el paso 1 falló ────────────────────
+    # Paso 3b: fallback sin máscara si la zona estable no da suficientes matches
     if H is None and ref_des_full is not None:
         H, inliers, n_good, reason = _try_align(
             gray, ref_kp_full, ref_des_full, None, MIN_INLIERS_FULL
         )
 
-    # ── Sin máscara desde el principio (no se configuró) ───────────────────
+    # Sin máscara configurada desde el principio
     if H is None and feat_mask is None and ref_des is not None:
         H, inliers, n_good, reason = _try_align(gray, ref_kp, ref_des, None, MIN_INLIERS_FULL)
 
