@@ -67,6 +67,10 @@ TEMP_BASE.mkdir(parents=True, exist_ok=True)
 # generan keypoints falsos que sesgan la homografía.
 # Configuración en calibration/alignment_masks.json — coordenadas fraccionarias
 # [0.0–1.0] para que escalen a cualquier resolución de cámara.
+# TODO: hoy estas zonas solo se pueden ajustar editando el JSON a mano. Falta un
+# mecanismo para que el usuario las establezca/edite cuando lo necesite (por cámara,
+# por imagen concreta) desde la interfaz y quede integrado en el pipeline, en vez de
+# ser una config estática. Ver también el mismo TODO en backend/main.py:align_preview.
 MASKS_PATH   = Path(__file__).parent.parent / "calibration" / "alignment_masks.json"
 _masks_cache: dict = {}
 

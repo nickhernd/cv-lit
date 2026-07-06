@@ -447,6 +447,12 @@ async def align_preview(
     ref_gray = cv2.cvtColor(ref_img, cv2.COLOR_BGR2GRAY)
     tgt_gray = cv2.cvtColor(tgt_img, cv2.COLOR_BGR2GRAY)
 
+    # TODO: este endpoint no aplica las máscaras de calibration/alignment_masks.json
+    # (a diferencia de backend/batch_alignment.py y scripts/debug_*.py, que sí las usan).
+    # Falta exponer una forma de que el usuario defina/edite las zonas de máscara desde
+    # la interfaz (p. ej. dibujando rectángulos sobre la imagen, como ya se hace con los
+    # GCP en la calibración de homografía) y que ese resultado se guarde en el JSON y se
+    # use aquí también, en vez de tener que editarlo a mano. Integrar en el pipeline.
     sift = cv2.SIFT_create(nfeatures=SIFT_FEATURES)
     ref_kp, ref_des = sift.detectAndCompute(ref_gray, None)
     tgt_kp, tgt_des = sift.detectAndCompute(tgt_gray, None)
