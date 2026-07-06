@@ -1,0 +1,59 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug: debug_all_demo.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/debug_all_demo.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "python": "${workspaceFolder}/venv/Scripts/python.exe",
+            "args": ["--cams", "1"],
+            "justMyCode": true
+        },
+        {
+            "name": "Debug: debug_inliers.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/debug_inliers.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "python": "${workspaceFolder}/venv/Scripts/python.exe",
+            "args": [
+                "--ref", "${input:refImage}",
+                "--img", "${input:newImage}",
+                "--cam", "${input:camId}"
+            ],
+            "justMyCode": true
+        },
+        {
+            "name": "Debug: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "python": "${workspaceFolder}/venv/Scripts/python.exe",
+            "justMyCode": true
+        }
+    ],
+    "inputs": [
+        {
+            "id": "refImage",
+            "type": "promptString",
+            "description": "Ruta a la imagen de referencia (--ref)"
+        },
+        {
+            "id": "newImage",
+            "type": "promptString",
+            "description": "Ruta a la imagen nueva a comparar (--img)"
+        },
+        {
+            "id": "camId",
+            "type": "promptString",
+            "description": "ID de camara (1-6)",
+            "default": "1"
+        }
+    ]
+}

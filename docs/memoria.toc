@@ -21,72 +21,72 @@
 \contentsline {section}{\numberline {4.2}Proceso de calibración por cámara}{14}{section.4.2}%
 \contentsline {section}{\numberline {4.3}Resultados de calibración (junio 2026)}{14}{section.4.3}%
 \contentsline {section}{\numberline {4.4}Imágenes de diagnóstico}{15}{section.4.4}%
-\contentsline {section}{\numberline {4.5}Recalibración rápida}{15}{section.4.5}%
-\contentsline {chapter}{\numberline {5}Módulo de Alineación Masiva}{17}{chapter.5}%
-\contentsline {section}{\numberline {5.1}Motivación}{17}{section.5.1}%
-\contentsline {section}{\numberline {5.2}Arquitectura de estados}{17}{section.5.2}%
-\contentsline {subsection}{\numberline {5.2.1}Estructura del directorio temporal por job}{18}{subsection.5.2.1}%
-\contentsline {section}{\numberline {5.3}Pipeline de alineación: algoritmo}{18}{section.5.3}%
-\contentsline {subsection}{\numberline {5.3.1}Parámetros configurables}{18}{subsection.5.3.1}%
-\contentsline {subsection}{\numberline {5.3.2}Estrategia de dos pasadas}{18}{subsection.5.3.2}%
-\contentsline {subsection}{\numberline {5.3.3}Flujo completo del pipeline}{19}{subsection.5.3.3}%
-\contentsline {section}{\numberline {5.4}Renderizado del mapa de delta}{19}{section.5.4}%
-\contentsline {subsection}{\numberline {5.4.1}Capa 1 — Heatmap de diferencia absoluta}{19}{subsection.5.4.1}%
-\contentsline {subsection}{\numberline {5.4.2}Capa 2 — Divergencia de bordes (overlay cian)}{19}{subsection.5.4.2}%
-\contentsline {subsection}{\numberline {5.4.3}Capa 3 — Métrica escalar $\delta _{\text {px}}$ (flujo óptico Farneback)}{20}{subsection.5.4.3}%
-\contentsline {section}{\numberline {5.5}API REST del módulo}{20}{section.5.5}%
-\contentsline {section}{\numberline {5.6}Modelos de dominio}{20}{section.5.6}%
-\contentsline {section}{\numberline {5.7}Flujo de commit (two-phase write)}{21}{section.5.7}%
-\contentsline {chapter}{\numberline {6}Máscaras de Zonas Estables SIFT}{22}{chapter.6}%
-\contentsline {section}{\numberline {6.1}Problema: objetos dinámicos en SIFT}{22}{section.6.1}%
-\contentsline {section}{\numberline {6.2}Solución: máscaras de regiones estables}{22}{section.6.2}%
-\contentsline {section}{\numberline {6.3}Zonas por cámara}{23}{section.6.3}%
-\contentsline {section}{\numberline {6.4}Visualización de zonas estables por cámara}{23}{section.6.4}%
-\contentsline {section}{\numberline {6.5}Corrección CAM\_1: problema de gaviotas}{26}{section.6.5}%
-\contentsline {subsection}{\numberline {6.5.1}Coordenadas en píxeles (imagen 4608$\times $2682)}{27}{subsection.6.5.1}%
-\contentsline {section}{\numberline {6.6}Cómo ajustar una máscara}{27}{section.6.6}%
-\contentsline {chapter}{\numberline {7}Interfaz Web}{29}{chapter.7}%
-\contentsline {section}{\numberline {7.1}Arquitectura frontend}{29}{section.7.1}%
-\contentsline {section}{\numberline {7.2}Componente BatchAlignment.vue}{29}{section.7.2}%
-\contentsline {subsection}{\numberline {7.2.1}Variables de estado}{29}{subsection.7.2.1}%
-\contentsline {subsection}{\numberline {7.2.2}Props y eventos}{30}{subsection.7.2.2}%
-\contentsline {subsection}{\numberline {7.2.3}Layout de la fase reviewing}{30}{subsection.7.2.3}%
-\contentsline {subsection}{\numberline {7.2.4}Indicadores del filmstrip}{30}{subsection.7.2.4}%
-\contentsline {subsection}{\numberline {7.2.5}Polling de progreso}{31}{subsection.7.2.5}%
-\contentsline {section}{\numberline {7.3}Flujo completo de uso}{31}{section.7.3}%
-\contentsline {chapter}{\numberline {8}Región de Interés (ROI)}{32}{chapter.8}%
-\contentsline {section}{\numberline {8.1}Criterios de delimitación}{32}{section.8.1}%
-\contentsline {section}{\numberline {8.2}Coordenadas por cámara}{32}{section.8.2}%
-\contentsline {chapter}{\numberline {9}Segmentación y Extracción de Línea de Costa}{33}{chapter.9}%
-\contentsline {section}{\numberline {9.1}Segmentación semántica con SAM}{33}{section.9.1}%
-\contentsline {section}{\numberline {9.2}Extracción de línea de costa}{33}{section.9.2}%
-\contentsline {section}{\numberline {9.3}Proyección a EPSG:25830}{34}{section.9.3}%
-\contentsline {section}{\numberline {9.4}Exportación GeoJSON}{34}{section.9.4}%
-\contentsline {chapter}{\numberline {10}Validación y Métricas de Calidad}{35}{chapter.10}%
-\contentsline {section}{\numberline {10.1}Estrategia de validación}{35}{section.10.1}%
-\contentsline {section}{\numberline {10.2}Métricas}{35}{section.10.2}%
-\contentsline {section}{\numberline {10.3}Criterios de aceptación}{35}{section.10.3}%
-\contentsline {section}{\numberline {10.4}Factores de error a monitorizar}{35}{section.10.4}%
-\contentsline {section}{\numberline {10.5}Validación en QGIS}{36}{section.10.5}%
-\contentsline {chapter}{\numberline {11}Estado del Proyecto y Roadmap}{37}{chapter.11}%
-\contentsline {section}{\numberline {11.1}Estado actual (junio 2026)}{37}{section.11.1}%
-\contentsline {section}{\numberline {11.2}Completado en la iteración de junio 2026}{37}{section.11.2}%
-\contentsline {section}{\numberline {11.3}Fase 3 — Automatización y robustez (mes 5)}{38}{section.11.3}%
-\contentsline {section}{\numberline {11.4}Fase 4 — Entrega e integración (mes 6)}{38}{section.11.4}%
-\contentsline {chapter}{\numberline {12}Guía de Operación}{39}{chapter.12}%
-\contentsline {section}{\numberline {12.1}Inicio rápido}{39}{section.12.1}%
-\contentsline {section}{\numberline {12.2}Descarga de imágenes}{39}{section.12.2}%
-\contentsline {section}{\numberline {12.3}Calibración}{39}{section.12.3}%
-\contentsline {section}{\numberline {12.4}Alineación masiva (CLI)}{40}{section.12.4}%
-\contentsline {section}{\numberline {12.5}Pipeline de extracción}{40}{section.12.5}%
-\contentsline {chapter}{\numberline {13}Instalación y Configuración}{41}{chapter.13}%
-\contentsline {section}{\numberline {13.1}Requisitos del sistema}{41}{section.13.1}%
-\contentsline {section}{\numberline {13.2}Instalación del entorno Python}{41}{section.13.2}%
-\contentsline {section}{\numberline {13.3}Instalación del frontend}{42}{section.13.3}%
-\contentsline {section}{\numberline {13.4}Configuración de la API Obscape}{42}{section.13.4}%
-\contentsline {chapter}{\numberline {A}Convenciones de código y Git}{43}{appendix.Alph1}%
-\contentsline {section}{\numberline {A.1}Estrategia de ramas}{43}{section.Alph1.1}%
-\contentsline {section}{\numberline {A.2}Nomenclatura de ficheros}{43}{section.Alph1.2}%
-\contentsline {section}{\numberline {A.3}Proyección obligatoria}{43}{section.Alph1.3}%
-\contentsline {chapter}{\numberline {B}Glosario}{44}{appendix.Alph2}%
-\contentsline {chapter}{\numberline {C}Historial de cambios}{45}{appendix.Alph3}%
+\contentsline {section}{\numberline {4.5}Recalibración rápida}{17}{section.4.5}%
+\contentsline {chapter}{\numberline {5}Módulo de Alineación Masiva}{18}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Motivación}{18}{section.5.1}%
+\contentsline {section}{\numberline {5.2}Arquitectura de estados}{18}{section.5.2}%
+\contentsline {subsection}{\numberline {5.2.1}Estructura del directorio temporal por job}{19}{subsection.5.2.1}%
+\contentsline {section}{\numberline {5.3}Pipeline de alineación: algoritmo}{19}{section.5.3}%
+\contentsline {subsection}{\numberline {5.3.1}Parámetros configurables}{19}{subsection.5.3.1}%
+\contentsline {subsection}{\numberline {5.3.2}Estrategia de dos pasadas}{19}{subsection.5.3.2}%
+\contentsline {subsection}{\numberline {5.3.3}Flujo completo del pipeline}{20}{subsection.5.3.3}%
+\contentsline {section}{\numberline {5.4}Renderizado del mapa de delta}{20}{section.5.4}%
+\contentsline {subsection}{\numberline {5.4.1}Capa 1 — Heatmap de diferencia absoluta}{20}{subsection.5.4.1}%
+\contentsline {subsection}{\numberline {5.4.2}Capa 2 — Divergencia de bordes (overlay cian)}{20}{subsection.5.4.2}%
+\contentsline {subsection}{\numberline {5.4.3}Capa 3 — Métrica escalar $\delta _{\text {px}}$ (flujo óptico Farneback)}{21}{subsection.5.4.3}%
+\contentsline {section}{\numberline {5.5}API REST del módulo}{21}{section.5.5}%
+\contentsline {section}{\numberline {5.6}Modelos de dominio}{21}{section.5.6}%
+\contentsline {section}{\numberline {5.7}Flujo de commit (two-phase write)}{22}{section.5.7}%
+\contentsline {chapter}{\numberline {6}Máscaras de Zonas Estables SIFT}{23}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Problema: objetos dinámicos en SIFT}{23}{section.6.1}%
+\contentsline {section}{\numberline {6.2}Solución: máscaras de regiones estables}{23}{section.6.2}%
+\contentsline {section}{\numberline {6.3}Zonas por cámara}{24}{section.6.3}%
+\contentsline {section}{\numberline {6.4}Visualización de zonas estables por cámara}{24}{section.6.4}%
+\contentsline {section}{\numberline {6.5}Corrección CAM\_1: problema de gaviotas}{31}{section.6.5}%
+\contentsline {subsection}{\numberline {6.5.1}Coordenadas en píxeles (imagen 4608$\times $2682)}{31}{subsection.6.5.1}%
+\contentsline {section}{\numberline {6.6}Cómo ajustar una máscara}{31}{section.6.6}%
+\contentsline {chapter}{\numberline {7}Interfaz Web}{33}{chapter.7}%
+\contentsline {section}{\numberline {7.1}Arquitectura frontend}{33}{section.7.1}%
+\contentsline {section}{\numberline {7.2}Componente BatchAlignment.vue}{33}{section.7.2}%
+\contentsline {subsection}{\numberline {7.2.1}Variables de estado}{33}{subsection.7.2.1}%
+\contentsline {subsection}{\numberline {7.2.2}Props y eventos}{34}{subsection.7.2.2}%
+\contentsline {subsection}{\numberline {7.2.3}Layout de la fase reviewing}{34}{subsection.7.2.3}%
+\contentsline {subsection}{\numberline {7.2.4}Indicadores del filmstrip}{34}{subsection.7.2.4}%
+\contentsline {subsection}{\numberline {7.2.5}Polling de progreso}{35}{subsection.7.2.5}%
+\contentsline {section}{\numberline {7.3}Flujo completo de uso}{35}{section.7.3}%
+\contentsline {chapter}{\numberline {8}Región de Interés (ROI)}{36}{chapter.8}%
+\contentsline {section}{\numberline {8.1}Criterios de delimitación}{36}{section.8.1}%
+\contentsline {section}{\numberline {8.2}Coordenadas por cámara}{36}{section.8.2}%
+\contentsline {chapter}{\numberline {9}Segmentación y Extracción de Línea de Costa}{37}{chapter.9}%
+\contentsline {section}{\numberline {9.1}Segmentación semántica con SAM}{37}{section.9.1}%
+\contentsline {section}{\numberline {9.2}Extracción de línea de costa}{37}{section.9.2}%
+\contentsline {section}{\numberline {9.3}Proyección a EPSG:25830}{38}{section.9.3}%
+\contentsline {section}{\numberline {9.4}Exportación GeoJSON}{38}{section.9.4}%
+\contentsline {chapter}{\numberline {10}Validación y Métricas de Calidad}{39}{chapter.10}%
+\contentsline {section}{\numberline {10.1}Estrategia de validación}{39}{section.10.1}%
+\contentsline {section}{\numberline {10.2}Métricas}{39}{section.10.2}%
+\contentsline {section}{\numberline {10.3}Criterios de aceptación}{39}{section.10.3}%
+\contentsline {section}{\numberline {10.4}Factores de error a monitorizar}{39}{section.10.4}%
+\contentsline {section}{\numberline {10.5}Validación en QGIS}{40}{section.10.5}%
+\contentsline {chapter}{\numberline {11}Estado del Proyecto y Roadmap}{41}{chapter.11}%
+\contentsline {section}{\numberline {11.1}Estado actual (junio 2026)}{41}{section.11.1}%
+\contentsline {section}{\numberline {11.2}Completado en la iteración de junio 2026}{41}{section.11.2}%
+\contentsline {section}{\numberline {11.3}Fase 3 — Automatización y robustez (mes 5)}{42}{section.11.3}%
+\contentsline {section}{\numberline {11.4}Fase 4 — Entrega e integración (mes 6)}{42}{section.11.4}%
+\contentsline {chapter}{\numberline {12}Guía de Operación}{43}{chapter.12}%
+\contentsline {section}{\numberline {12.1}Inicio rápido}{43}{section.12.1}%
+\contentsline {section}{\numberline {12.2}Descarga de imágenes}{43}{section.12.2}%
+\contentsline {section}{\numberline {12.3}Calibración}{43}{section.12.3}%
+\contentsline {section}{\numberline {12.4}Alineación masiva (CLI)}{44}{section.12.4}%
+\contentsline {section}{\numberline {12.5}Pipeline de extracción}{44}{section.12.5}%
+\contentsline {chapter}{\numberline {13}Instalación y Configuración}{45}{chapter.13}%
+\contentsline {section}{\numberline {13.1}Requisitos del sistema}{45}{section.13.1}%
+\contentsline {section}{\numberline {13.2}Instalación del entorno Python}{45}{section.13.2}%
+\contentsline {section}{\numberline {13.3}Instalación del frontend}{46}{section.13.3}%
+\contentsline {section}{\numberline {13.4}Configuración de la API Obscape}{46}{section.13.4}%
+\contentsline {chapter}{\numberline {A}Convenciones de código y Git}{47}{appendix.Alph1}%
+\contentsline {section}{\numberline {A.1}Estrategia de ramas}{47}{section.Alph1.1}%
+\contentsline {section}{\numberline {A.2}Nomenclatura de ficheros}{47}{section.Alph1.2}%
+\contentsline {section}{\numberline {A.3}Proyección obligatoria}{47}{section.Alph1.3}%
+\contentsline {chapter}{\numberline {B}Glosario}{48}{appendix.Alph2}%
+\contentsline {chapter}{\numberline {C}Historial de cambios}{49}{appendix.Alph3}%

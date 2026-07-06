@@ -4,18 +4,18 @@
 \addvspace {10\p@ }
 \contentsline {figure}{\numberline {3.1}{\ignorespaces Pipeline completo de procesamiento cv-lit}}{12}{figure.caption.8}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {4.1}{\ignorespaces Diagnóstico de calibración — reproyección de GCPs (vectores $\times 10$)}}{15}{figure.caption.10}%
+\contentsline {figure}{\numberline {4.1}{\ignorespaces Diagnóstico de calibración — reproyección de GCPs (vectores $\times 10$)}}{16}{figure.caption.10}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {5.1}{\ignorespaces Máquina de estados del módulo BatchAlignment}}{17}{figure.caption.11}%
-\contentsline {figure}{\numberline {5.2}{\ignorespaces Flujo de commit no-destructivo}}{21}{figure.caption.15}%
+\contentsline {figure}{\numberline {5.1}{\ignorespaces Máquina de estados del módulo BatchAlignment}}{18}{figure.caption.11}%
+\contentsline {figure}{\numberline {5.2}{\ignorespaces Flujo de commit no-destructivo}}{22}{figure.caption.15}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {6.1}{\ignorespaces CAM~1 — horizonte del mar ($y=0{,}39$--$0{,}48$) + arena baja izq + vegetación dcha (hasta fondo). Zona diseñada para evitar las gaviotas que vuelan en $y < 0{,}38$.}}{23}{figure.caption.17}%
-\contentsline {figure}{\numberline {6.2}{\ignorespaces CAM~2 — horizonte del mar ($y=0{,}34$--$0{,}48$) + zona derecha con vallas y vegetación ($x=0{,}72$--$1{,}00$). Las vallas y masa vegetal ofrecen features estables cuando la visibilidad no permite distinguir el Peñón de Ifach.}}{24}{figure.caption.18}%
-\contentsline {figure}{\numberline {6.3}{\ignorespaces CAM~3 — horizonte del mar ($y=0{,}42$--$0{,}56$) + edificios y palmeras en la esquina derecha ($x=0{,}72$--$1{,}00$). Las estructuras urbanas ofrecen features muy estables en todos los horarios.}}{24}{figure.caption.19}%
-\contentsline {figure}{\numberline {6.4}{\ignorespaces CAM~4 — horizonte del mar ($y=0{,}38$--$0{,}52$) + paseo marítimo/edificios en la esquina izquierda ($x=0{,}00$--$0{,}28$). La infraestructura urbana proporciona features angulares muy discriminantes.}}{25}{figure.caption.20}%
-\contentsline {figure}{\numberline {6.5}{\ignorespaces CAM~5 — horizonte del mar ($y=0{,}36$--$0{,}50$) + franja derecha estrecha ($x=0{,}68$--$1{,}00$). La zona derecha captura vegetación y estructuras fijas con mayor estabilidad que la franja izquierda anterior.}}{25}{figure.caption.21}%
-\contentsline {figure}{\numberline {6.6}{\ignorespaces CAM~6 — horizonte del mar ($y=0{,}40$--$0{,}54$) + bloque de edificios en la esquina izquierda ($x=0{,}00$--$0{,}35$). Los edificios tienen fachadas con ventanas y balcones que generan features muy estables.}}{26}{figure.caption.22}%
-\contentsline {figure}{\numberline {6.7}{\ignorespaces Comparativa de máscaras SIFT para CAM~1 (imagen 4608$\times $2682~px)}}{26}{figure.caption.23}%
+\contentsline {figure}{\numberline {6.1}{\ignorespaces CAM~1 — horizonte del mar ($y=0{,}39$--$0{,}48$) + arena baja izq + vegetación dcha (hasta fondo). Zona diseñada para evitar las gaviotas que vuelan en $y < 0{,}38$.}}{25}{figure.caption.17}%
+\contentsline {figure}{\numberline {6.2}{\ignorespaces CAM~2 — horizonte del mar ($y=0{,}34$--$0{,}48$) + zona izquierda con vallas y vegetación ($x=0{,}00$--$0{,}28$, hasta el borde inferior). Las vallas y masa vegetal ofrecen features estables cuando la visibilidad no permite distinguir el Peñón de Ifach.}}{26}{figure.caption.18}%
+\contentsline {figure}{\numberline {6.3}{\ignorespaces CAM~3 — horizonte del mar ($y=0{,}42$--$0{,}56$) + edificios y palmeras en la esquina derecha ($x=0{,}72$--$1{,}00$, hasta el borde inferior). Las estructuras urbanas ofrecen features muy estables en todos los horarios.}}{27}{figure.caption.19}%
+\contentsline {figure}{\numberline {6.4}{\ignorespaces CAM~4 — horizonte del mar ($y=0{,}38$--$0{,}52$) + paseo marítimo/edificios en la esquina izquierda ($x=0{,}00$--$0{,}28$, hasta el borde inferior). La infraestructura urbana proporciona features angulares muy discriminantes.}}{28}{figure.caption.20}%
+\contentsline {figure}{\numberline {6.5}{\ignorespaces CAM~5 — horizonte del mar ($y=0{,}36$--$0{,}50$) + franja derecha estrecha ($x=0{,}68$--$1{,}00$). La zona derecha captura vegetación y estructuras fijas con mayor estabilidad que la franja izquierda anterior.}}{29}{figure.caption.21}%
+\contentsline {figure}{\numberline {6.6}{\ignorespaces CAM~6 — horizonte del mar ($y=0{,}40$--$0{,}54$) + bloque de edificios en la esquina izquierda ($x=0{,}00$--$0{,}35$). Los edificios tienen fachadas con ventanas y balcones que generan features muy estables.}}{30}{figure.caption.22}%
+\contentsline {figure}{\numberline {6.7}{\ignorespaces Comparativa de máscaras SIFT para CAM~1 (imagen 4608$\times $2682~px)}}{31}{figure.caption.23}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \addvspace {10\p@ }
