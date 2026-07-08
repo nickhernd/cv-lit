@@ -8,3 +8,5 @@
 /backend/dist
 /venv/
 .env
+
+!debug_demo/**
