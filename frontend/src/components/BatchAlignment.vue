@@ -18,6 +18,92 @@ const phase = ref('idle')
 const baseFilename  = ref('')
 const selectedFiles = ref(new Set()) // Set de filenames a incluir en el lote
 
+// ── Estado de la máscara SIFT (zonas estables) de la cámara ─────────────────
+// Se edita al elegir la base: regiones vacías = SIFT usa la imagen completa.
+const maskRegions = ref([])   // [{label, x0, y0, x1, y1}] fracciones 0-1
+const maskLoading  = ref(false)
+const maskSaving   = ref(false)
+const drawingRect  = ref(null) // rectángulo en curso mientras se arrastra (% 0-100)
+let dragStart = null
+
+async function fetchMask() {
+  if (!props.camId) return
+  maskLoading.value = true
+  try {
+    const res = await fetch(`${API}/api/batch/masks/${props.camId}`)
+    const data = await res.json()
+    maskRegions.value = data.regions || []
+  } catch (e) { /* sin máscara previa, se queda vacío */ }
+  finally { maskLoading.value = false }
+}
+
+function maskImageUrl() {
+  if (!props.camId || !baseFilename.value) return ''
+  return `${API}/api/cameras/${props.camId}/image?file=${encodeURIComponent(baseFilename.value)}`
+}
+
+function onMaskMouseDown(e) {
+  const rect = e.currentTarget.getBoundingClientRect()
+  dragStart = {
+    x: Math.min(100, Math.max(0, (e.clientX - rect.left) / rect.width * 100)),
+    y: Math.min(100, Math.max(0, (e.clientY - rect.top) / rect.height * 100)),
+  }
+  drawingRect.value = { x0: dragStart.x, y0: dragStart.y, x1: dragStart.x, y1: dragStart.y }
+}
+
+function onMaskMouseMove(e) {
+  if (!dragStart) return
+  const rect = e.currentTarget.getBoundingClientRect()
+  const x = Math.min(100, Math.max(0, (e.clientX - rect.left) / rect.width * 100))
+  const y = Math.min(100, Math.max(0, (e.clientY - rect.top) / rect.height * 100))
+  drawingRect.value = {
+    x0: Math.min(dragStart.x, x), y0: Math.min(dragStart.y, y),
+    x1: Math.max(dragStart.x, x), y1: Math.max(dragStart.y, y),
+  }
+}
+
+function onMaskMouseUp() {
+  const r = drawingRect.value
+  if (r && (r.x1 - r.x0 > 1) && (r.y1 - r.y0 > 1)) {
+    maskRegions.value.push({
+      label: `zona_${maskRegions.value.length + 1}`,
+      x0: +(r.x0 / 100).toFixed(4),
+      y0: +(r.y0 / 100).toFixed(4),
+      x1: +(r.x1 / 100).toFixed(4),
+      y1: +(r.y1 / 100).toFixed(4),
+    })
+  }
+  dragStart = null
+  drawingRect.value = null
+}
+
+function removeMaskRegion(idx) { maskRegions.value.splice(idx, 1) }
+
+function onFullImageToggle(e) {
+  if (e.target.checked) maskRegions.value = []
+}
+
+async function saveMask() {
+  maskSaving.value = true
+  try {
+    const res = await fetch(`${API}/api/batch/masks/${props.camId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ regions: maskRegions.value }),
+    })
+    if (!res.ok) throw new Error('Error al guardar la máscara')
+    emit('notify',
+      maskRegions.value.length ? 'Máscara guardada' : 'Máscara eliminada: se usará la imagen completa',
+      'success')
+  } catch (e) {
+    emit('notify', e.message, 'error')
+  } finally {
+    maskSaving.value = false
+  }
+}
+
+watch(baseFilename, (fn) => { if (fn) fetchMask() })
+
 // ── Estado del job en curso ─────────────────────────────────────────────────
 const jobId      = ref(null)
 const jobSummary = reactive({ progress: { current: 0, total: 0 }, counts: {}, status: '' })
@@ -280,6 +366,58 @@ onUnmounted(() => clearInterval(pollInterval))
       <p class="text-[10px] text-slate-400">
         Todas las demás imágenes se alinearán respecto a esta referencia.
       </p>
+    </div>
+
+    <!-- Máscara SIFT (zonas estables) -->
+    <div v-if="baseFilename" class="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
+      <div class="flex items-center justify-between">
+        <label class="text-xs font-bold text-slate-600 uppercase tracking-widest">
+          Máscara SIFT (zonas estables)
+        </label>
+        <label class="flex items-center space-x-2 text-[10px] text-slate-500 cursor-pointer">
+          <input type="checkbox" :checked="maskRegions.length === 0" @change="onFullImageToggle"
+                 class="rounded accent-blue-600" />
+          <span>Usar imagen completa (sin máscara)</span>
+        </label>
+      </div>
+      <p class="text-[10px] text-slate-400">
+        Arrastra sobre la imagen para dibujar zonas estables (horizonte, edificios) que SIFT usará
+        para alinear. Deja fuera zonas dinámicas (olas, gente, gaviotas, vegetación con viento).
+        Sin zonas dibujadas = SIFT usa la imagen completa.
+      </p>
+
+      <div class="relative bg-slate-900 rounded overflow-hidden select-none cursor-crosshair"
+           @mousedown="onMaskMouseDown" @mousemove="onMaskMouseMove"
+           @mouseup="onMaskMouseUp" @mouseleave="onMaskMouseUp">
+        <img :src="maskImageUrl()" class="w-full h-auto block pointer-events-none" draggable="false" />
+
+        <div v-for="(r, idx) in maskRegions" :key="idx"
+             class="absolute border-2 border-emerald-400 bg-emerald-400/20 group"
+             :style="{ left: (r.x0*100)+'%', top: (r.y0*100)+'%',
+                       width: ((r.x1-r.x0)*100)+'%', height: ((r.y1-r.y0)*100)+'%' }">
+          <span class="absolute -top-5 left-0 text-[9px] font-bold text-emerald-300 bg-slate-900/80 px-1 rounded whitespace-nowrap">
+            {{ r.label }}
+          </span>
+          <button @mousedown.stop @click.stop="removeMaskRegion(idx)"
+                  class="absolute -top-5 right-0 text-[9px] font-bold text-red-300 bg-slate-900/80 px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+            ✕
+          </button>
+        </div>
+
+        <div v-if="drawingRect"
+             class="absolute border-2 border-dashed border-blue-400 bg-blue-400/20 pointer-events-none"
+             :style="{ left: drawingRect.x0+'%', top: drawingRect.y0+'%',
+                       width: (drawingRect.x1-drawingRect.x0)+'%', height: (drawingRect.y1-drawingRect.y0)+'%' }">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between">
+        <span class="text-[10px] text-slate-400">{{ maskRegions.length }} zona(s) definida(s)</span>
+        <button @click="saveMask" :disabled="maskSaving || maskLoading"
+                class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded text-xs font-semibold transition-colors">
+          {{ maskSaving ? 'Guardando…' : 'Guardar máscara' }}
+        </button>
+      </div>
     </div>
 
     <!-- Selección de imágenes -->

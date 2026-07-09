@@ -9,7 +9,7 @@ El sistema cuenta con una interfaz moderna en Vue para monitorizar el estado y r
 ### Ejecucion (Entorno de Desarrollo)
 Puedes iniciar tanto el backend (FastAPI) como el frontend (Vite) con un solo comando:
 ```bash
-./start_dev.sh
+./scripts/start_dev.sh
 ```
 
 Esto levantara:

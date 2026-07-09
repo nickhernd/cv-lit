@@ -4,7 +4,6 @@
 # Usamos el venv de la raíz
 BACKEND_DIR="backend"
 VENV_PATH="./venv"
-PYTHON_BIN="$VENV_PATH/bin/python"
 
 echo "=== Iniciando entorno de desarrollo CV-LIT ==="
 
@@ -14,6 +13,21 @@ if [ ! -d "$VENV_PATH" ]; then
     python3 -m venv "$VENV_PATH"
     echo "[OK] Entorno virtual creado."
 fi
+
+# Windows (venv/Scripts/python.exe) vs Linux/Mac (venv/bin/python)
+if [ -f "$VENV_PATH/Scripts/python.exe" ]; then
+    PYTHON_BIN="$VENV_PATH/Scripts/python.exe"
+else
+    PYTHON_BIN="$VENV_PATH/bin/python"
+fi
+
+# En Windows, Node.js suele no estar en el PATH de Git Bash aunque esté instalado
+if ! command -v npm >/dev/null 2>&1 && [ -f "/c/Program Files/nodejs/npm.cmd" ]; then
+    export PATH="/c/Program Files/nodejs:$PATH"
+fi
+
+# Evita UnicodeEncodeError en consola Windows (cp1252 por defecto)
+export PYTHONIOENCODING=utf-8
 
 # Actualizar dependencias de backend si es necesario
 echo "[.] Verificando dependencias del Backend..."

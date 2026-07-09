@@ -12,6 +12,7 @@ incluyendo objetos dinámicos que producen correspondencias erróneas:
   \item \textbf{Olas y espuma} de mar (bordes dinámicos muy contrastados)
   \item \textbf{Personas y bañistas} en la playa
   \item \textbf{Sombras dinámicas} de nubes
+  \item \textbf{Hojas de palmeras} agitadas por el viento (ver corrección CAM~3)
 \end{itemize}
 
 Resultado: matches entre objetos en posiciones distintas entre tomas → homografía sesgada
@@ -53,7 +54,7 @@ fraccionarias} $(0.0 \ldots 1.0)$ independientes de la resolución real de la im
 \midrule
 CAM~1 & Horizonte mar (y=0.39--0.48) & Arena baja + Vegetación dcha ampliada (x=0.40--1.00, hasta fondo) & Excluye cielo con gaviotas \\
 CAM~2 & Horizonte (y=0.34--0.48)    & Vallas+Vegetación izq (x=0.00--0.28, hasta el borde inferior) & Zona estable con vallas y vegetación fija \\
-CAM~3 & Horizonte (y=0.42--0.56)    & Edificio dcha (x=0.72--1.00, hasta el borde inferior) & Edificio como anclaje vertical \\
+CAM~3 & Horizonte (y=0.45--0.56)    & Kiosco esquina inf. dcha (x=0.87--1.00, y=0.80--0.93) & Estructura fija; excluye las palmeras (x=0.72--0.87) que se mueven con el viento \\
 CAM~4 & Horizonte (y=0.38--0.52)    & Edificio izq (x=0.00--0.28, hasta el borde inferior) & Edificio como anclaje vertical \\
 CAM~5 & Horizonte (y=0.36--0.50)    & Zona dcha (x=0.68--1.00)                   & Zona derecha más estable \\
 CAM~6 & Horizonte (y=0.40--0.54)    & Edificios izq (x=0.00--0.35)               & \\
@@ -88,9 +89,11 @@ Las figuras siguientes muestran, sobre una imagen real de cada cámara, las regi
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{mask_cam3.jpg}
-  \caption{CAM~3 — horizonte del mar ($y=0{,}42$--$0{,}56$) + edificios y palmeras en la
-           esquina derecha ($x=0{,}72$--$1{,}00$, hasta el borde inferior). Las estructuras urbanas
-           ofrecen features muy estables en todos los horarios.}
+  \caption{CAM~3 — horizonte del mar ($y=0{,}45$--$0{,}56$) + kiosco de playa en la esquina
+           inferior derecha ($x=0{,}87$--$1{,}00$, $y=0{,}80$--$0{,}93$). Se excluye deliberadamente
+           la franja $x=0{,}72$--$0{,}87$: las palmeras que hay ahí agitan sus hojas con el viento
+           y generaban correspondencias SIFT inestables (rotaciones espurias de más de
+           $100^\circ$ en las pruebas de alineación).}
   \label{fig:mask-cam3-vis}
 \end{figure}
 

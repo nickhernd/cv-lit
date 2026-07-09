@@ -13,6 +13,9 @@ y genera por cada par:
   homography.jpg      — imagen con la descomposición visual de la homografía:
                          ángulo de rotación, traslación (dx,dy), escala y flechas
 
+Cada ejecución borra por completo el directorio de salida (debug_demo/) antes de
+regenerarlo, salvo que se use --skip-existing.
+
 Uso:
     python scripts/debug_all_demo.py
     python scripts/debug_all_demo.py --cams 1 2 5 --out /tmp/mi_debug
@@ -22,6 +25,7 @@ Uso:
 
 import argparse
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -425,6 +429,34 @@ def gather_images(cam_id: int) -> list[Path]:
     return sorted(cam_dir.glob("*.jpg")) + sorted(cam_dir.glob("*.JPG"))
 
 
+def _capture_hour(path: Path) -> float | None:
+    """Extrae la hora de captura (0-24) del nombre <epoch>_<YYYYMMDD>_<HHMMSS>_tag.jpg."""
+    parts = path.stem.split("_")
+    if len(parts) < 3 or len(parts[2]) != 6 or not parts[2].isdigit():
+        return None
+    hhmmss = parts[2]
+    return int(hhmmss[:2]) + int(hhmmss[2:4]) / 60
+
+
+def pick_default_base(imgs: list[Path]) -> Path:
+    """
+    Elige como referencia la imagen cuya hora de captura está más cerca de la
+    mediana del conjunto, en vez de simplemente la más antigua.
+
+    Coger siempre la más antigua puede hacer que la base sea, p. ej., la única
+    foto de mediodía de la carpeta mientras el resto son del amanecer: la
+    diferencia de luces/sombras hunde el ratio de inliers aunque la máscara y
+    el resto del pipeline funcionen bien.
+    """
+    horas = [(p, _capture_hour(p)) for p in imgs]
+    validas = [(p, h) for p, h in horas if h is not None]
+    if not validas:
+        return imgs[0]
+    medianas = sorted(h for _, h in validas)
+    mediana = medianas[len(medianas) // 2]
+    return min(validas, key=lambda ph: abs(ph[1] - mediana))[0]
+
+
 # ── Entry point ──────────────────────────────────────────────────────────────
 
 def main():
@@ -437,8 +469,8 @@ def main():
                     metavar="N", help="Cámaras a procesar (por defecto todas)")
     ap.add_argument("--base", type=Path, default=None,
                     help="Imagen de referencia fija (por defecto: primera imagen de cada cámara)")
-    ap.add_argument("--out", type=Path, default=Path("/tmp/debug_demo"),
-                    help="Directorio raíz de salida (default: /tmp/debug_demo)")
+    ap.add_argument("--out", type=Path, default=ROOT / "debug_demo",
+                    help="Directorio raíz de salida (default: <repo>/debug_demo)")
     ap.add_argument("--no-clahe", action="store_true",
                     help="Desactivar CLAHE")
     ap.add_argument("--no-mask", action="store_true",
@@ -453,17 +485,28 @@ def main():
     use_mask  = not args.no_mask
     results_all = {}
 
+    if not args.skip_existing and args.out.exists():
+        print(f"Limpiando resultados anteriores en {args.out}/ ...")
+        # Se borra el contenido en vez del directorio en sí: en Windows el
+        # directorio puede quedar con un handle abierto (Explorer, terminal
+        # con ese cwd, etc.) y shutil.rmtree() sobre el propio dir falla.
+        for child in args.out.iterdir():
+            if child.is_dir():
+                shutil.rmtree(child, ignore_errors=True)
+            else:
+                child.unlink(missing_ok=True)
+
     for cam_id in args.cams:
         imgs = gather_images(cam_id)
         if not imgs:
             print(f"CAM_{cam_id}: sin imágenes en {DEMO_BASE}/CAM_{cam_id}/images/")
             continue
 
-        # Elegir base: --base explícita o primera imagen de la cámara
+        # Elegir base: --base explícita o la imagen más representativa en hora
         if args.base and args.base.exists():
             base_path = args.base
         else:
-            base_path = imgs[0]
+            base_path = pick_default_base(imgs)
 
         # Imágenes a comparar: todas excepto la propia base
         to_compare = [p for p in imgs if p != base_path]

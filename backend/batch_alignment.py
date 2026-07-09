@@ -67,21 +67,47 @@ TEMP_BASE.mkdir(parents=True, exist_ok=True)
 # generan keypoints falsos que sesgan la homografía.
 # Configuración en calibration/alignment_masks.json — coordenadas fraccionarias
 # [0.0–1.0] para que escalen a cualquier resolución de cámara.
-# TODO: hoy estas zonas solo se pueden ajustar editando el JSON a mano. Falta un
-# mecanismo para que el usuario las establezca/edite cuando lo necesite (por cámara,
-# por imagen concreta) desde la interfaz y quede integrado en el pipeline, en vez de
-# ser una config estática. Ver también el mismo TODO en backend/main.py:align_preview.
-MASKS_PATH   = Path(__file__).parent.parent / "calibration" / "alignment_masks.json"
-_masks_cache: dict = {}
+# El usuario las edita desde la interfaz (paso "Alineación" al elegir la base,
+# ver BatchAlignment.vue) dibujando rectángulos sobre la imagen base; se guardan
+# aquí vía PUT /api/batch/masks/{cam_id} y se leen del disco en cada job (sin
+# caché en memoria, para que un cambio se refleje en el siguiente lote sin
+# reiniciar el backend).
+MASKS_PATH = Path(__file__).parent.parent / "calibration" / "alignment_masks.json"
 
 def _load_masks() -> dict:
-    global _masks_cache
-    if _masks_cache:
-        return _masks_cache
-    if MASKS_PATH.exists():
-        with open(MASKS_PATH) as f:
-            _masks_cache = json.load(f)
-    return _masks_cache
+    if not MASKS_PATH.exists():
+        return {}
+    with open(MASKS_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _save_masks(masks: dict) -> None:
+    """
+    Serializa a mano (una región por línea) en vez de json.dump(indent=2) para no
+    convertir el fichero entero en un diff gigante de una clave por línea cada vez
+    que se guarda una máscara desde la interfaz.
+    """
+    MASKS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    cam_keys = [k for k in masks if k != "_comment"]
+    lines = ["{"]
+    if "_comment" in masks:
+        lines.append(f'  "_comment": {json.dumps(masks["_comment"], ensure_ascii=False)},')
+    for i, key in enumerate(cam_keys):
+        comma = "," if i < len(cam_keys) - 1 else ""
+        regions = masks[key].get("regions", [])
+        lines.append(f'  "{key}": {{')
+        if regions:
+            region_lines = [
+                "      " + json.dumps(r, ensure_ascii=False) for r in regions
+            ]
+            lines.append('    "regions": [')
+            lines.append(",\n".join(region_lines))
+            lines.append('    ]')
+        else:
+            lines.append('    "regions": []')
+        lines.append(f'  }}{comma}')
+    lines.append("}")
+    MASKS_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _build_mask(cam_id: int, h: int, w: int) -> Optional[np.ndarray]:
@@ -92,15 +118,17 @@ def _build_mask(cam_id: int, h: int, w: int) -> Optional[np.ndarray]:
     Las coordenadas en el JSON son fracciones [0.0–1.0] de la imagen,
     por lo que escalan automáticamente a cualquier resolución.
 
-    Retorna None si no hay config para esta cámara (SIFT corre sin restricción).
+    Retorna None si no hay config o no hay regiones para esta cámara
+    (SIFT corre sin restricción, sobre la imagen completa).
     """
     masks = _load_masks()
     key = f"CAM_{cam_id}"
-    if key not in masks:
-        return None  # sin config → SIFT usa la imagen completa
+    regions = masks.get(key, {}).get("regions", [])
+    if not regions:
+        return None  # sin regiones → imagen completa (NO una máscara vacía/negra)
 
     canvas = np.zeros((h, w), dtype=np.uint8)
-    for region in masks[key].get("regions", []):
+    for region in regions:
         # Convertir fracción → píxel para la resolución actual
         x0 = int(region["x0"] * w)
         y0 = int(region["y0"] * h)
@@ -444,6 +472,47 @@ class BatchStartRequest(BaseModel):
     cam_id: int
     base_filename: str
     image_filenames: List[str]
+
+
+class MaskRegion(BaseModel):
+    label: str
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+
+
+class MaskUpdateRequest(BaseModel):
+    regions: List[MaskRegion]
+
+
+@router.get("/masks/{cam_id}")
+def get_mask(cam_id: int):
+    """
+    Regiones de máscara SIFT actuales para la cámara (coordenadas fraccionarias
+    0.0-1.0). Lista vacía = sin máscara, SIFT usa la imagen completa.
+    """
+    masks = _load_masks()
+    regions = masks.get(f"CAM_{cam_id}", {}).get("regions", [])
+    return {"cam_id": cam_id, "regions": regions}
+
+
+@router.put("/masks/{cam_id}")
+def save_mask(cam_id: int, req: MaskUpdateRequest):
+    """
+    Guarda las regiones de máscara SIFT de la cámara en calibration/alignment_masks.json.
+    Se usa desde la interfaz al elegir la imagen base (BatchAlignment.vue): el usuario
+    dibuja rectángulos sobre zonas estables, o deja la lista vacía para usar la imagen
+    completa. Afecta a todos los lotes de esta cámara procesados a partir de ahora.
+    """
+    from config import CAMERAS
+    if cam_id not in CAMERAS:
+        raise HTTPException(404, "Cámara no encontrada")
+
+    masks = _load_masks()
+    masks[f"CAM_{cam_id}"] = {"regions": [r.model_dump() for r in req.regions]}
+    _save_masks(masks)
+    return {"cam_id": cam_id, "regions": masks[f"CAM_{cam_id}"]["regions"]}
 
 
 @router.post("/start")
