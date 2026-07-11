@@ -5,8 +5,14 @@ import os
 # (backend/config.py -> sube dos niveles -> raíz del proyecto).
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROCES_IMAGES_DIR = os.path.join(BASE_DIR, "proces_images")
-DATA_DIR = os.path.join(PROCES_IMAGES_DIR, "data")
-CALIBRATION_DIR = os.path.join(BASE_DIR, "calibration")
+
+# Los directorios de trabajo se pueden redirigir por variables de entorno para
+# aislar entornos (start_dev.ps1 -> workspace vacío, start_demo.ps1 -> workspace
+# demo sembrado). Sin variables se usan los directorios reales de siempre.
+DATA_DIR = os.environ.get("CVLIT_DATA_DIR") or os.path.join(PROCES_IMAGES_DIR, "data")
+CALIBRATION_DIR = os.environ.get("CVLIT_CALIBRATION_DIR") or os.path.join(BASE_DIR, "calibration")
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(CALIBRATION_DIR, exist_ok=True)
 
 # DEBUG (INIT): diccionario global de cámaras (id -> nombre, carpeta, imagen por defecto).
 # Es la fuente de verdad que usan casi todos los endpoints de main.py y batch_alignment.py

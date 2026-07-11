@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "leaflet": "^1.9.4",
+    "proj4": "^2.20.9",
     "vue": "^3.4.21"
   },
   "devDependencies": {

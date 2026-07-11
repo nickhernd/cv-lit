@@ -28,6 +28,10 @@ async function fetchData() {
   }
 }
 
+function printReport() {
+  window.print()
+}
+
 function downloadCSV() {
   const headers = ['Fecha', 'Area_m2']
   const rows = historicalData.value.map(d => `${d.date},${d.area}`)
@@ -72,7 +76,7 @@ onMounted(fetchData)
     <div class="flex justify-between items-center border-b border-slate-200 pb-4">
       <h1 class="text-xl font-semibold text-slate-900 tracking-tight">Vista General del Sistema</h1>
       <div class="flex items-center space-x-4">
-        <button @click="window.print()" class="btn-secondary flex items-center space-x-2 py-1.5 no-print">
+        <button @click="printReport" class="btn-secondary flex items-center space-x-2 py-1.5 no-print">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 00-2 2h2m2 4h10a2 2 0 002-2v-4H5v4a2 2 0 002 2z" stroke-width="2"/><path d="M17 9V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4" stroke-width="2"/></svg>
           <span>Imprimir Reporte</span>
         </button>
@@ -163,8 +167,8 @@ onMounted(fetchData)
                       <stop offset="100%" stop-color="#3b82f6" stop-opacity="0" />
                    </linearGradient>
                 </defs>
-                <polyline fill="none" stroke="#2563eb" stroke-width="2" :points="chartPoints" stroke-linejoin="round" stroke-linecap="round" />
-                <path :d="`M0,150 L${chartPoints} L800,150 Z`" fill="url(#chartGradient)" />
+                <polyline v-if="chartPoints" fill="none" stroke="#2563eb" stroke-width="2" :points="chartPoints" stroke-linejoin="round" stroke-linecap="round" />
+                <path v-if="chartPoints" :d="`M0,150 L${chartPoints} L800,150 Z`" fill="url(#chartGradient)" />
              </svg>
              <div class="flex justify-between text-[9px] font-bold text-slate-400 pt-4 uppercase border-t border-slate-100 mt-2">
                 <span>{{ historicalData[0]?.date }}</span>

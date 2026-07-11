@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import os
+import io
+import re
 import json
 import numpy as np
 import cv2
@@ -116,6 +118,67 @@ class CalibrationProfile(BaseModel):
     gcps: List[GCP]
     reference_image: Optional[str] = None
 
+class HomographyRequest(BaseModel):
+    """Parámetros del cálculo de homografía por imagen."""
+    image_name: Optional[str] = None      # si falta, se usa la referencia del perfil
+    threshold_px: float = 1.0             # umbral tolerable de error de reproyección (px)
+    excluded: List[int] = []              # índices de varillas a excluir del cálculo
+
+# Las imágenes de cámara llevan el timestamp de captura en el nombre:
+# <epoch>_<YYYYMMDD>_<HHMMSS>_<serial>.jpg
+FILENAME_TS_RE = re.compile(r"^(\d+)_(\d{8})_(\d{6})_")
+
+def _parse_capture_ts(filename: str) -> Optional[str]:
+    m = FILENAME_TS_RE.match(filename)
+    if not m:
+        return None
+    try:
+        dt = datetime.datetime.strptime(m.group(2) + m.group(3), "%Y%m%d%H%M%S")
+        return dt.isoformat(timespec="seconds")
+    except ValueError:
+        return None
+
+def _annotations_path(cam_id: int, filename: str) -> str:
+    base = filename.rsplit(".", 1)[0] + ".json"
+    return os.path.join(DATA_DIR, f"CAM_{cam_id}", "json", base)
+
+def _smooth_polyline(pts: np.ndarray, window: int = 9) -> np.ndarray:
+    """Suaviza una polilínea con media móvil centrada (conserva la longitud).
+    La línea de costa extraída píxel a píxel sale dentada; esto la deja continua."""
+    if len(pts) < window or window < 3:
+        return pts
+    kernel = np.ones(window) / window
+    smoothed = pts.astype(np.float64).copy()
+    pad = window // 2
+    for axis in range(pts.shape[1]):
+        padded = np.pad(pts[:, axis].astype(np.float64), (pad, pad), mode="edge")
+        smoothed[:, axis] = np.convolve(padded, kernel, mode="valid")
+    return smoothed
+
+def _history_path(cam_id: int) -> str:
+    return os.path.join(DATA_DIR, f"coastline_history_cam{cam_id}.json")
+
+def _append_history(cam_id: int, feature: dict, max_entries: int = 500):
+    """Acumula cada línea de costa aceptada en el histórico de la cámara,
+    ordenado por timestamp de captura (para la visualización temporal)."""
+    path = _history_path(cam_id)
+    history = {"type": "FeatureCollection", "features": []}
+    if os.path.exists(path):
+        try:
+            with open(path, "r") as f:
+                history = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    ts = feature["properties"].get("Timestamp")
+    # Re-analizar la misma captura sustituye su entrada en vez de duplicarla
+    history["features"] = [f for f in history.get("features", [])
+                           if f.get("properties", {}).get("Timestamp") != ts]
+    history["features"].append(feature)
+    history["features"].sort(key=lambda f: f.get("properties", {}).get("Timestamp", ""))
+    history["features"] = history["features"][-max_entries:]
+    with open(path, "w") as f:
+        json.dump(history, f)
+
 # DEBUG: alinea `img` contra `ref_img` con ORB+RANSAC (versión más simple/antigua
 # que la de batch_alignment.py, que usa SIFT). No parece estar referenciada por
 # ningún endpoint activo de este archivo — revisar si sigue en uso.
@@ -185,21 +248,30 @@ def set_reference_image(cam_id: int, filename: str):
 # data/CAM_{id}/json/{filename}.json. Usado por el editor de anotaciones del frontend.
 @app.get("/api/cameras/{cam_id}/images/{filename}/annotations")
 def get_image_annotations(cam_id: int, filename: str):
-    json_path = os.path.join(DATA_DIR, f"CAM_{cam_id}", "json", filename.replace(".jpg", ".json").replace(".png", ".json"))
+    json_path = _annotations_path(cam_id, filename)
     if os.path.exists(json_path):
         with open(json_path, "r") as f:
             return json.load(f)
     return {"points": [], "roi": None}
 
 # DEBUG: contraparte de escritura de get_image_annotations — persiste las
-# anotaciones editadas en el frontend a disco.
+# anotaciones editadas en el frontend a disco. Hace merge sobre el JSON existente
+# para no borrar claves que el frontend no envía (p.ej. "calibration").
 @app.post("/api/cameras/{cam_id}/images/{filename}/annotations")
 def save_image_annotations(cam_id: int, filename: str, data: dict):
     target_dir = os.path.join(DATA_DIR, f"CAM_{cam_id}", "json")
     os.makedirs(target_dir, exist_ok=True)
-    json_path = os.path.join(target_dir, filename.replace(".jpg", ".json").replace(".png", ".json"))
+    json_path = _annotations_path(cam_id, filename)
+    existing = {}
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, "r") as f:
+                existing = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            existing = {}
+    existing.update(data)
     with open(json_path, "w") as f:
-        json.dump(data, f, indent=2)
+        json.dump(existing, f, indent=2)
     return {"status": "success"}
 
 # DEBUG: resumen para la pantalla principal (cuántas cámaras calibradas, nº de
@@ -212,7 +284,7 @@ def get_dashboard():
             "cameras_calibrated": 6,
             "total_cameras": 6,
             "images_processed": 12450,
-            "avg_dry_area": "25 120 m2",
+            "avg_dry_area": "25 120",
             "cameras": [
                 {"id": f"C{i}", "idx": i, "name": CAMERAS[i]["name"], "status": "Calibrada", "images": 2000}
                 for i in range(1, 7)
@@ -223,7 +295,15 @@ def get_dashboard():
     cameras_status = []
     for cam_idx, info in CAMERAS.items():
         profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_idx}_profile.json")
-        is_calibrated = os.path.exists(profile_path)
+        # Calibrada = tiene homografía calculada, no basta con que exista el perfil
+        # (el perfil se crea ya al fijar la imagen de referencia).
+        is_calibrated = False
+        if os.path.exists(profile_path):
+            try:
+                with open(profile_path, "r") as f:
+                    is_calibrated = bool(json.load(f).get("H"))
+            except (json.JSONDecodeError, OSError):
+                is_calibrated = False
         if is_calibrated: calibrated_count += 1
         
         cam_folder = os.path.join(DATA_DIR, info["folder"])
@@ -241,7 +321,7 @@ def get_dashboard():
         "cameras_calibrated": calibrated_count,
         "total_cameras": len(CAMERAS),
         "images_processed": 506,
-        "avg_dry_area": "23 480 m2",
+        "avg_dry_area": "23 480",
         "cameras": cameras_status
     }
 
@@ -306,8 +386,10 @@ def list_cameras():
             "id": f"C{cam_idx}",
             "name": info["name"],
             "serial": info["serial"],
-            "calibrated": bool(profile),
+            "calibrated": bool(profile.get("H")),
             "rmse_m": profile.get("rmse_m"),
+            "rmse_px": profile.get("rmse_px"),
+            "calibrated_image": profile.get("calibrated_image"),
             "gcps_count": profile.get("gcps_count"),
             "last_calibration_date": profile.get("date"),
             "images_count": images_count,
@@ -358,38 +440,145 @@ def get_camera_profile(cam_id: int):
     with open(profile_path, "r") as f:
         return json.load(f)
 
-# DEBUG: calcula la matriz de homografía píxel->UTM a partir de los GCPs (ground
-# control points) guardados en el perfil, usando cv2.findHomography + RANSAC.
-# En modo demo simula una homografía identidad en vez de calcular una real.
+# Calcula la homografía píxel->UTM DE UNA IMAGEN a partir de las varillas marcadas
+# en sus anotaciones (la calibración es por imagen, no por cámara). Devuelve el
+# residuo de reproyección por varilla (px y m) para que la UI pueda marcar las que
+# superan el umbral, y admite excluir índices concretos y recalcular sin ellos.
+# El perfil de cámara guarda la ÚLTIMA calibración válida (la que consume analyze-roi).
 @app.post("/api/cameras/{cam_id}/calculate-homography")
-def calculate_homography(cam_id: int, image_name: Optional[str] = None):
+def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = None):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    payload = payload or HomographyRequest()
     add_log(f"Iniciando cálculo homografía para Cam {cam_id}", "info")
-    if APP_MODE == "demo":
-        profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_profile.json")
-        with open(profile_path, "r") as f: data = json.load(f)
-        data["H"] = np.eye(3).tolist()
-        data["rmse_m"] = 0.1234
-        data["status"] = "calibrated"
-        with open(profile_path, "w") as f: json.dump(data, f, indent=2)
-        add_log(f"Homografía Cam {cam_id} simulada (Demo)", "success")
-        return {"status": "success", "rmse_m": 0.1234}
 
     profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_profile.json")
-    with open(profile_path, "r") as f: data = json.load(f)
-    gcps = [g for g in data.get("gcps", []) if g.get("type") == "calib"]
-    if len(gcps) < 4: raise HTTPException(status_code=400, detail="At least 4 GCPs are required")
-    
-    pts_px = np.array([g["pixel"] for g in gcps], dtype=np.float32)
-    pts_utm = np.array([g["utm"] for g in gcps], dtype=np.float32)
-    H, mask = cv2.findHomography(pts_px, pts_utm, cv2.RANSAC, 3.0)
-    if H is None: raise HTTPException(status_code=500, detail="Error matematico")
+    profile = {"cam_id": cam_id, "gcps": []}
+    if os.path.exists(profile_path):
+        with open(profile_path, "r") as f:
+            profile = json.load(f)
 
-    proj_utm = cv2.perspectiveTransform(pts_px.reshape(-1, 1, 2), H).reshape(-1, 2)
-    rmse_m = float(np.sqrt(np.mean(np.linalg.norm(proj_utm - pts_utm, axis=1)**2)))
-    data["H"] = H.tolist(); data["rmse_m"] = round(rmse_m, 4); data["status"] = "calibrated"
-    with open(profile_path, "w") as f: json.dump(data, f, indent=2)
-    add_log(f"Homografía Cam {cam_id} calculada. RMSE: {rmse_m:.3f}m", "success")
-    return {"status": "success", "rmse_m": rmse_m}
+    image_name = payload.image_name or profile.get("reference_image")
+    if not image_name:
+        raise HTTPException(status_code=400, detail="No hay imagen seleccionada ni referencia definida")
+
+    ann_path = _annotations_path(cam_id, image_name)
+    ann_data = {"points": [], "roi": None}
+    if os.path.exists(ann_path):
+        with open(ann_path, "r") as f:
+            ann_data = json.load(f)
+    points = ann_data.get("points") or []
+    if not points:
+        # Compatibilidad con perfiles antiguos que guardaban los GCPs a nivel de cámara
+        points = [g for g in profile.get("gcps", []) if g.get("type") == "calib"]
+
+    excluded = set(payload.excluded)
+    included_idx = [i for i in range(len(points)) if i not in excluded]
+    if len(included_idx) < 4:
+        raise HTTPException(status_code=400,
+                            detail=f"Se necesitan al menos 4 varillas activas (hay {len(included_idx)})")
+
+    if APP_MODE == "demo":
+        residuals = [{
+            "idx": i, "label": p.get("label", f"P{i+1}"),
+            "error_px": round(float(np.random.uniform(0.2, 1.4)), 3),
+            "error_m": round(float(np.random.uniform(0.05, 0.4)), 3),
+            "inlier": True, "excluded": i in excluded, "above_threshold": False,
+        } for i, p in enumerate(points)]
+        add_log(f"Homografía Cam {cam_id} simulada (Demo)", "success")
+        return {"status": "success", "image": image_name, "rmse_px": 0.62, "rmse_m": 0.12,
+                "threshold_px": payload.threshold_px, "gcps_used": len(included_idx),
+                "excluded": sorted(excluded), "residuals": residuals}
+
+    pts_px = np.array([points[i]["pixel"] for i in included_idx], dtype=np.float32)
+    pts_utm = np.array([points[i]["utm"] for i in included_idx], dtype=np.float32)
+    H, ransac_mask = cv2.findHomography(pts_px, pts_utm, cv2.RANSAC, 3.0)
+    if H is None:
+        raise HTTPException(status_code=500, detail="No se pudo estimar la homografía (puntos degenerados o colineales)")
+    try:
+        H_inv = np.linalg.inv(H)
+    except np.linalg.LinAlgError:
+        raise HTTPException(status_code=500, detail="Homografía singular, revisa las coordenadas de las varillas")
+
+    inlier_by_idx = {}
+    if ransac_mask is not None:
+        flat = ransac_mask.ravel()
+        for pos, i in enumerate(included_idx):
+            inlier_by_idx[i] = bool(flat[pos])
+
+    # Residuo por varilla: E_i = ||x_i - x̂_i|| en ambos dominios.
+    #  - error_m : distancia entre el UTM medido y la proyección del píxel con H
+    #  - error_px: distancia entre el píxel marcado y la retro-proyección del UTM con H⁻¹
+    residuals = []
+    err_px_included, err_m_included = [], []
+    for i, p in enumerate(points):
+        px = np.array(p["pixel"], dtype=np.float64)
+        utm = np.array(p["utm"], dtype=np.float64)
+        proj_utm = cv2.perspectiveTransform(px.reshape(1, 1, 2), H).reshape(2)
+        back_px = cv2.perspectiveTransform(utm.reshape(1, 1, 2), H_inv).reshape(2)
+        err_m = float(np.linalg.norm(proj_utm - utm))
+        err_px = float(np.linalg.norm(back_px - px))
+        is_excluded = i in excluded
+        if not is_excluded:
+            err_px_included.append(err_px)
+            err_m_included.append(err_m)
+        residuals.append({
+            "idx": i,
+            "label": p.get("label", f"P{i+1}"),
+            "error_px": round(err_px, 3),
+            "error_m": round(err_m, 4),
+            "inlier": inlier_by_idx.get(i, True) if not is_excluded else None,
+            "excluded": is_excluded,
+            "above_threshold": (not is_excluded) and err_px > payload.threshold_px,
+        })
+
+    rmse_px = float(np.sqrt(np.mean(np.square(err_px_included))))
+    rmse_m = float(np.sqrt(np.mean(np.square(err_m_included))))
+    now_iso = datetime.datetime.now().isoformat(timespec="seconds")
+
+    calibration = {
+        "H": H.tolist(),
+        "image": image_name,
+        "rmse_px": round(rmse_px, 4),
+        "rmse_m": round(rmse_m, 4),
+        "threshold_px": payload.threshold_px,
+        "gcps_used": len(included_idx),
+        "excluded": sorted(excluded),
+        "residuals": residuals,
+        "date": now_iso,
+    }
+
+    # Persistir la calibración junto a las anotaciones de la imagen (por imagen)
+    os.makedirs(os.path.dirname(ann_path), exist_ok=True)
+    if not ann_data.get("points"):
+        ann_data["points"] = points
+    ann_data["calibration"] = calibration
+    with open(ann_path, "w") as f:
+        json.dump(ann_data, f, indent=2)
+
+    # Actualizar el perfil de cámara con la última calibración válida
+    profile.update({
+        "cam_id": cam_id,
+        "H": H.tolist(),
+        "rmse_m": round(rmse_m, 4),
+        "rmse_px": round(rmse_px, 4),
+        "gcps_count": len(included_idx),
+        "status": "calibrated",
+        "date": now_iso,
+        "calibrated_image": image_name,
+    })
+    with open(profile_path, "w") as f:
+        json.dump(profile, f, indent=2)
+
+    # analyze_roi carga la homografía desde el .npy — mantenerlo sincronizado
+    np.save(os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_H.npy"), H)
+
+    flagged = sum(1 for r in residuals if r["above_threshold"])
+    msg = f"Homografía Cam {cam_id} ({image_name}) calculada. RMSE: {rmse_px:.2f}px / {rmse_m:.3f}m"
+    if flagged:
+        msg += f" — {flagged} varilla(s) sobre umbral de {payload.threshold_px}px"
+    add_log(msg, "success" if not flagged else "warning")
+    return {"status": "success", **calibration}
 
 # DEBUG: sirve la imagen rectificada (vista cenital tras aplicar homografía) generada
 # previamente en calibration/cam_{id}_rectified.jpg.
@@ -414,12 +603,21 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
     img = cv2.imread(img_path)
     if img is None: raise HTTPException(status_code=404, detail="Image file not found")
     
-    # 2. Cargar Matriz H
+    # 2. Cargar Matriz H (.npy generado al calibrar; si no existe, usar la del perfil JSON)
     h_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_H.npy")
-    if not os.path.exists(h_path):
+    H = None
+    if os.path.exists(h_path):
+        H = np.load(h_path)
+    else:
+        profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_profile.json")
+        if os.path.exists(profile_path):
+            with open(profile_path, "r") as f:
+                profile_h = json.load(f).get("H")
+            if profile_h:
+                H = np.array(profile_h, dtype=np.float64)
+    if H is None:
         add_log(f"Falta calibración para Cam {cam_id}", "error")
         raise HTTPException(status_code=400, detail="Camera not calibrated")
-    H = np.load(h_path)
 
     # 3. Segmentación con estrategia de tres niveles (#81):
     #    Nivel 1 → SAM (requiere GPU + checkpoint)
@@ -492,15 +690,19 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
             "rejected": False,
         }
 
-    # 6. Proyectar a UTM
+    # 6. Proyectar a UTM y suavizar (la extracción píxel a píxel sale dentada)
     pts_array = np.array(points_px, dtype=np.float32).reshape(-1, 1, 2)
     pts_utm = cv2.perspectiveTransform(pts_array, H).reshape(-1, 2)
+    pts_utm = _smooth_polyline(pts_utm)
 
     # 7. Calcular área seca en m² (fórmula del trapecio / shoelace sobre UTM)
     mask_px_count = int(np.sum(mask > 0))
     area_m2 = float(mask_px_count) * 0.25  # estimación: ~0.5m por píxel en cada eje
 
-    timestamp = datetime.datetime.now().isoformat()
+    # El timestamp de la feature es el de CAPTURA de la imagen (del nombre de
+    # archivo), no el de procesado — es lo que da sentido a la línea temporal.
+    processed_at = datetime.datetime.now().isoformat()
+    timestamp = _parse_capture_ts(target_file) or processed_at
 
     # 8. Generar GeoJSON con atributos estándar del proyecto (EPSG:25830)
     feature = {
@@ -508,6 +710,8 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
         "properties": {
             "ID_Camara":    cam_id,
             "Timestamp":    timestamp,
+            "Procesado":    processed_at,
+            "Imagen":       target_file,
             "Confianza_IA": round(conf, 4),
             "Area_Seca_m2": round(area_m2, 2),
             "EPSG":         25830,
@@ -519,13 +723,14 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
     }
     fc = {"type": "FeatureCollection", "features": [feature]}
 
-    # Guardar resultado compartido + resultado por cámara (#87)
+    # Guardar resultado compartido + resultado por cámara (#87) + histórico temporal
     for path in [
         os.path.join(DATA_DIR, "latest_result.json"),
         os.path.join(DATA_DIR, f"latest_result_cam{cam_id}.json"),
     ]:
         with open(path, "w") as f:
             json.dump(fc, f)
+    _append_history(cam_id, feature)
 
     # Guardar imagen con línea dibujada para preview
     viz = draw_coastline(img.copy(), points_px)
@@ -665,6 +870,18 @@ def get_camera_geojson(cam_id: int):
             return json.load(f)
     return {"type": "FeatureCollection", "features": []}
 
+# Histórico de líneas de costa de una cámara, ordenado por timestamp de captura.
+# Lo consume el modo "Evolución temporal" del Mapa GeoJSON.
+@app.get("/api/cameras/{cam_id}/coastline-history")
+def get_coastline_history(cam_id: int):
+    if cam_id not in CAMERAS:
+        raise HTTPException(404, "Cámara no encontrada")
+    path = _history_path(cam_id)
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            return json.load(f)
+    return {"type": "FeatureCollection", "features": []}
+
 # DEBUG: sirve la imagen con la línea de costa dibujada (generada por analyze_roi
 # vía draw_coastline); si no existe aún, cae a la imagen original de la cámara.
 @app.get("/api/cameras/{cam_id}/analysis-result")
@@ -699,10 +916,24 @@ def list_camera_images(cam_id: int):
     images = []
     for f in sorted(os.listdir(cam_folder)):
         if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+            ann_path = _annotations_path(cam_id, f)
+            annotated = False
+            calibrated = False
+            if os.path.exists(ann_path):
+                try:
+                    with open(ann_path, "r") as af:
+                        ann = json.load(af)
+                    annotated = bool(ann.get("points"))
+                    calibrated = bool(ann.get("calibration"))
+                except (json.JSONDecodeError, OSError):
+                    pass
             images.append({
                 "filename": f,
                 "size": os.path.getsize(os.path.join(cam_folder, f)),
-                "modified": os.path.getmtime(os.path.join(cam_folder, f))
+                "modified": os.path.getmtime(os.path.join(cam_folder, f)),
+                "captured_at": _parse_capture_ts(f),
+                "annotated": annotated,
+                "calibrated": calibrated,
             })
     return images
 
@@ -721,9 +952,147 @@ def delete_camera_image(cam_id: int, filename: str):
             raise HTTPException(status_code=500, detail=str(e))
     raise HTTPException(status_code=404, detail="File not found")
 
-# DEBUG: endpoint placeholder — recibe un archivo pero no hace nada con él todavía
-# (no lee, no procesa, no guarda). Pendiente de implementación real.
+# ── Catálogo de varillas (coordenadas UTM topografiadas en campo) ─────────────
+# El CSV es flexible en cabeceras (español/inglés, con o sin unidades) y en
+# separador (coma o punto y coma, con decimales con coma al estilo español).
+RODS_LABEL_COLS = ("id", "label", "nombre", "varilla", "punto", "name", "codigo", "código")
+RODS_X_COLS = ("x", "utm_x", "este", "easting", "x_m", "x(m)", "x (m)", "coord_x")
+RODS_Y_COLS = ("y", "utm_y", "norte", "northing", "y_m", "y(m)", "y (m)", "coord_y")
+RODS_Z_COLS = ("z", "cota", "altura", "elevation", "z_m", "z(m)", "z (m)")
+RODS_NOTES_COLS = ("notas", "notes", "descripcion", "descripción", "obs", "observaciones")
+
+def _find_col(columns: dict, candidates: tuple):
+    for cand in candidates:
+        if cand in columns:
+            return columns[cand]
+    return None
+
+def _rods_path(cam_id: int) -> str:
+    return os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_rods.json")
+
 @app.post("/api/cameras/{cam_id}/import-rods")
 async def import_rods(cam_id: int, file: UploadFile = File(...)):
-    add_log(f"Importando coordenadas de varillas para Cam {cam_id}", "info")
-    return {"status": "success"}
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="El archivo está vacío")
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode("latin-1")
+
+    def _num(v) -> float:
+        if isinstance(v, str):
+            v = v.strip().replace(",", ".")
+        return float(v)
+
+    rods, skipped = [], 0
+    first_line = text.splitlines()[0].upper() if text.splitlines() else ""
+
+    if first_line.startswith(",") and "UTM" in first_line:
+        # Formato de levantamiento GCP del proyecto: doble cabecera (fila de grupos
+        # IMG/UTM + fila de nombres), columnas X/Y duplicadas (píxel y UTM),
+        # decimales con coma y filas de varias cámaras mezcladas (columna CAMERA).
+        try:
+            df = pd.read_csv(io.StringIO(text), sep=None, engine="python", header=1)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"No se pudo leer el CSV: {e}")
+        cols = {str(c).strip().upper(): c for c in df.columns}
+        # pandas renombra los duplicados: X (píxel) y X.1 (UTM)
+        utm_x, utm_y = cols.get("X.1"), cols.get("Y.1")
+        px_x, px_y = cols.get("X"), cols.get("Y")
+        id_col, cam_col = cols.get("ID"), cols.get("CAMERA")
+        file_col, color_col = cols.get("FILE"), cols.get("COLOR")
+        if utm_x is None or utm_y is None:
+            raise HTTPException(status_code=400, detail="Formato GCP no reconocido: faltan columnas UTM X/Y")
+        cam_tag = f"CAM{cam_id}"
+        for _, row in df.iterrows():
+            if cam_col is not None:
+                cam_val = str(row[cam_col]).strip().upper().replace(" ", "").replace("_", "")
+                if cam_val != cam_tag:
+                    continue
+            try:
+                x, y = _num(row[utm_x]), _num(row[utm_y])
+            except (TypeError, ValueError):
+                skipped += 1
+                continue
+            label = f"GCP_{str(row[id_col]).strip()}" if id_col is not None and not pd.isna(row[id_col]) else f"VARILLA_{len(rods) + 1}"
+            rod = {"label": label, "utm": [x, y]}
+            if px_x is not None and px_y is not None and not pd.isna(row[px_x]) and not pd.isna(row[px_y]):
+                try:
+                    rod["pixel"] = [_num(row[px_x]), _num(row[px_y])]
+                except (TypeError, ValueError):
+                    pass
+            notes = []
+            if file_col is not None and not pd.isna(row[file_col]): notes.append(str(row[file_col]).strip())
+            if color_col is not None and not pd.isna(row[color_col]): notes.append(str(row[color_col]).strip())
+            if notes:
+                rod["notes"] = " · ".join(notes)
+            rods.append(rod)
+    else:
+        # Formato genérico: una cabecera con columnas id/x/y (nombres flexibles)
+        try:
+            df = pd.read_csv(io.StringIO(text), sep=None, engine="python")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"No se pudo leer el CSV: {e}")
+
+        columns = {str(c).strip().lower(): c for c in df.columns}
+        label_col = _find_col(columns, RODS_LABEL_COLS)
+        x_col = _find_col(columns, RODS_X_COLS)
+        y_col = _find_col(columns, RODS_Y_COLS)
+        if x_col is None or y_col is None:
+            raise HTTPException(status_code=400,
+                                detail=f"No se encontraron columnas de coordenadas X/Y. Columnas detectadas: {list(df.columns)}")
+        z_col = _find_col(columns, RODS_Z_COLS)
+        notes_col = _find_col(columns, RODS_NOTES_COLS)
+
+        for _, row in df.iterrows():
+            try:
+                x, y = _num(row[x_col]), _num(row[y_col])
+            except (TypeError, ValueError):
+                skipped += 1
+                continue
+            if label_col is not None and not pd.isna(row[label_col]):
+                label = str(row[label_col]).strip()
+            else:
+                label = f"VARILLA_{len(rods) + 1}"
+            rod = {"label": label, "utm": [x, y]}
+            if z_col is not None and not pd.isna(row[z_col]):
+                try:
+                    rod["z"] = _num(row[z_col])
+                except (TypeError, ValueError):
+                    pass
+            if notes_col is not None and not pd.isna(row[notes_col]):
+                rod["notes"] = str(row[notes_col]).strip()
+            rods.append(rod)
+
+    if not rods:
+        raise HTTPException(status_code=400, detail="El CSV no contiene ninguna fila con coordenadas válidas")
+
+    payload = {
+        "cam_id": cam_id,
+        "source_file": file.filename,
+        "imported_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "rods": rods,
+    }
+    os.makedirs(CALIBRATION_DIR, exist_ok=True)
+    with open(_rods_path(cam_id), "w") as f:
+        json.dump(payload, f, indent=2)
+
+    msg = f"Importadas {len(rods)} varillas para Cam {cam_id}"
+    if skipped:
+        msg += f" ({skipped} filas omitidas por coordenadas inválidas)"
+    add_log(msg, "success")
+    return {"status": "success", "count": len(rods), "skipped": skipped, "rods": rods}
+
+# DEBUG: devuelve el catálogo de varillas importado para una cámara (o vacío).
+@app.get("/api/cameras/{cam_id}/rods")
+def get_rods(cam_id: int):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    path = _rods_path(cam_id)
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            return json.load(f)
+    return {"cam_id": cam_id, "rods": []}

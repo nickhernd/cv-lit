@@ -25,17 +25,26 @@ async function fetchCameras() {
 async function fetchImages() {
   if (!camId.value) return
   selected.value = new Set()
+  // Limpiar y capturar la cámara actual para no renderizar miniaturas de la
+  // cámara anterior con el id nuevo (provocaba 404 en /image al cambiar rápido)
+  images.value = []
+  const snapshot = camId.value
   try {
-    const res = await fetch(`${API}/api/cameras/${camId.value}/images`)
-    images.value = await res.json()
+    const res = await fetch(`${API}/api/cameras/${snapshot}/images`)
+    const imgs = await res.json()
+    if (snapshot !== camId.value) return
+    images.value = imgs
   } catch (e) { emit('notify', 'Error al cargar imágenes', 'error') }
 }
 
 async function fetchProfile() {
   if (!camId.value) return
+  const snapshot = camId.value
   try {
-    const res = await fetch(`${API}/api/cameras/${camId.value}/profile`)
-    profile.value = await res.json()
+    const res = await fetch(`${API}/api/cameras/${snapshot}/profile`)
+    const data = await res.json()
+    if (snapshot !== camId.value) return
+    profile.value = data
   } catch (e) { profile.value = null }
 }
 
