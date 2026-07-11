@@ -22,6 +22,9 @@ PROCES_DIR = os.path.join(BASE_DIR, "proces_images")
 if PROCES_DIR not in sys.path:
     sys.path.append(PROCES_DIR)
 
+# DEBUG (INIT): bloque de arranque — intenta importar los módulos reales de procesamiento
+# (proces_images/). Si algo falla (p.ej. dependencias de SAM no instaladas), define
+# versiones "stub" mínimas para que el servidor arranque igualmente en modo degradado.
 try:
     from segmentation_sam import SAMSegmenter
     from extract_coastline import extract_coastline_from_mask, draw_coastline
@@ -34,37 +37,52 @@ except ImportError:
     def validate_mask(mask, cam_id, shape): return True, ""
     def confidence_index(prob_map): return 0.0
 
-# Umbral global de confianza (sobreescribible por variable de entorno)
+# DEBUG (INIT): umbral global de confianza para aceptar/rechazar un análisis de línea de costa.
+# Sobreescribible con la variable de entorno CONFIDENCE_THRESHOLD; se usa como fallback,
+# el umbral real por cámara viene de get_threshold() (#80/#79 en analyze_roi).
 CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.45"))
 
+# DEBUG (INIT): punto de entrada de la app FastAPI. Al importar este módulo (uvicorn
+# backend.main:app) se ejecuta TODO el código a nivel de módulo de este archivo,
+# de arriba a abajo — este es el verdadero "inicio" del backend.
 app = FastAPI(title="CV-Lit API")
+# DEBUG (INIT): registra las rutas de batch_alignment.py (prefijo /api/batch) sobre esta app.
 app.include_router(batch_router)
 
-# Detectar Modo (Real vs Demo)
+# DEBUG (INIT): modo de ejecución global — "real" (pipeline completo con SAM/GCPs) vs
+# "demo" (datos simulados, sin cargar modelos pesados). Se lee UNA vez al arrancar
+# y condiciona el comportamiento de get_segmenter(), get_dashboard() y calculate_homography().
 APP_MODE = os.getenv("APP_MODE", "real").lower()
 print(f"[INFO] Iniciando en MODO: {APP_MODE.upper()}")
 
-# Global System Logs
+# DEBUG (INIT): buffer en memoria (no persistente) de los últimos logs del sistema,
+# expuesto vía GET /api/logs y alimentado por add_log() en cada endpoint relevante.
 system_logs = [
     {"time": datetime.datetime.now().strftime("%H:%M:%S"), "msg": "Sistema iniciado correctamente", "type": "info"},
 ]
 
+# DEBUG: helper de logging in-memory usado por casi todos los endpoints para dejar
+# trazabilidad de lo que hace el backend en tiempo real (lo consume el frontend vía /api/logs).
 def add_log(msg: str, log_type: str = "info"):
     now = datetime.datetime.now().strftime("%H:%M:%S")
     system_logs.append({"time": now, "msg": msg, "type": log_type})
     if len(system_logs) > 50: system_logs.pop(0)
 
-# Segmentador Global (Lazy Loading)
+# DEBUG (INIT): instancia global del segmentador SAM, con lazy loading (None = aún no cargado).
 segmenter = None
 
+# DEBUG (INIT): carga el modelo SAM (pesado, requiere checkpoint .pth) la primera vez que se
+# necesita, no al arrancar el servidor. Devuelve None en modo demo, False si falló la
+# carga (para no reintentar en cada request), o la instancia ya cargada. Se llama desde
+# analyze_roi().
 def get_segmenter():
     global segmenter
     if segmenter is not None:
         return segmenter
-    
+
     if APP_MODE == "demo":
         return None
-        
+
     CHECKPOINT_SAM = os.path.join(BASE_DIR, "sam_vit_h_4b8939.pth")
     add_log(f"Cargando segmentador SAM desde {os.path.basename(CHECKPOINT_SAM)}", "info")
     try:
@@ -73,9 +91,11 @@ def get_segmenter():
         add_log("SAM Segmenter cargado con éxito", "success")
     except Exception as e:
         add_log(f"Fallo al inicializar SAM: {str(e)}", "error")
-        segmenter = False 
+        segmenter = False
     return segmenter
 
+# DEBUG (INIT): habilita CORS abierto ("*") para que el frontend (Vite, otro origen/puerto)
+# pueda llamar a esta API sin bloqueos del navegador.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -96,6 +116,9 @@ class CalibrationProfile(BaseModel):
     gcps: List[GCP]
     reference_image: Optional[str] = None
 
+# DEBUG: alinea `img` contra `ref_img` con ORB+RANSAC (versión más simple/antigua
+# que la de batch_alignment.py, que usa SIFT). No parece estar referenciada por
+# ningún endpoint activo de este archivo — revisar si sigue en uso.
 def align_image_to_ref(img: np.ndarray, ref_img: np.ndarray) -> np.ndarray:
     """Alinea una imagen a una referencia usando ORB."""
     gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -123,10 +146,13 @@ def align_image_to_ref(img: np.ndarray, ref_img: np.ndarray) -> np.ndarray:
     h, w = ref_img.shape[:2]
     return cv2.warpPerspective(img, H, (w, h))
 
+# DEBUG: expone el buffer system_logs para que el frontend muestre el log de actividad en vivo.
 @app.get("/api/logs")
 def get_logs():
     return system_logs
 
+# DEBUG: genera datos históricos FALSOS (random) para el gráfico de evolución de área.
+# No lee nada real de disco — placeholder pendiente de conectar a datos reales.
 @app.get("/api/historical-data")
 def get_historical_data():
     data = []
@@ -137,6 +163,8 @@ def get_historical_data():
         data.append({"date": date, "area": area})
     return data
 
+# DEBUG: guarda qué imagen se usa como referencia/base para alinear el resto de
+# capturas de una cámara. Escribe en calibration/cam_{id}_profile.json.
 @app.post("/api/cameras/{cam_id}/set-reference")
 def set_reference_image(cam_id: int, filename: str):
     profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_profile.json")
@@ -153,6 +181,8 @@ def set_reference_image(cam_id: int, filename: str):
     add_log(f"Imagen {filename} establecida como referencia para Cam {cam_id}", "info")
     return {"status": "success", "reference_image": filename}
 
+# DEBUG: lee las anotaciones manuales (puntos/ROI) de una imagen desde
+# data/CAM_{id}/json/{filename}.json. Usado por el editor de anotaciones del frontend.
 @app.get("/api/cameras/{cam_id}/images/{filename}/annotations")
 def get_image_annotations(cam_id: int, filename: str):
     json_path = os.path.join(DATA_DIR, f"CAM_{cam_id}", "json", filename.replace(".jpg", ".json").replace(".png", ".json"))
@@ -161,6 +191,8 @@ def get_image_annotations(cam_id: int, filename: str):
             return json.load(f)
     return {"points": [], "roi": None}
 
+# DEBUG: contraparte de escritura de get_image_annotations — persiste las
+# anotaciones editadas en el frontend a disco.
 @app.post("/api/cameras/{cam_id}/images/{filename}/annotations")
 def save_image_annotations(cam_id: int, filename: str, data: dict):
     target_dir = os.path.join(DATA_DIR, f"CAM_{cam_id}", "json")
@@ -170,6 +202,9 @@ def save_image_annotations(cam_id: int, filename: str, data: dict):
         json.dump(data, f, indent=2)
     return {"status": "success"}
 
+# DEBUG: resumen para la pantalla principal (cuántas cámaras calibradas, nº de
+# imágenes por cámara, etc). En modo demo devuelve datos fijos simulados; en modo
+# real recorre CALIBRATION_DIR/DATA_DIR comprobando qué perfiles existen.
 @app.get("/api/dashboard")
 def get_dashboard():
     if APP_MODE == "demo":
@@ -303,6 +338,8 @@ def update_camera_roi(cam_id: int, payload: ROIUpdate):
     add_log(f"Actualizada ROI de Cam {cam_id}", "info")
     return roi[f"CAM_{cam_id}"]
 
+# DEBUG: sirve el archivo de imagen de una cámara (la indicada en `file`, o la
+# imagen por defecto de config.CAMERAS si no se especifica).
 @app.get("/api/cameras/{cam_id}/image")
 def get_camera_image(cam_id: int, file: Optional[str] = None):
     if cam_id not in CAMERAS: raise HTTPException(status_code=404, detail="Camera not found")
@@ -311,6 +348,8 @@ def get_camera_image(cam_id: int, file: Optional[str] = None):
     if not os.path.exists(img_path): raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(img_path)
 
+# DEBUG: devuelve el perfil de calibración (GCPs, homografía, estado) de una
+# cámara desde calibration/cam_{id}_profile.json, o "uncalibrated" si no existe.
 @app.get("/api/cameras/{cam_id}/profile")
 def get_camera_profile(cam_id: int):
     profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_profile.json")
@@ -319,6 +358,9 @@ def get_camera_profile(cam_id: int):
     with open(profile_path, "r") as f:
         return json.load(f)
 
+# DEBUG: calcula la matriz de homografía píxel->UTM a partir de los GCPs (ground
+# control points) guardados en el perfil, usando cv2.findHomography + RANSAC.
+# En modo demo simula una homografía identidad en vez de calcular una real.
 @app.post("/api/cameras/{cam_id}/calculate-homography")
 def calculate_homography(cam_id: int, image_name: Optional[str] = None):
     add_log(f"Iniciando cálculo homografía para Cam {cam_id}", "info")
@@ -349,12 +391,18 @@ def calculate_homography(cam_id: int, image_name: Optional[str] = None):
     add_log(f"Homografía Cam {cam_id} calculada. RMSE: {rmse_m:.3f}m", "success")
     return {"status": "success", "rmse_m": rmse_m}
 
+# DEBUG: sirve la imagen rectificada (vista cenital tras aplicar homografía) generada
+# previamente en calibration/cam_{id}_rectified.jpg.
 @app.get("/api/cameras/{cam_id}/rectified-preview")
 def get_rectified_preview(cam_id: int):
     preview_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_rectified.jpg")
     if not os.path.exists(preview_path): raise HTTPException(status_code=404, detail="Preview not found")
     return FileResponse(preview_path)
 
+# DEBUG: endpoint núcleo del pipeline de análisis. Carga imagen + homografía,
+# segmenta arena seca (SAM -> color_fallback -> Otsu, en cascada), valida la
+# máscara y la confianza, extrae la línea de costa en píxeles, la proyecta a
+# UTM con la homografía y guarda el GeoJSON + preview resultantes en DATA_DIR.
 @app.post("/api/cameras/{cam_id}/analyze-roi")
 def analyze_roi(cam_id: int, filename: Optional[str] = None):
     add_log(f"Iniciando segmentación y georreferenciación para Cam {cam_id}", "info")
@@ -493,6 +541,10 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
     }
 
 # ── Alineación con preview blend 50/50 ────────────────────────────────────────
+# DEBUG: alinea una imagen 'target' contra una referencia con SIFT+FLANN+RANSAC y
+# devuelve un PNG con un blend 50/50 en blanco y negro para inspección visual rápida.
+# NOTA (ver comentario interno más abajo): no usa las máscaras de zonas estables de
+# alignment_masks.json, a diferencia de batch_alignment.py; posiblemente en desuso.
 @app.post("/api/cameras/{cam_id}/align-preview")
 async def align_preview(
     cam_id: int,
@@ -588,6 +640,8 @@ async def align_preview(
     _, buf = cv2.imencode(".png", blend)
     return StreamingResponse(io.BytesIO(buf.tobytes()), media_type="image/png")
 
+# DEBUG: devuelve el último GeoJSON global (todas las cámaras combinadas) generado
+# por analyze_roi(), leído de DATA_DIR/latest_result.json.
 @app.get("/api/geojson")
 def get_geojson():
     path = os.path.join(DATA_DIR, "latest_result.json")
@@ -596,6 +650,8 @@ def get_geojson():
     return {"type": "FeatureCollection", "features": []}
 
 
+# DEBUG: variante de get_geojson() por cámara individual; cae al GeoJSON global
+# si todavía no existe un resultado específico para esta cámara.
 @app.get("/api/cameras/{cam_id}/geojson")
 def get_camera_geojson(cam_id: int):
     """Devuelve el último GeoJSON generado para esta cámara (#87)."""
@@ -609,12 +665,16 @@ def get_camera_geojson(cam_id: int):
             return json.load(f)
     return {"type": "FeatureCollection", "features": []}
 
+# DEBUG: sirve la imagen con la línea de costa dibujada (generada por analyze_roi
+# vía draw_coastline); si no existe aún, cae a la imagen original de la cámara.
 @app.get("/api/cameras/{cam_id}/analysis-result")
 def get_analysis_result(cam_id: int):
     path = os.path.join(DATA_DIR, f"latest_analysis_cam{cam_id}.jpg")
     if os.path.exists(path): return FileResponse(path)
     return get_camera_image(cam_id)
 
+# DEBUG: sube uno o varios archivos de imagen a la carpeta de una cámara
+# (DATA_DIR/{folder}), creando el directorio si no existe.
 @app.post("/api/cameras/{cam_id}/upload-images")
 async def upload_images(cam_id: int, files: List[UploadFile] = File(...)):
     cam_folder = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"])
@@ -627,6 +687,8 @@ async def upload_images(cam_id: int, files: List[UploadFile] = File(...)):
     add_log(f"Subidas {len(uploaded)} imágenes a Cam {cam_id}", "info")
     return {"status": "success", "uploaded": uploaded, "count": len(uploaded)}
 
+# DEBUG: lista los archivos de imagen (jpg/png) de la carpeta de una cámara con
+# tamaño y fecha de modificación; usado por el explorador de imágenes del frontend.
 @app.get("/api/cameras/{cam_id}/images")
 def list_camera_images(cam_id: int):
     if cam_id not in CAMERAS: raise HTTPException(status_code=404, detail="Camera not found")
@@ -644,6 +706,8 @@ def list_camera_images(cam_id: int):
             })
     return images
 
+# DEBUG: elimina físicamente un archivo de imagen de la carpeta de una cámara. Acción
+# destructiva e irreversible sobre disco — no hay papelera ni confirmación server-side.
 @app.delete("/api/cameras/{cam_id}/images/{filename}")
 def delete_camera_image(cam_id: int, filename: str):
     if cam_id not in CAMERAS: raise HTTPException(status_code=404, detail="Camera not found")
@@ -657,6 +721,8 @@ def delete_camera_image(cam_id: int, filename: str):
             raise HTTPException(status_code=500, detail=str(e))
     raise HTTPException(status_code=404, detail="File not found")
 
+# DEBUG: endpoint placeholder — recibe un archivo pero no hace nada con él todavía
+# (no lee, no procesa, no guarda). Pendiente de implementación real.
 @app.post("/api/cameras/{cam_id}/import-rods")
 async def import_rods(cam_id: int, file: UploadFile = File(...)):
     add_log(f"Importando coordenadas de varillas para Cam {cam_id}", "info")

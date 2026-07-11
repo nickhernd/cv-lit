@@ -8,9 +8,14 @@ import io
 # Importa la función align() de tu script existente
 from align_images import align, SIFT_FEATURES
 
+# DEBUG (INIT): router NO está montado en backend/main.py (solo se incluye
+# batch_router). Este archivo parece código muerto/legado — align_preview() de
+# main.py y batch_alignment.py cubren la misma función. Verificar si sigue en uso
+# antes de tocarlo.
 router = APIRouter(prefix="/api", tags=["alignment"])
 
 
+# DEBUG: decodifica un UploadFile subido por HTTP a un array de imagen BGR de OpenCV.
 def _decode_upload(upload: UploadFile) -> np.ndarray:
     """Lee un UploadFile y lo decodifica como imagen BGR."""
     data = upload.file.read()
@@ -21,6 +26,8 @@ def _decode_upload(upload: UploadFile) -> np.ndarray:
     return img
 
 
+# DEBUG: alinea 'target' contra 'reference' usando la función align() de
+# homography/align_images.py y devuelve un blend 50/50 en PNG.
 @router.post("/align-preview")
 async def align_preview(
     reference: UploadFile = File(...),
