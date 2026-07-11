@@ -43,8 +43,12 @@ RANSAC_THRESH    = 5.0
 #   2. _CLAHE.apply     → ecualización adaptativa local (bloques 8×8 px).
 #                         Normaliza contraste entre tomas de distintas horas.
 # ────────────────────────────────────────────────────────────────────────────
+# DEBUG (INIT): objeto CLAHE creado una sola vez al importar el módulo y reutilizado
+# en todas las alineaciones (crearlo por imagen sería más caro).
 _CLAHE = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
 
+# DEBUG: primer filtro antes de correr SIFT — descarta imágenes con luz extrema
+# (sobreexpuestas, subexpuestas o de bajo contraste) que producirían matches falsos.
 def _check_lighting(gray: np.ndarray) -> tuple[bool, str]:
     """Detecta condiciones de iluminación que degradan SIFT."""
     mean = float(np.mean(gray))
@@ -57,6 +61,8 @@ def _check_lighting(gray: np.ndarray) -> tuple[bool, str]:
         return False, "low_contrast"  # niebla / calima
     return True, ""
 
+# DEBUG (INIT): directorio de staging temporal para los jobs de alineación masiva.
+# Se crea al importar el módulo (arranque del backend), no en cada request.
 TEMP_BASE    = Path("/tmp/cv_lit_batch")
 TEMP_BASE.mkdir(parents=True, exist_ok=True)
 
@@ -74,6 +80,8 @@ TEMP_BASE.mkdir(parents=True, exist_ok=True)
 # reiniciar el backend).
 MASKS_PATH = Path(__file__).parent.parent / "calibration" / "alignment_masks.json"
 
+# DEBUG: lee alignment_masks.json del disco en cada llamada (sin caché en memoria)
+# para que los cambios hechos desde la interfaz se apliquen sin reiniciar el backend.
 def _load_masks() -> dict:
     if not MASKS_PATH.exists():
         return {}
@@ -81,6 +89,8 @@ def _load_masks() -> dict:
         return json.load(f)
 
 
+# DEBUG: escribe alignment_masks.json a disco. Se llama desde save_mask() (endpoint
+# PUT /api/batch/masks/{cam_id}) cuando el usuario edita las regiones desde la interfaz.
 def _save_masks(masks: dict) -> None:
     """
     Serializa a mano (una región por línea) en vez de json.dump(indent=2) para no
@@ -110,6 +120,9 @@ def _save_masks(masks: dict) -> None:
     MASKS_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+# DEBUG: convierte las regiones fraccionarias de alignment_masks.json en una máscara
+# binaria en píxeles para la resolución real de la imagen. Se llama al arrancar cada
+# batch en _run_pipeline(), una vez por job (no por imagen).
 def _build_mask(cam_id: int, h: int, w: int) -> Optional[np.ndarray]:
     """
     Genera una máscara binaria uint8 (255=zona válida para SIFT, 0=ignorar)
@@ -140,6 +153,8 @@ def _build_mask(cam_id: int, h: int, w: int) -> Optional[np.ndarray]:
 
 # ── Modelos de dominio ───────────────────────────────────────────────────────
 
+# DEBUG: resultado de alinear una imagen individual contra la referencia del batch.
+# Una instancia por imagen, guardada en BatchJob.results[filename].
 @dataclass
 class AlignmentResult:
     filename: str
@@ -153,6 +168,9 @@ class AlignmentResult:
     lighting_issue: str = ""       # "overexposed" | "underexposed" | "low_contrast" | ""
 
 
+# DEBUG: estado completo de un job de alineación masiva (una cámara, un lote de
+# imágenes). Vive solo en memoria (_jobs), se crea en start_batch() y se destruye
+# en discard_batch() o al reiniciar el backend.
 @dataclass
 class BatchJob:
     job_id: str
@@ -182,6 +200,8 @@ class BatchJob:
     def blend_dir(self) -> Path:
         return self.temp_dir / "blend"
 
+    # DEBUG: resumen serializable usado por GET /api/batch/{job_id}/status para polling
+    # desde el frontend (progreso, conteos ok/warn/failed).
     def summary(self) -> dict:
         results_list = list(self.results.values())
         ok    = sum(1 for r in results_list if r.status in ("ok", "reference") and r.approved)
@@ -200,11 +220,15 @@ class BatchJob:
 
 
 # ── Registro en memoria ──────────────────────────────────────────────────────
+# DEBUG (INIT): registro global de jobs de batch, en memoria (no persiste entre
+# reinicios del backend). Todas las rutas del router lo consultan por job_id.
 _jobs: Dict[str, BatchJob] = {}
 
 
 # ── Lógica de procesamiento de imágenes ─────────────────────────────────────
 
+# DEBUG: genera la imagen de diagnóstico visual "diff" que ve el usuario al revisar
+# el resultado de una alineación (heatmap + bordes divergentes).
 def _compute_diff_map(ref: np.ndarray, aligned: np.ndarray) -> np.ndarray:
     """
     Genera mapa de diferencias en tres capas:
@@ -243,6 +267,8 @@ def _compute_diff_map(ref: np.ndarray, aligned: np.ndarray) -> np.ndarray:
     return composite
 
 
+# DEBUG: métrica numérica de calidad de la alineación (además de los inliers de
+# RANSAC), se muestra al usuario como "mean_shift_px" en los resultados del batch.
 def _compute_mean_shift(ref_gray: np.ndarray, aligned_gray: np.ndarray) -> float:
     """Flujo óptico Farneback → mediana de magnitud = desplazamiento residual en píxeles."""
     try:
@@ -257,6 +283,8 @@ def _compute_mean_shift(ref_gray: np.ndarray, aligned_gray: np.ndarray) -> float
         return -1.0
 
 
+# DEBUG: genera la imagen de preview "blend" (superposición 50/50 en gris) que se
+# sirve en GET /api/batch/{job_id}/preview/blend/{filename}.
 def _blend_grayscale(ref: np.ndarray, aligned: np.ndarray) -> np.ndarray:
     h, w = ref.shape[:2]
     aligned_r = cv2.resize(aligned, (w, h))
@@ -266,6 +294,9 @@ def _blend_grayscale(ref: np.ndarray, aligned: np.ndarray) -> np.ndarray:
     return cv2.cvtColor(blend, cv2.COLOR_GRAY2BGR)
 
 
+# DEBUG: un único intento de alineación SIFT+FLANN+RANSAC con un umbral de inliers
+# dado. Es el bloque reutilizable que _align_to_reference() llama dos veces
+# (con máscara y, si falla, sin máscara).
 def _try_align(
     gray: np.ndarray,
     ref_kp, ref_des,
@@ -302,6 +333,9 @@ def _try_align(
     return H, inliers, len(good), "ok"
 
 
+# DEBUG: función central de alineación de UNA imagen contra la referencia del batch.
+# Orquesta: filtro de iluminación -> CLAHE -> intento con máscara -> fallback sin
+# máscara. Se llama una vez por imagen dentro de _run_pipeline().
 def _align_to_reference(
     img: np.ndarray,
     ref_gray: np.ndarray,
@@ -384,6 +418,10 @@ def _align_to_reference(
     return aligned, result, "ok"
 
 
+# DEBUG: tarea de fondo (BackgroundTasks de FastAPI) que procesa TODO el lote de
+# imágenes de un job: prepara carpetas de staging, calcula keypoints de referencia
+# una sola vez, y llama a _align_to_reference() por cada imagen. Es el "motor" real
+# del batch — se lanza desde start_batch() y corre fuera del ciclo request/response.
 async def _run_pipeline(job_id: str, image_paths: Dict[str, Path], base_path: Path):
     """
     Tarea de fondo. Puebla job.results y escribe en temp_dir.
@@ -464,7 +502,8 @@ async def _run_pipeline(job_id: str, image_paths: Dict[str, Path], base_path: Pa
 
 
 # ── Router FastAPI ───────────────────────────────────────────────────────────
-
+# DEBUG (INIT): router montado en main.py vía app.include_router(batch_router).
+# Todas las rutas de aquí abajo quedan expuestas bajo el prefijo /api/batch.
 router = APIRouter(prefix="/api/batch", tags=["batch"])
 
 
@@ -486,6 +525,8 @@ class MaskUpdateRequest(BaseModel):
     regions: List[MaskRegion]
 
 
+# DEBUG: GET /api/batch/masks/{cam_id} — lee las regiones de máscara actuales para
+# mostrarlas en el editor de máscaras del frontend (paso "Alineación").
 @router.get("/masks/{cam_id}")
 def get_mask(cam_id: int):
     """
@@ -497,6 +538,8 @@ def get_mask(cam_id: int):
     return {"cam_id": cam_id, "regions": regions}
 
 
+# DEBUG: PUT /api/batch/masks/{cam_id} — guarda las regiones dibujadas por el
+# usuario, afecta a todos los batches futuros de esa cámara.
 @router.put("/masks/{cam_id}")
 def save_mask(cam_id: int, req: MaskUpdateRequest):
     """
@@ -515,6 +558,9 @@ def save_mask(cam_id: int, req: MaskUpdateRequest):
     return {"cam_id": cam_id, "regions": masks[f"CAM_{cam_id}"]["regions"]}
 
 
+# DEBUG: POST /api/batch/start — punto de entrada del flujo de alineación masiva.
+# Valida que los archivos existan, crea el BatchJob y ENCOLA _run_pipeline() como
+# tarea de fondo (no bloquea la respuesta HTTP).
 @router.post("/start")
 async def start_batch(req: BatchStartRequest, background_tasks: BackgroundTasks):
     """
@@ -560,6 +606,8 @@ async def start_batch(req: BatchStartRequest, background_tasks: BackgroundTasks)
     return {"job_id": job_id, "total": len(image_paths)}
 
 
+# DEBUG: GET /api/batch/{job_id}/status — el frontend hace polling aquí mientras
+# _run_pipeline() corre en background, para actualizar la barra de progreso.
 @router.get("/{job_id}/status")
 def get_status(job_id: str):
     job = _jobs.get(job_id)
@@ -568,6 +616,8 @@ def get_status(job_id: str):
     return job.summary()
 
 
+# DEBUG: GET /api/batch/{job_id}/results — resultados detallados por imagen, solo
+# disponible cuando el job ya terminó (status "ready" o "committed").
 @router.get("/{job_id}/results")
 def get_results(job_id: str):
     """Lista completa de resultados con métricas por imagen."""
@@ -594,6 +644,8 @@ def get_results(job_id: str):
     return {"job_id": job_id, "base": job.base_filename, "items": items}
 
 
+# DEBUG: helper compartido por los 3 endpoints de preview (original/aligned/diff/blend)
+# — lee una imagen de disco y la re-encodea como JPEG en streaming.
 def _serve_image(path: Path) -> StreamingResponse:
     if not path.exists():
         raise HTTPException(404, "Imagen no disponible")
@@ -604,6 +656,7 @@ def _serve_image(path: Path) -> StreamingResponse:
     return StreamingResponse(io.BytesIO(buf.tobytes()), media_type="image/jpeg")
 
 
+# DEBUG:
 @router.get("/{job_id}/preview/original/{filename}")
 def preview_original(job_id: str, filename: str):
     """Imagen original (sin transformar) desde la carpeta de la cámara."""
@@ -615,6 +668,7 @@ def preview_original(job_id: str, filename: str):
     return _serve_image(path)
 
 
+# DEBUG:
 @router.get("/{job_id}/preview/aligned/{filename}")
 def preview_aligned(job_id: str, filename: str):
     """Imagen alineada en staging (no-destructiva)."""
@@ -624,6 +678,7 @@ def preview_aligned(job_id: str, filename: str):
     return _serve_image(job.aligned_dir / filename)
 
 
+# DEBUG:
 @router.get("/{job_id}/preview/diff/{filename}")
 def preview_diff(job_id: str, filename: str):
     """Mapa de diferencias: negro=alineado, rojo/blanco=error, cian=bordes divergentes."""
@@ -633,6 +688,7 @@ def preview_diff(job_id: str, filename: str):
     return _serve_image(job.diff_dir / filename)
 
 
+# DEBUG:
 @router.get("/{job_id}/preview/blend/{filename}")
 def preview_blend(job_id: str, filename: str):
     """Blend 50/50 en escala de grises."""
@@ -642,6 +698,8 @@ def preview_blend(job_id: str, filename: str):
     return _serve_image(job.blend_dir / filename)
 
 
+# DEBUG: PATCH /api/batch/{job_id}/approve/{filename} — el usuario descarta/aprueba
+# imágenes individuales antes del commit; solo cambia estado en memoria.
 @router.patch("/{job_id}/approve/{filename}")
 def toggle_approval(job_id: str, filename: str, approved: bool):
     """Override de aprobación individual. No escribe nada en disco."""
@@ -655,6 +713,8 @@ def toggle_approval(job_id: str, filename: str, approved: bool):
     return {"filename": filename, "approved": approved}
 
 
+# DEBUG: POST /api/batch/{job_id}/commit — segunda fase del two-phase commit; único
+# punto donde el batch escribe permanentemente fuera del staging temporal.
 @router.post("/{job_id}/commit")
 def commit_batch(job_id: str):
     """
@@ -697,6 +757,8 @@ def commit_batch(job_id: str):
     }
 
 
+# DEBUG: DELETE /api/batch/{job_id} — descarta un job y borra su staging temporal.
+# Los originales nunca se ven afectados (la filosofía non-destructiva del módulo).
 @router.delete("/{job_id}")
 def discard_batch(job_id: str):
     """

@@ -1,10 +1,16 @@
 import os
 
+# DEBUG (INIT): config.py se importa al arrancar main.py y batch_alignment.py.
+# Calcula las rutas base del proyecto a partir de la ubicación de este archivo
+# (backend/config.py -> sube dos niveles -> raíz del proyecto).
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROCES_IMAGES_DIR = os.path.join(BASE_DIR, "proces_images")
 DATA_DIR = os.path.join(PROCES_IMAGES_DIR, "data")
 CALIBRATION_DIR = os.path.join(BASE_DIR, "calibration")
 
+# DEBUG (INIT): diccionario global de cámaras (id -> nombre, carpeta, imagen por defecto).
+# Es la fuente de verdad que usan casi todos los endpoints de main.py y batch_alignment.py
+# para resolver rutas de imágenes y perfiles de calibración por cámara.
 CAMERAS = {
     1: {"name": "CAM 1 (Norte)", "id": "8213", "serial": "PTM61471",
         "folder": "camera1", "file": "1779787800_20260526_093000_PTM61471.jpg"},
