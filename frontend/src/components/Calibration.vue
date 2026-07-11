@@ -24,7 +24,7 @@ const selectedGcpIdx = ref(null)
 const isDraggingOver = ref(false)
 
 const steps = [
-  { id: 1, name: 'Estación', desc: 'Seleccionar Cámara' },
+  { id: 1, name: 'Vista general', desc: 'Perfiles de calibración' },
   { id: 2, name: 'Imágenes', desc: 'Gestionar Fotogramas' },
   { id: 3, name: 'Alineación', desc: 'Configurar Referencia' },
   { id: 4, name: 'Marcación', desc: 'Etiquetado Varillas' },
@@ -34,11 +34,28 @@ const steps = [
 // API Helpers
 async function fetchCameras() {
   try {
-    const res = await fetch('http://localhost:8000/api/dashboard')
-    const data = await res.json()
-    cameras.value = data.cameras
+    const res = await fetch('http://localhost:8000/api/cameras')
+    cameras.value = await res.json()
   } catch (err) { emit('notify', 'Error al cargar estaciones', 'error') }
 }
+
+function editCamera(idx) {
+  selectedCamId.value = idx
+  currentStep.value = 2
+}
+
+function viewCamera(idx) {
+  selectedCamId.value = idx
+  currentStep.value = 5
+}
+
+const calibratedCount = computed(() => cameras.value.filter(c => c.calibrated).length)
+const avgRmse = computed(() => {
+  const vals = cameras.value.filter(c => c.rmse_m != null).map(c => c.rmse_m)
+  if (!vals.length) return '—'
+  return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2) + ' m'
+})
+const totalGcps = computed(() => cameras.value.reduce((a, c) => a + (c.gcps_count || 0), 0))
 
 async function fetchImages() {
   if (!selectedCamId.value) return
@@ -228,6 +245,7 @@ onMounted(() => {
   if (selectedCamId.value) {
     fetchProfile()
     fetchImages()
+    currentStep.value = 2
   }
 })
 </script>
@@ -235,7 +253,7 @@ onMounted(() => {
 <template>
   <div class="space-y-6">
     <div class="flex justify-between items-center border-b border-slate-200 pb-4">
-      <h1 class="text-2xl font-bold text-slate-900 uppercase tracking-tight">Calibración Geométrica</h1>
+      <h1 class="text-xl font-semibold text-slate-900 tracking-tight">Calibración Geométrica</h1>
       <div v-if="selectedCamId" class="flex items-center space-x-2 text-xs font-bold text-blue-600 uppercase">
         <span>Cámara Activa:</span>
         <span class="bg-blue-600 text-white px-2 py-0.5 rounded shadow-sm">{{ cameras.find(c => c.idx === selectedCamId)?.name }}</span>
@@ -256,20 +274,61 @@ onMounted(() => {
       </button>
     </div>
 
-    <!-- PASO 1: SELECCION -->
-    <div v-if="currentStep === 1" class="card-standard p-12 flex flex-col items-center justify-center space-y-8 min-h-[400px]">
-       <div class="w-full max-w-md space-y-4">
-          <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest text-center">Seleccionar Estación para Calibrar</label>
-          <div class="grid grid-cols-2 gap-4">
-            <button v-for="cam in cameras" :key="cam.idx"
-                    @click="selectedCamId = cam.idx; currentStep = 2"
-                    :class="selectedCamId === cam.idx ? 'border-blue-600 bg-blue-50 text-blue-700 ring-2 ring-blue-600 ring-inset' : 'border-slate-200 hover:border-blue-400'"
-                    class="p-4 border rounded-lg text-left transition-all group">
-              <p class="text-[10px] font-bold text-slate-400 uppercase mb-1 group-hover:text-blue-500">Estación {{ cam.idx }}</p>
-              <p class="text-sm font-bold truncate">{{ cam.name }}</p>
-            </button>
-          </div>
-       </div>
+    <!-- PASO 1: VISTA GENERAL -->
+    <div v-if="currentStep === 1" class="space-y-6">
+      <div class="grid grid-cols-3 gap-4">
+        <div class="card-standard p-4">
+          <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Cámaras calibradas</p>
+          <p class="text-xl font-bold text-slate-900 tabular-nums">{{ calibratedCount }} / {{ cameras.length }}</p>
+        </div>
+        <div class="card-standard p-4">
+          <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">RMSE medio</p>
+          <p class="text-xl font-bold text-slate-900 tabular-nums">{{ avgRmse }}</p>
+        </div>
+        <div class="card-standard p-4">
+          <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">GCPs registrados</p>
+          <p class="text-xl font-bold text-slate-900 tabular-nums">{{ totalGcps }}</p>
+        </div>
+      </div>
+
+      <div class="card-standard overflow-hidden">
+        <div class="card-header uppercase tracking-wider text-[10px]">Perfiles de calibración</div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50/60 text-slate-500 font-semibold border-b border-slate-100">
+              <tr>
+                <th class="px-6 py-3 uppercase tracking-widest text-[10px]">Cám.</th>
+                <th class="px-6 py-3 uppercase tracking-widest text-[10px]">Estado</th>
+                <th class="px-6 py-3 uppercase tracking-widest text-[10px]">Última calibración</th>
+                <th class="px-6 py-3 uppercase tracking-widest text-[10px]">RMSE</th>
+                <th class="px-6 py-3 uppercase tracking-widest text-[10px]">GCPs</th>
+                <th class="px-6 py-3 text-right uppercase tracking-widest text-[10px]">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="cam in cameras" :key="cam.idx" class="hover:bg-slate-50 transition-colors text-slate-700">
+                <td class="px-6 py-4">
+                  <p class="font-bold uppercase text-[11px]">{{ cam.id }}</p>
+                  <p class="text-[10px] text-slate-400">{{ cam.name }}</p>
+                </td>
+                <td class="px-6 py-4">
+                  <span class="inline-flex items-center space-x-1.5">
+                    <span :class="cam.calibrated ? 'bg-emerald-500' : 'bg-slate-300'" class="w-1.5 h-1.5 rounded-full"></span>
+                    <span class="text-[10px] font-bold uppercase">{{ cam.calibrated ? 'Calibrada' : 'Sin calibrar' }}</span>
+                  </span>
+                </td>
+                <td class="px-6 py-4 text-[10px] font-mono text-slate-500">{{ cam.last_calibration_date || '—' }}</td>
+                <td class="px-6 py-4 text-[10px] font-mono" :class="cam.rmse_m > 2 ? 'text-amber-600' : 'text-slate-600'">{{ cam.rmse_m != null ? cam.rmse_m.toFixed(2) + ' m' : '—' }}</td>
+                <td class="px-6 py-4 text-[10px] font-mono text-slate-500">{{ cam.gcps_count ?? '—' }}</td>
+                <td class="px-6 py-4 text-right space-x-2">
+                  <button v-if="cam.calibrated" @click="viewCamera(cam.idx)" class="btn-secondary py-1 px-3 text-[10px]">Ver</button>
+                  <button @click="editCamera(cam.idx)" class="btn-standard py-1 px-3 text-[10px]">{{ cam.calibrated ? 'Editar' : 'Iniciar' }}</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- PASO 2: GESTION DE IMAGENES -->
@@ -406,7 +465,7 @@ onMounted(() => {
             </div>
             <div class="p-4 border-t border-slate-100 bg-slate-50">
               <button @click="calculateHomography" :disabled="currentProfile.gcps.length < 4 || calculating"
-                      class="btn-standard w-full uppercase text-xs shadow-md">
+                      class="btn-standard w-full uppercase text-xs">
                 {{ calculating ? 'Calculando...' : 'Generar Perfil' }}
               </button>
             </div>
@@ -449,7 +508,7 @@ onMounted(() => {
 
        <div class="flex justify-center space-x-4">
           <button @click="currentStep = 4" class="btn-secondary px-8">Reajustar Puntos</button>
-          <button @click="currentView = 'dashboard'" class="btn-standard uppercase px-8 shadow-lg">Finalizar Proceso</button>
+          <button @click="currentStep = 1; fetchCameras()" class="btn-standard uppercase px-8">Finalizar Proceso</button>
        </div>
     </div>
   </div>

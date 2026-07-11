@@ -70,7 +70,7 @@ onMounted(fetchData)
   
   <div v-else-if="data" class="space-y-8 animate-fade-in">
     <div class="flex justify-between items-center border-b border-slate-200 pb-4">
-      <h1 class="text-2xl font-bold text-slate-900 uppercase tracking-tight">Vista General del Sistema</h1>
+      <h1 class="text-xl font-semibold text-slate-900 tracking-tight">Vista General del Sistema</h1>
       <div class="flex items-center space-x-4">
         <button @click="window.print()" class="btn-secondary flex items-center space-x-2 py-1.5 no-print">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 00-2 2h2m2 4h10a2 2 0 002-2v-4H5v4a2 2 0 002 2z" stroke-width="2"/><path d="M17 9V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4" stroke-width="2"/></svg>
@@ -182,7 +182,7 @@ onMounted(fetchData)
           <div class="card-header uppercase tracking-wider text-[10px]">Estaciones de Visión</div>
           <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
-              <thead class="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
+              <thead class="bg-slate-50/60 text-slate-500 font-semibold border-b border-slate-100">
                 <tr>
                   <th class="px-6 py-3 uppercase tracking-widest text-[10px]">Nombre Estación</th>
                   <th class="px-6 py-3 uppercase tracking-widest text-[10px]">ID</th>

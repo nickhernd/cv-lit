@@ -210,6 +210,99 @@ def get_dashboard():
         "cameras": cameras_status
     }
 
+HARDWARE_PATH = os.path.join(CALIBRATION_DIR, "camera_hardware.json")
+
+def _load_hardware():
+    if os.path.exists(HARDWARE_PATH):
+        with open(HARDWARE_PATH, "r") as f: return json.load(f)
+    return {}
+
+def _save_hardware(data):
+    with open(HARDWARE_PATH, "w") as f: json.dump(data, f, indent=2)
+
+def _load_roi_config():
+    roi_path = os.path.join(CALIBRATION_DIR, "roi_config.json")
+    if os.path.exists(roi_path):
+        with open(roi_path, "r") as f: return json.load(f)
+    return {}
+
+def _save_roi_config(data):
+    roi_path = os.path.join(CALIBRATION_DIR, "roi_config.json")
+    with open(roi_path, "w") as f: json.dump(data, f, indent=2)
+
+class CameraHardwareUpdate(BaseModel):
+    utm_x: Optional[float] = None
+    utm_y: Optional[float] = None
+    height_m: Optional[float] = None
+    azimuth_deg: Optional[float] = None
+
+class ROIUpdate(BaseModel):
+    x_min: int
+    y_min: int
+    x_max: int
+    y_max: int
+    description: Optional[str] = ""
+
+@app.get("/api/cameras")
+def list_cameras():
+    """Resumen de hardware + estado de calibración por cámara (pantalla 'Sistema > Cámaras')."""
+    roi_config = _load_roi_config()
+    hardware = _load_hardware()
+
+    result = []
+    for cam_idx, info in CAMERAS.items():
+        profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_idx}_profile.json")
+        profile = {}
+        if os.path.exists(profile_path):
+            with open(profile_path, "r") as f: profile = json.load(f)
+
+        cam_folder = os.path.join(DATA_DIR, info["folder"])
+        images_count = 0
+        last_modified = None
+        if os.path.exists(cam_folder):
+            files = [f for f in os.listdir(cam_folder) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+            images_count = len(files)
+            if files:
+                last_modified = max(os.path.getmtime(os.path.join(cam_folder, f)) for f in files)
+
+        cam_hardware = hardware.get(str(cam_idx), {})
+        result.append({
+            "idx": cam_idx,
+            "id": f"C{cam_idx}",
+            "name": info["name"],
+            "serial": info["serial"],
+            "calibrated": bool(profile),
+            "rmse_m": profile.get("rmse_m"),
+            "gcps_count": profile.get("gcps_count"),
+            "last_calibration_date": profile.get("date"),
+            "images_count": images_count,
+            "last_image_ts": last_modified,
+            "roi": roi_config.get(f"CAM_{cam_idx}"),
+            "utm_x": cam_hardware.get("utm_x"),
+            "utm_y": cam_hardware.get("utm_y"),
+            "height_m": cam_hardware.get("height_m"),
+            "azimuth_deg": cam_hardware.get("azimuth_deg"),
+        })
+    return result
+
+@app.put("/api/cameras/{cam_id}/hardware")
+def update_camera_hardware(cam_id: int, payload: CameraHardwareUpdate):
+    if cam_id not in CAMERAS: raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    data = _load_hardware()
+    data[str(cam_id)] = payload.dict(exclude_none=True)
+    _save_hardware(data)
+    add_log(f"Actualizada información de hardware de Cam {cam_id}", "info")
+    return data[str(cam_id)]
+
+@app.put("/api/cameras/{cam_id}/roi")
+def update_camera_roi(cam_id: int, payload: ROIUpdate):
+    if cam_id not in CAMERAS: raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    roi = _load_roi_config()
+    roi[f"CAM_{cam_id}"] = payload.dict()
+    _save_roi_config(roi)
+    add_log(f"Actualizada ROI de Cam {cam_id}", "info")
+    return roi[f"CAM_{cam_id}"]
+
 @app.get("/api/cameras/{cam_id}/image")
 def get_camera_image(cam_id: int, file: Optional[str] = None):
     if cam_id not in CAMERAS: raise HTTPException(status_code=404, detail="Camera not found")
