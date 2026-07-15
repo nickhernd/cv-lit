@@ -321,9 +321,16 @@ def _try_align(
     if len(good) < threshold:
         return None, 0, len(good), "low_matches"
 
+    # DEBUG (ORIGEN DATOS): los pares de puntos salen de SIFT — 'src' son los
+    # keypoints detectados en la imagen de REFERENCIA y 'dst' los de la imagen a
+    # alinear, emparejados por FLANN y filtrados con el ratio de Lowe (0.75).
     src = np.float32([ref_kp[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
     dst = np.float32([kp[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
 
+    # DEBUG (ROTACION+TRASLACION): AQUÍ se calcula la matriz H (3x3) que corrige
+    # la deriva de la cámara entre tomas. H codifica rotación + traslación +
+    # escala + perspectiva en una sola homografía; RANSAC (umbral 5 px) descarta
+    # los pares de puntos atípicos y 'hmask' marca cuáles fueron inliers.
     H, hmask = cv2.findHomography(dst, src, cv2.RANSAC, RANSAC_THRESH)
     inliers = int(hmask.ravel().sum()) if hmask is not None else 0
 
@@ -400,6 +407,9 @@ def _align_to_reference(
             filename="", status="failed", inliers=inliers, fail_reason=reason
         ), reason
 
+    # DEBUG (ROTACION+TRASLACION): AQUÍ se APLICA la transformación — warpPerspective
+    # rota/traslada/deforma la imagen completa con la matriz H calculada en _try_align()
+    # para que quede píxel a píxel sobre la referencia.
     aligned = cv2.warpPerspective(img, H, (w_ref, h_ref))
 
     ref_gray_local = cv2.cvtColor(ref_img, cv2.COLOR_BGR2GRAY)

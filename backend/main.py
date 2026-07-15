@@ -203,9 +203,12 @@ def align_image_to_ref(img: np.ndarray, ref_img: np.ndarray) -> np.ndarray:
     src_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
     dst_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
     
+    # DEBUG (ROTACION+TRASLACION): versión legacy (ORB) — misma idea que
+    # batch_alignment._try_align(): H imagen→referencia por matching de features,
+    # y warpPerspective aplica la rotación/traslación a la imagen completa.
     H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
     if H is None: return img
-        
+
     h, w = ref_img.shape[:2]
     return cv2.warpPerspective(img, H, (w, h))
 
@@ -462,6 +465,11 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
     if not image_name:
         raise HTTPException(status_code=400, detail="No hay imagen seleccionada ni referencia definida")
 
+    # DEBUG (ORIGEN DATOS): los puntos de calibración salen del JSON de anotaciones
+    # de ESTA imagen (proces_images/data/CAM_{id}/json/{imagen}.json). Cada punto trae:
+    #   - "pixel": [x, y] donde el usuario hizo CLIC en la foto (paso 4 Marcación)
+    #   - "utm":   [X, Y] coordenada real de la varilla, del catálogo importado de
+    #              GCP.csv (cam_{id}_rods.json) o tecleada a mano en el editor.
     ann_path = _annotations_path(cam_id, image_name)
     ann_data = {"points": [], "roi": None}
     if os.path.exists(ann_path):
@@ -492,9 +500,16 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
 
     pts_px = np.array([points[i]["pixel"] for i in included_idx], dtype=np.float32)
     pts_utm = np.array([points[i]["utm"] for i in included_idx], dtype=np.float32)
+    # DEBUG (ROTACION+TRASLACION): AQUÍ se calcula la matriz H (3x3) píxel→UTM de
+    # la calibración. H contiene, mezcladas en una sola homografía plana, la
+    # rotación, la traslación, la escala y la perspectiva que llevan un punto de
+    # la foto al plano de la playa en metros (EPSG:25830). RANSAC (umbral 3 m en
+    # el dominio UTM) descarta correspondencias atípicas al estimarla.
     H, ransac_mask = cv2.findHomography(pts_px, pts_utm, cv2.RANSAC, 3.0)
     if H is None:
         raise HTTPException(status_code=500, detail="No se pudo estimar la homografía (puntos degenerados o colineales)")
+    # DEBUG (ROTACION+TRASLACION): H⁻¹ es la transformación inversa UTM→píxel,
+    # necesaria para poder expresar el error de reproyección en píxeles.
     try:
         H_inv = np.linalg.inv(H)
     except np.linalg.LinAlgError:
@@ -506,9 +521,16 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
         for pos, i in enumerate(included_idx):
             inlier_by_idx[i] = bool(flat[pos])
 
-    # Residuo por varilla: E_i = ||x_i - x̂_i|| en ambos dominios.
-    #  - error_m : distancia entre el UTM medido y la proyección del píxel con H
-    #  - error_px: distancia entre el píxel marcado y la retro-proyección del UTM con H⁻¹
+    # DEBUG (ERROR POR VARILLA): AQUÍ se calcula el error de reproyección de CADA
+    # varilla por separado: E_i = ||x_i - x̂_i|| (distancia euclídea entre lo
+    # medido y lo que predice la homografía), en ambos dominios:
+    #  - error_m : distancia entre el UTM medido (GCP.csv) y la proyección con H
+    #              del píxel donde se marcó la varilla
+    #  - error_px: distancia entre el píxel marcado y la retro-proyección con H⁻¹
+    #              del UTM medido
+    # Estos valores llenan la tabla del paso 5 (Validación) y deciden qué filas
+    # se marcan en rojo (error_px > threshold_px). El error POR IMAGEN es el RMSE
+    # de estos residuos, que se guarda en el JSON de anotaciones de la imagen.
     residuals = []
     err_px_included, err_m_included = [], []
     for i, p in enumerate(points):
@@ -532,6 +554,12 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
             "above_threshold": (not is_excluded) and err_px > payload.threshold_px,
         })
 
+    # DEBUG (RMSE): AQUÍ se calcula el RMSE de la calibración de esta imagen:
+    # raíz de la media de los residuos al cuadrado, SOLO de las varillas activas
+    # (las excluidas por el usuario no cuentan). rmse_px viene de los error_px y
+    # rmse_m de los error_m calculados arriba. Se persiste en: el JSON de la
+    # imagen (calibration.rmse_*), el perfil de cámara (cam_{id}_profile.json,
+    # que muestra la tabla del paso 1) y la respuesta de este endpoint.
     rmse_px = float(np.sqrt(np.mean(np.square(err_px_included))))
     rmse_m = float(np.sqrt(np.mean(np.square(err_m_included))))
     now_iso = datetime.datetime.now().isoformat(timespec="seconds")
@@ -691,6 +719,11 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
         }
 
     # 6. Proyectar a UTM y suavizar (la extracción píxel a píxel sale dentada)
+    # DEBUG (ROTACION+TRASLACION): AQUÍ se APLICA la homografía de calibración —
+    # perspectiveTransform rota/traslada/escala cada punto de la línea de costa
+    # detectada (en píxeles) al plano UTM en metros. La matriz H viene de
+    # calculate_homography() (cam_{id}_H.npy / perfil), que a su vez salió de las
+    # varillas marcadas por el usuario + coordenadas del GCP.csv.
     pts_array = np.array(points_px, dtype=np.float32).reshape(-1, 1, 2)
     pts_utm = cv2.perspectiveTransform(pts_array, H).reshape(-1, 2)
     pts_utm = _smooth_polyline(pts_utm)
@@ -821,6 +854,9 @@ async def align_preview(
     src = np.float32([ref_kp[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
     dst = np.float32([tgt_kp[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
 
+    # DEBUG (ROTACION+TRASLACION): igual que en batch_alignment._try_align() —
+    # H imagen→referencia a partir de matches SIFT, y warpPerspective la aplica.
+    # (Endpoint de preview individual, posiblemente en desuso; ver nota de arriba.)
     H, mask = cv2.findHomography(dst, src, cv2.RANSAC, RANSAC_THRESH)
     inliers  = int(mask.ravel().sum()) if mask is not None else 0
 
