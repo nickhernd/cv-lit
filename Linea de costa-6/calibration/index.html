@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Calibración — Línea de Costa</title>
+<link rel="stylesheet" href="./calibration.css">
+</head>
+<body>
+<div class="app">
+  <nav class="sidebar">
+    <div class="sidebar-logo"><strong>Línea de Costa</strong></div>
+    <div class="sidebar-nav-section">Proceso</div>
+    <div class="sidebar-item">Dashboard</div>
+    <div class="sidebar-item">Carga de imágenes</div>
+    <div class="sidebar-nav-section">Sistema</div>
+    <div class="sidebar-item active" data-nav="calibracion">Calibración</div>
+    <div class="sidebar-item" data-nav="camaras">Cámaras</div>
+  </nav>
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" id="screen-title">Calibración geométrica</div>
+        <div class="topbar-sub" id="screen-sub">Estado por cámara · Módulo offline</div>
+      </div>
+      <div id="topbar-actions"></div>
+    </div>
+    <div class="content" id="screen-root">
+      <!-- rendered by calibration.js -->
+    </div>
+  </main>
+</div>
+
+<!-- Vista general: estado de calibración por cámara -->
+<template id="tpl-overview">
+  <div class="grid-3">
+    <div class="card"><div class="stat-val" id="ov-calibrated">–</div><div class="stat-label">Cámaras calibradas</div></div>
+    <div class="card"><div class="stat-val" id="ov-rmse">–</div><div class="stat-label">RMSE medio</div></div>
+    <div class="card"><div class="stat-val" id="ov-gcps">–</div><div class="stat-label">GCPs registrados</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Perfiles de calibración</div>
+    <table class="table">
+      <thead><tr><th>Cám.</th><th>Estado</th><th>Última calibración</th><th>RMSE</th><th>GCPs</th><th>Acciones</th></tr></thead>
+      <tbody id="overview-table-body"></tbody>
+    </table>
+  </div>
+</template>
+
+<!-- Precondición no cumplida: lente sin calibrar -->
+<template id="tpl-blocked">
+  <div class="card" style="max-width:480px;margin:60px auto;text-align:center;border-left:3px solid var(--warn)">
+    <div style="font-size:14px;font-weight:600;margin-bottom:6px">Lente sin calibrar</div>
+    <div style="font-size:13px;color:var(--text2);line-height:1.5;margin-bottom:14px">
+      Esta cámara todavía no tiene los parámetros de lente estimados. Calíbrala antes de calcular la homografía.
+    </div>
+    <button class="btn btn-primary" id="btn-goto-lens">Calibrar lente ahora</button>
+    <button class="btn btn-ghost" id="btn-import-lens">Importar de otra cámara</button>
+  </div>
+</template>
+
+<!-- Detalle de cámara: hardware (lente, ROI, referencia) -->
+<template id="tpl-camera-detail">
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Información general</div>
+      <div id="camera-info-fields" class="grid-2"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Región de interés (ROI)</div>
+      <div id="roi-preview"></div>
+      <button class="btn btn-ghost" id="btn-edit-roi" style="margin-top:8px">Editar ROI</button>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="card" style="border-left:3px solid var(--accent)">
+      <div class="card-title">Calibración de lente</div>
+      <div id="lens-params" class="grid-2"></div>
+      <div class="label" style="margin-top:8px" id="lens-path"></div>
+      <button class="btn btn-secondary" id="btn-recalibrate-lens" style="margin-top:8px">Recalibrar lente</button>
+      <button class="btn btn-ghost" id="btn-import-lens-2">Importar lente…</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Frame de referencia canónico</div>
+      <div id="reference-frame-detail"></div>
+      <button class="btn btn-secondary" id="btn-change-reference" style="margin-top:8px">Cambiar frame…</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Perfiles de calibración (homografía)</div>
+    <table class="table">
+      <thead><tr><th>Fecha</th><th>RMSE</th><th>GCPs</th><th>Activo</th></tr></thead>
+      <tbody id="camera-profiles-body"></tbody>
+    </table>
+  </div>
+</template>
+
+<!-- Calibración de lente (líneas rectas, tarea única por cámara — vive en "Cámaras") -->
+<template id="tpl-lens-calib">
+  <div style="display:grid;grid-template-columns:220px 1fr 200px;gap:12px">
+    <div class="card">
+      <div class="card-title">Método</div>
+      <div id="lens-method-list"></div>
+    </div>
+    <div class="card">
+      <div class="img-canvas-wrap" id="lens-canvas-wrap" style="height:380px">
+        <img id="lens-image" src="" alt="imagen de referencia">
+        <canvas id="lens-overlay"></canvas>
+      </div>
+      <button class="btn btn-primary" id="btn-add-line" style="margin-top:8px">+ Añadir línea</button>
+      <button class="btn btn-ghost" id="btn-reestimate-lens">↻ Re-estimar k₁, k₂</button>
+    </div>
+    <div class="card">
+      <div class="card-title">Líneas marcadas</div>
+      <div id="lens-lines-list"></div>
+      <div class="card-title" style="margin-top:10px">Parámetros estimados</div>
+      <div id="lens-estimated-params"></div>
+    </div>
+  </div>
+  <button class="btn btn-primary" id="btn-save-lens" style="margin-top:12px">Guardar lens.json</button>
+</template>
+
+<!-- Step templates -->
+<template id="tpl-step-1">
+  <div class="stepper" id="stepper"></div>
+  <div class="grid-2" style="grid-template-columns:1fr 1.4fr">
+    <div class="card">
+      <div class="card-title">Fichero de varillas (CSV)</div>
+      <input type="file" id="gcp-file-input" accept=".csv">
+      <div class="label" style="margin-top:10px">Sistema de referencia</div>
+      <input class="input" value="EPSG:25830 (ETRS89 / UTM zone 30N)" readonly>
+    </div>
+    <div class="card">
+      <div class="card-title">Vista previa</div>
+      <table class="table" id="gcp-preview-table">
+        <thead><tr><th>ID</th><th>X</th><th>Y</th><th>Z</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</template>
+
+<template id="tpl-step-2">
+  <div class="stepper" id="stepper"></div>
+  <div class="card">
+    <div class="card-title">Frame de referencia canónico</div>
+    <div id="reference-frame-preview"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Fotos de la sesión · registro contra la referencia</div>
+    <input type="file" id="photos-input" multiple accept="image/*">
+    <input type="file" id="metadata-input" accept=".csv" style="margin-left:8px">
+    <div class="grid-3" id="photo-grid" style="margin-top:12px"></div>
+  </div>
+</template>
+
+<template id="tpl-step-3">
+  <div class="stepper" id="stepper"></div>
+  <div style="display:grid;grid-template-columns:200px 1fr 220px;gap:12px">
+    <div class="card" id="photo-stake-lists"></div>
+    <div class="card">
+      <div class="img-canvas-wrap" id="marker-canvas-wrap" style="height:420px">
+        <img id="marker-image" src="" alt="foto de calibración">
+        <canvas id="marker-overlay"></canvas>
+      </div>
+    </div>
+    <div class="card" id="mark-detail-panel"></div>
+  </div>
+</template>
+
+<template id="tpl-step-4">
+  <div class="stepper" id="stepper"></div>
+  <div class="grid-3" id="homography-stats"></div>
+  <div class="card">
+    <div class="card-title">Correspondencias</div>
+    <table class="table" id="correspondence-table">
+      <thead><tr><th></th><th>Varilla</th><th>Foto</th><th>u</th><th>v</th><th>X</th><th>Y</th><th>Residuo</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</template>
+
+<template id="tpl-step-5">
+  <div class="stepper" id="stepper"></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Metadatos del perfil</div>
+      <div class="label">Nombre</div>
+      <input class="input" id="profile-name">
+      <div class="label" style="margin-top:8px">Notas</div>
+      <textarea class="input" id="profile-notes" rows="3"></textarea>
+    </div>
+    <div class="card">
+      <div class="card-title">Resumen</div>
+      <table class="table" id="profile-summary-table"><tbody></tbody></table>
+      <button class="btn btn-primary" id="btn-save-profile" style="margin-top:10px">Guardar perfil</button>
+    </div>
+  </div>
+</template>
+
+<script src="./calibration.js"></script>
+</body>
+</html>
