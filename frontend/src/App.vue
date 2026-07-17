@@ -53,21 +53,21 @@ onMounted(() => {
 <template>
   <div class="flex flex-col h-screen bg-[#f1f5f9] font-sans text-slate-800">
     <!-- Top Header Bar -->
-    <header class="h-14 bg-slate-900 text-white flex items-center justify-between px-6 shrink-0 z-[60]">
+    <header class="h-14 bg-white border-b border-slate-200 text-slate-800 flex items-center justify-between px-6 shrink-0 z-[60]">
       <div class="flex items-center space-x-3">
-        <div class="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
+        <div class="w-7 h-7 bg-blue-600 rounded-md flex items-center justify-center">
           <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
         </div>
-        <span class="text-[15px] font-semibold tracking-tight">CV-LIT <span class="text-slate-500 font-normal text-xs ml-1.5">UA Engineering</span></span>
+        <span class="text-[15px] font-semibold tracking-tight text-slate-900">CV-LIT <span class="text-slate-400 font-normal text-xs ml-1.5">UA Engineering</span></span>
       </div>
       <div class="flex items-center space-x-5 text-xs font-medium">
         <button @click="showLogs = !showLogs"
-                :class="showLogs ? 'text-blue-400' : 'text-slate-400 hover:text-slate-100'"
+                :class="showLogs ? 'text-blue-600' : 'text-slate-400 hover:text-slate-900'"
                 class="transition-colors flex items-center space-x-2">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" stroke-width="2"/></svg>
           <span>Logs</span>
         </button>
-        <div class="h-4 w-px bg-slate-800"></div>
+        <div class="h-4 w-px bg-slate-200"></div>
         <div class="flex items-center space-x-2 text-slate-400">
           <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
           <span>Sistema online</span>
@@ -77,68 +77,68 @@ onMounted(() => {
 
     <div class="flex flex-1 overflow-hidden relative">
       <!-- Sidebar -->
-      <aside class="w-60 bg-slate-800 text-slate-300 flex flex-col shrink-0 z-50">
+      <aside class="w-60 bg-slate-50 border-r border-slate-200 text-slate-600 flex flex-col shrink-0 z-50">
         <nav class="flex-1 py-6 px-3">
-          <div class="px-3 mb-2 text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Proceso</div>
+          <div class="px-3 mb-2 text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Proceso</div>
           <div class="space-y-0.5 mb-6">
             <button @click="goToDashboard"
-                    :class="currentView === 'dashboard' ? 'bg-blue-600/15 text-blue-300' : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'"
-                    class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg transition-colors text-sm font-medium">
+                    :class="currentView === 'dashboard' ? 'bg-slate-100 text-blue-700 border-blue-600 font-medium' : 'text-slate-500 border-transparent hover:bg-slate-100 hover:text-slate-900'"
+                    class="w-full flex items-center space-x-2.5 px-3 py-2 border-l-2 transition-colors text-sm">
               <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="1.75" d="M4 6h16M4 12h16M4 18h16"></path></svg>
               <span>Dashboard</span>
             </button>
             <button @click="currentView = 'ingest'"
-                    :class="currentView === 'ingest' ? 'bg-blue-600/15 text-blue-300' : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'"
-                    class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg transition-colors text-sm font-medium">
+                    :class="currentView === 'ingest' ? 'bg-slate-100 text-blue-700 border-blue-600 font-medium' : 'text-slate-500 border-transparent hover:bg-slate-100 hover:text-slate-900'"
+                    class="w-full flex items-center space-x-2.5 px-3 py-2 border-l-2 transition-colors text-sm">
               <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="1.75" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
               <span>Carga de imágenes</span>
             </button>
             <button @click="goToResultados()"
-                    :class="currentView === 'resultados' ? 'bg-blue-600/15 text-blue-300' : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'"
-                    class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg transition-colors text-sm font-medium">
+                    :class="currentView === 'resultados' ? 'bg-slate-100 text-blue-700 border-blue-600 font-medium' : 'text-slate-500 border-transparent hover:bg-slate-100 hover:text-slate-900'"
+                    class="w-full flex items-center space-x-2.5 px-3 py-2 border-l-2 transition-colors text-sm">
               <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="1.75" d="M3 17c2-2 4-3 6-1s4 3 6 1 4-2 6-1M3 12c2-2 4-3 6-1s4 3 6 1 4-2 6-1"/></svg>
               <span>Resultados</span>
             </button>
             <button @click="currentView = 'geomap'"
-                    :class="currentView === 'geomap' ? 'bg-blue-600/15 text-blue-300' : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'"
-                    class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg transition-colors text-sm font-medium">
+                    :class="currentView === 'geomap' ? 'bg-slate-100 text-blue-700 border-blue-600 font-medium' : 'text-slate-500 border-transparent hover:bg-slate-100 hover:text-slate-900'"
+                    class="w-full flex items-center space-x-2.5 px-3 py-2 border-l-2 transition-colors text-sm">
               <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="1.75" d="M9 20l-5.447-2.724A2 2 0 013 15.483V6.517a2 2 0 011.553-1.793L9 3.5l5.447 1.224A2 2 0 0116 6.517v8.966a2 2 0 01-1.553 1.793L9 18.5z"/></svg>
               <span>Mapa GeoJSON</span>
             </button>
           </div>
 
-          <div class="px-3 mb-2 text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Sistema</div>
+          <div class="px-3 mb-2 text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Sistema</div>
           <div class="space-y-0.5">
             <button @click="goToCalibration()"
-                    :class="currentView === 'calibration' ? 'bg-blue-600/15 text-blue-300' : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'"
-                    class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg transition-colors text-sm font-medium">
+                    :class="currentView === 'calibration' ? 'bg-slate-100 text-blue-700 border-blue-600 font-medium' : 'text-slate-500 border-transparent hover:bg-slate-100 hover:text-slate-900'"
+                    class="w-full flex items-center space-x-2.5 px-3 py-2 border-l-2 transition-colors text-sm">
               <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="1.75" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m10 4a2 2 0 100-4m0 4a2 2 0 110-4m-4 2a2 2 0 100-4m0 4a2 2 0 110-4"></path></svg>
               <span>Calibración</span>
             </button>
             <button @click="currentView = 'cameras'"
-                    :class="currentView === 'cameras' ? 'bg-blue-600/15 text-blue-300' : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'"
-                    class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg transition-colors text-sm font-medium">
+                    :class="currentView === 'cameras' ? 'bg-slate-100 text-blue-700 border-blue-600 font-medium' : 'text-slate-500 border-transparent hover:bg-slate-100 hover:text-slate-900'"
+                    class="w-full flex items-center space-x-2.5 px-3 py-2 border-l-2 transition-colors text-sm">
               <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="1.75" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3" stroke-width="1.75"/></svg>
               <span>Cámaras</span>
             </button>
             <button @click="currentView = 'automode'"
-                    :class="currentView === 'automode' ? 'bg-blue-600/15 text-blue-300' : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'"
-                    class="w-full flex items-center space-x-2.5 px-3 py-2 rounded-lg transition-colors text-sm font-medium">
+                    :class="currentView === 'automode' ? 'bg-slate-100 text-blue-700 border-blue-600 font-medium' : 'text-slate-500 border-transparent hover:bg-slate-100 hover:text-slate-900'"
+                    class="w-full flex items-center space-x-2.5 px-3 py-2 border-l-2 transition-colors text-sm">
               <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="1.75" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
               <span>Modo automático</span>
             </button>
           </div>
         </nav>
 
-        <div class="px-4 py-4 border-t border-white/5 flex items-center justify-between">
+        <div class="px-4 py-4 border-t border-slate-200 flex items-center justify-between">
           <div class="flex items-center space-x-2.5 min-w-0">
-            <div class="w-7 h-7 rounded-lg bg-slate-700 flex items-center justify-center font-semibold text-[10px] shrink-0">UA</div>
+            <div class="w-7 h-7 rounded-md bg-slate-200 text-slate-700 flex items-center justify-center font-semibold text-[10px] shrink-0">UA</div>
             <div class="text-[11px] min-w-0">
-              <p class="font-medium text-slate-200 truncate">Administrador</p>
-              <p class="text-slate-500 truncate">Ingeniería UA</p>
+              <p class="font-medium text-slate-700 truncate">Administrador</p>
+              <p class="text-slate-400 truncate">Ingeniería UA</p>
             </div>
           </div>
-          <span class="text-[9px] font-medium text-slate-600 shrink-0">v0.1.0</span>
+          <span class="text-[9px] font-medium text-slate-400 shrink-0">v0.1.0</span>
         </div>
       </aside>
 
@@ -193,7 +193,7 @@ onMounted(() => {
     <div class="fixed bottom-6 right-6 z-[100] space-y-2">
       <TransitionGroup name="list">
         <div v-for="n in notifications" :key="n.id"
-             class="px-4 py-3 bg-white border border-slate-100 rounded-xl shadow-lg flex items-center justify-between min-w-[300px]">
+             class="px-4 py-3 bg-white border border-slate-200 rounded-md shadow-md flex items-center justify-between min-w-[300px]">
           <div class="flex items-center space-x-3 text-sm font-medium text-slate-700">
              <div :class="n.type === 'error' ? 'bg-red-500' : (n.type === 'success' ? 'bg-emerald-500' : 'bg-blue-600')"
                   class="w-1.5 h-1.5 rounded-full shrink-0"></div>

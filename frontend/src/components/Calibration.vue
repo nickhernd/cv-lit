@@ -404,7 +404,7 @@ onMounted(() => {
               @click="currentStep = step.id"
               :disabled="!selectedCamId && step.id > 1"
               :class="[
-                currentStep === step.id ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50',
+                currentStep === step.id ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50',
                 !selectedCamId && step.id > 1 ? 'opacity-50 cursor-not-allowed' : ''
               ]"
               class="px-4 py-3 text-[10px] font-bold uppercase tracking-widest transition-all flex-1 text-center border-r last:border-r-0 border-slate-200">

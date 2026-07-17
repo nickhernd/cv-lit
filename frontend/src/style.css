@@ -1,37 +1,90 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
 @theme {
-  --color-primary: #1e293b;
-  --color-accent: #2563eb;
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --color-primary: #1c2530;
+  --color-accent: #2f6690;
+  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Accent (replaces the default saturated blue with the reference's muted slate-blue) */
+  --color-blue-50: #eff5f9;
+  --color-blue-100: #dfeaf2;
+  --color-blue-200: #bfd5e5;
+  --color-blue-300: #94b8d1;
+  --color-blue-400: #6796b8;
+  --color-blue-500: #45789e;
+  --color-blue-600: #2f6690;
+  --color-blue-700: #285773;
+  --color-blue-800: #23485f;
+  --color-blue-900: #1f3c4e;
+  --color-blue-950: #142834;
+
+  /* Success (replaces emerald) */
+  --color-emerald-50: #eefaf3;
+  --color-emerald-100: #d3f2e1;
+  --color-emerald-200: #a7e4c4;
+  --color-emerald-300: #72cea0;
+  --color-emerald-400: #4bb885;
+  --color-emerald-500: #34a06c;
+  --color-emerald-600: #2f8f5b;
+  --color-emerald-700: #26744a;
+  --color-emerald-800: #1f5d3c;
+  --color-emerald-900: #1a4b31;
+  --color-emerald-950: #0d2919;
+
+  /* Warning (replaces amber) */
+  --color-amber-50: #fbf3e8;
+  --color-amber-100: #f5e2c5;
+  --color-amber-200: #ecc790;
+  --color-amber-300: #dfa85f;
+  --color-amber-400: #d0913f;
+  --color-amber-500: #c2822f;
+  --color-amber-600: #b8792f;
+  --color-amber-700: #966326;
+  --color-amber-800: #7a521f;
+  --color-amber-900: #63431b;
+  --color-amber-950: #38240d;
+
+  /* Danger (replaces red) */
+  --color-red-50: #fbeeeb;
+  --color-red-100: #f6d8d1;
+  --color-red-200: #edb2a5;
+  --color-red-300: #e08972;
+  --color-red-400: #cf6650;
+  --color-red-500: #c2543c;
+  --color-red-600: #b8412f;
+  --color-red-700: #963527;
+  --color-red-800: #7a2c20;
+  --color-red-900: #63241b;
+  --color-red-950: #38120d;
 }
 
 @layer base {
   body {
-    @apply bg-[#f1f5f9] text-slate-800;
+    @apply bg-[#f1f3f5] text-slate-800;
     -webkit-font-smoothing: antialiased;
   }
 }
 
 .card-standard {
-  @apply bg-white border border-slate-100 rounded-xl shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow;
+  @apply bg-white border border-slate-200 rounded-md transition-shadow;
 }
 
 .card-header {
-  @apply px-5 py-3.5 border-b border-slate-100 text-[11px] font-semibold uppercase tracking-wider text-slate-500;
+  @apply px-5 py-3.5 border-b border-slate-200 bg-slate-50/60 text-[11px] font-semibold uppercase tracking-wider text-slate-500;
 }
 
 .btn-standard {
-  @apply px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors disabled:opacity-40;
+  @apply px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-40;
 }
 
 .btn-secondary {
-  @apply px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 hover:text-slate-900 transition-colors;
+  @apply px-4 py-2 bg-slate-100 border border-slate-200 text-slate-600 rounded-md text-sm font-medium hover:bg-slate-200 hover:text-slate-900 transition-colors;
 }
 
 .input-standard {
-  @apply bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15 outline-none transition-all;
+  @apply bg-white border border-slate-300 rounded px-3 py-1.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15 outline-none transition-all;
 }
 
 /* Print Styles for Reports */
@@ -39,22 +92,22 @@
   header, aside, .no-print, button, select {
     display: none !important;
   }
-  
+
   main {
     padding: 0 !important;
     margin: 0 !important;
   }
-  
+
   body {
     background: white !important;
   }
-  
+
   .card-standard {
     box-shadow: none !important;
     border: 1px solid #cbd5e1 !important;
     page-break-inside: avoid;
   }
-  
+
   .print-only {
     display: block !important;
   }
