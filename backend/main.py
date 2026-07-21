@@ -6,6 +6,7 @@ import os
 import io
 import re
 import json
+import glob
 import numpy as np
 import cv2
 import pandas as pd
@@ -138,9 +139,38 @@ def _parse_capture_ts(filename: str) -> Optional[str]:
     except ValueError:
         return None
 
+def _safe_filename(filename: Optional[str]) -> str:
+    """Reduce cualquier nombre de archivo recibido del cliente a un nombre
+    "plano" sin componentes de directorio (os.path.basename), para que un
+    '../../../etc/passwd' o una ruta absoluta no puedan escapar de la carpeta
+    de datos de la cámara. Se usa en TODO endpoint que recibe un filename del
+    cliente y lo mete en un os.path.join (lectura, borrado o escritura)."""
+    name = os.path.basename((filename or "").strip().replace("\\", "/"))
+    if not name or name in (".", ".."):
+        raise HTTPException(status_code=400, detail="Nombre de archivo inválido")
+    return name
+
 def _annotations_path(cam_id: int, filename: str) -> str:
-    base = filename.rsplit(".", 1)[0] + ".json"
+    base = _safe_filename(filename).rsplit(".", 1)[0] + ".json"
     return os.path.join(DATA_DIR, f"CAM_{cam_id}", "json", base)
+
+IMAGE_EXTS = (".jpg", ".jpeg", ".png")
+
+def _latest_image_filename(cam_id: int) -> Optional[str]:
+    """Imagen más reciente disponible de una cámara. Sustituye al antiguo
+    fallback a CAMERAS[cam_id]['file'] (un nombre de archivo fijo en
+    config.py): ese nombre había que mantenerlo a mano y en cuanto las
+    imágenes reales de la carpeta cambiaban (se resembraba el workspace, se
+    subían fotos nuevas...) dejaba de existir y el endpoint fallaba con 404
+    aunque la cámara sí tuviera imágenes. Esto se recalcula del disco real."""
+    folder = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"])
+    if not os.path.isdir(folder):
+        return None
+    candidates = [f for f in os.listdir(folder) if f.lower().endswith(IMAGE_EXTS)]
+    if not candidates:
+        return None
+    candidates.sort(key=lambda f: os.path.getmtime(os.path.join(folder, f)), reverse=True)
+    return candidates[0]
 
 def _smooth_polyline(pts: np.ndarray, window: int = 9) -> np.ndarray:
     """Suaviza una polilínea con media móvil centrada (conserva la longitud).
@@ -217,22 +247,38 @@ def align_image_to_ref(img: np.ndarray, ref_img: np.ndarray) -> np.ndarray:
 def get_logs():
     return system_logs
 
-# DEBUG: genera datos históricos FALSOS (random) para el gráfico de evolución de área.
-# No lee nada real de disco — placeholder pendiente de conectar a datos reales.
+# Serie temporal real del área seca para el gráfico "Tendencia Histórica" del
+# Dashboard: agrega Area_Seca_m2 de coastline_history_cam{id}.json (el histórico
+# que _append_history() va acumulando en cada analyze-roi) de TODAS las cámaras,
+# promediando por día natural. Si un día tiene varias capturas (de una o varias
+# cámaras) se muestra la media del día, no cada captura suelta.
 @app.get("/api/historical-data")
 def get_historical_data():
-    data = []
-    base_area = 24500
-    for i in range(30, -1, -1):
-        date = (datetime.datetime.now() - datetime.timedelta(days=i)).strftime("%Y-%m-%d")
-        area = base_area + np.random.randint(-800, 800)
-        data.append({"date": date, "area": area})
-    return data
+    by_date = {}
+    for path in glob.glob(os.path.join(DATA_DIR, "coastline_history_cam*.json")):
+        try:
+            with open(path, "r") as f:
+                history = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+        for feature in history.get("features", []):
+            props = feature.get("properties", {})
+            ts = props.get("Timestamp")
+            area = props.get("Area_Seca_m2")
+            if not ts or area is None:
+                continue
+            date = str(ts)[:10]  # YYYY-MM-DD
+            by_date.setdefault(date, []).append(area)
+    return [
+        {"date": date, "area": round(sum(areas) / len(areas), 2)}
+        for date, areas in sorted(by_date.items())
+    ]
 
 # DEBUG: guarda qué imagen se usa como referencia/base para alinear el resto de
 # capturas de una cámara. Escribe en calibration/cam_{id}_profile.json.
 @app.post("/api/cameras/{cam_id}/set-reference")
 def set_reference_image(cam_id: int, filename: str):
+    filename = _safe_filename(filename)
     profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_profile.json")
     if os.path.exists(profile_path):
         with open(profile_path, "r") as f:
@@ -429,7 +475,9 @@ def update_camera_roi(cam_id: int, payload: ROIUpdate):
 def get_camera_image(cam_id: int, file: Optional[str] = None):
     if cam_id not in CAMERAS: raise HTTPException(status_code=404, detail="Camera not found")
     info = CAMERAS[cam_id]
-    img_path = os.path.join(DATA_DIR, info["folder"], file if file else info["file"])
+    target = _safe_filename(file) if file else _latest_image_filename(cam_id)
+    if not target: raise HTTPException(status_code=404, detail="Esta cámara no tiene imágenes todavía")
+    img_path = os.path.join(DATA_DIR, info["folder"], target)
     if not os.path.exists(img_path): raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(img_path)
 
@@ -464,6 +512,7 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
     image_name = payload.image_name or profile.get("reference_image")
     if not image_name:
         raise HTTPException(status_code=400, detail="No hay imagen seleccionada ni referencia definida")
+    image_name = _safe_filename(image_name)
 
     # DEBUG (ORIGEN DATOS): los puntos de calibración salen del JSON de anotaciones
     # de ESTA imagen (proces_images/data/CAM_{id}/json/{imagen}.json). Cada punto trae:
@@ -654,7 +703,9 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
     
     # 1. Cargar imagen
     info = CAMERAS[cam_id]
-    target_file = filename if filename else info["file"]
+    target_file = _safe_filename(filename) if filename else _latest_image_filename(cam_id)
+    if not target_file:
+        raise HTTPException(status_code=404, detail="Esta cámara no tiene imágenes todavía")
     img_path = os.path.join(DATA_DIR, info["folder"], target_file)
     img = cv2.imread(img_path)
     if img is None: raise HTTPException(status_code=404, detail="Image file not found")
@@ -836,7 +887,7 @@ async def align_preview(
         ref_filename = profile.get("reference_image")
         if not ref_filename:
             raise HTTPException(400, "No hay imagen de referencia establecida en el perfil.")
-        ref_path = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"], ref_filename)
+        ref_path = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"], _safe_filename(ref_filename))
         ref_img  = cv2.imread(ref_path)
 
     if ref_img is None:
@@ -962,9 +1013,10 @@ async def upload_images(cam_id: int, files: List[UploadFile] = File(...)):
     os.makedirs(cam_folder, exist_ok=True)
     uploaded = []
     for file in files:
-        file_path = os.path.join(cam_folder, file.filename)
+        safe_name = _safe_filename(file.filename)
+        file_path = os.path.join(cam_folder, safe_name)
         with open(file_path, "wb") as buffer: shutil.copyfileobj(file.file, buffer)
-        uploaded.append(file.filename)
+        uploaded.append(safe_name)
     add_log(f"Subidas {len(uploaded)} imágenes a Cam {cam_id}", "info")
     return {"status": "success", "uploaded": uploaded, "count": len(uploaded)}
 
@@ -1006,7 +1058,7 @@ def list_camera_images(cam_id: int):
 @app.delete("/api/cameras/{cam_id}/images/{filename}")
 def delete_camera_image(cam_id: int, filename: str):
     if cam_id not in CAMERAS: raise HTTPException(status_code=404, detail="Camera not found")
-    file_path = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"], filename)
+    file_path = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"], _safe_filename(filename))
     if os.path.exists(file_path):
         try:
             os.remove(file_path)

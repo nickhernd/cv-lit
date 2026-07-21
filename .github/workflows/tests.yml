@@ -1,0 +1,27 @@
+name: Tests
+
+# Solo corre el pipeline de tests autocontenido (mockea SAM, no necesita
+# GPU/checkpoint ni backend levantado). test_api_integration.py se queda
+# fuera de CI a propósito: necesita un servidor real con un workspace de
+# cámaras sembrado, que no existe en el runner — se sigue ejecutando en
+# local contra start_dev.ps1.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pipeline-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: pip install -r backend/requirements.txt
+
+      - name: Tests del pipeline (sin backend levantado)
+        run: pytest tests/test_pipeline_integration.py -v

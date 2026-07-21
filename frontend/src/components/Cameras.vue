@@ -73,44 +73,41 @@ onMounted(fetchCameras)
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="flex justify-between items-center border-b border-slate-200 pb-4">
-      <div>
-        <h1 class="text-xl font-semibold text-slate-900 tracking-tight">Configuración de Cámaras</h1>
-        <p class="text-xs text-slate-400 font-medium">{{ cameras.length }} estaciones · Guardamar del Segura</p>
-      </div>
+  <div class="space-y-4">
+    <div class="flex justify-end">
+      <span class="text-[11px] font-medium text-slate-400">{{ cameras.length }} estaciones · Guardamar del Segura</span>
     </div>
 
     <div class="card-standard overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-left text-sm">
-          <thead class="bg-slate-50/60 text-slate-500 font-semibold border-b border-slate-100">
+          <thead class="text-slate-500 font-semibold border-b border-slate-200">
             <tr>
-              <th class="px-6 py-3 uppercase tracking-widest text-[10px]">ID</th>
-              <th class="px-6 py-3 uppercase tracking-widest text-[10px]">Nombre</th>
-              <th class="px-6 py-3 uppercase tracking-widest text-[10px]">Estado</th>
-              <th class="px-6 py-3 uppercase tracking-widest text-[10px]">Calibración</th>
-              <th class="px-6 py-3 uppercase tracking-widest text-[10px]">RMSE</th>
-              <th class="px-6 py-3 uppercase tracking-widest text-[10px]">GCPs</th>
-              <th class="px-6 py-3 uppercase tracking-widest text-[10px]">Última img.</th>
-              <th class="px-6 py-3 text-right uppercase tracking-widest text-[10px]">Acciones</th>
+              <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">ID</th>
+              <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">Nombre</th>
+              <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">Estado</th>
+              <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">Calibración</th>
+              <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">RMSE</th>
+              <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">GCPs</th>
+              <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">Última img.</th>
+              <th class="px-3.5 py-2 text-right uppercase tracking-wider text-[10px]">Acciones</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
             <tr v-for="cam in cameras" :key="cam.idx" class="hover:bg-slate-50 transition-colors text-slate-700">
-              <td class="px-6 py-4 font-mono text-[10px] text-slate-500">{{ cam.id }}</td>
-              <td class="px-6 py-4 font-bold uppercase text-[11px]">{{ cam.name }}</td>
-              <td class="px-6 py-4">
+              <td class="px-3.5 py-2.5 font-mono text-[10px] text-slate-500">{{ cam.id }}</td>
+              <td class="px-3.5 py-2.5 font-semibold uppercase text-[11px]">{{ cam.name }}</td>
+              <td class="px-3.5 py-2.5">
                 <span class="inline-flex items-center space-x-1.5">
                   <span :class="cam.calibrated ? 'bg-emerald-500' : 'bg-red-500'" class="w-1.5 h-1.5 rounded-full"></span>
-                  <span class="text-[10px] font-bold uppercase">{{ cam.calibrated ? 'Activa' : 'Sin calibrar' }}</span>
+                  <span class="text-[10px] font-semibold uppercase">{{ cam.calibrated ? 'Activa' : 'Sin calibrar' }}</span>
                 </span>
               </td>
-              <td class="px-6 py-4 text-[10px] font-mono text-slate-500">{{ cam.last_calibration_date || '—' }}</td>
-              <td class="px-6 py-4 text-[10px] font-mono" :class="cam.rmse_m > 1 ? 'text-amber-600' : 'text-slate-600'">{{ cam.rmse_m ? cam.rmse_m.toFixed(2) + ' m' : '—' }}</td>
-              <td class="px-6 py-4 text-[10px] font-mono text-slate-500">{{ cam.gcps_count ?? '—' }}</td>
-              <td class="px-6 py-4 text-[10px] font-mono text-slate-500">{{ fmtDate(cam.last_image_ts) }}</td>
-              <td class="px-6 py-4 text-right space-x-2">
+              <td class="px-3.5 py-2.5 text-[10px] font-mono text-slate-500">{{ cam.last_calibration_date || '—' }}</td>
+              <td class="px-3.5 py-2.5 text-[10px] font-mono" :class="cam.rmse_m > 1 ? 'text-amber-600' : 'text-slate-600'">{{ cam.rmse_m ? cam.rmse_m.toFixed(2) + ' m' : '—' }}</td>
+              <td class="px-3.5 py-2.5 text-[10px] font-mono text-slate-500">{{ cam.gcps_count ?? '—' }}</td>
+              <td class="px-3.5 py-2.5 text-[10px] font-mono text-slate-500">{{ fmtDate(cam.last_image_ts) }}</td>
+              <td class="px-3.5 py-2.5 text-right space-x-2">
                 <button @click="emit('calibrate-camera', cam.idx)" class="btn-secondary py-1 px-3 text-[10px]">Calibrar</button>
                 <button @click="toggleView(cam.idx)" class="btn-standard py-1 px-3 text-[10px]">{{ viewingIdx === cam.idx ? 'Cerrar' : 'Ver' }}</button>
               </td>
@@ -127,52 +124,52 @@ onMounted(fetchCameras)
           {{ saving ? 'Guardando…' : 'Guardar cambios' }}
         </button>
       </div>
-      <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="space-y-4">
-          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Información general</div>
+          <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Información general</div>
           <div class="grid grid-cols-2 gap-4 text-xs">
-            <div><p class="text-[9px] font-bold text-slate-400 uppercase mb-0.5">ID</p><p class="font-mono font-bold">{{ viewing().id }}</p></div>
-            <div><p class="text-[9px] font-bold text-slate-400 uppercase mb-0.5">Nº Serie</p><p class="font-mono">{{ viewing().serial }}</p></div>
+            <div><p class="text-[9px] font-semibold text-slate-400 uppercase mb-0.5">ID</p><p class="font-mono font-semibold">{{ viewing().id }}</p></div>
+            <div><p class="text-[9px] font-semibold text-slate-400 uppercase mb-0.5">Nº Serie</p><p class="font-mono">{{ viewing().serial }}</p></div>
             <div class="space-y-1">
-              <label class="text-[9px] font-bold text-slate-400 uppercase">UTM X (m)</label>
+              <label class="text-[9px] font-semibold text-slate-400 uppercase">UTM X (m)</label>
               <input type="number" step="0.01" v-model.number="hardwareForm.utm_x" class="w-full input-standard font-mono text-xs">
             </div>
             <div class="space-y-1">
-              <label class="text-[9px] font-bold text-slate-400 uppercase">UTM Y (m)</label>
+              <label class="text-[9px] font-semibold text-slate-400 uppercase">UTM Y (m)</label>
               <input type="number" step="0.01" v-model.number="hardwareForm.utm_y" class="w-full input-standard font-mono text-xs">
             </div>
             <div class="space-y-1">
-              <label class="text-[9px] font-bold text-slate-400 uppercase">Altura (m)</label>
+              <label class="text-[9px] font-semibold text-slate-400 uppercase">Altura (m)</label>
               <input type="number" step="0.1" v-model.number="hardwareForm.height_m" class="w-full input-standard font-mono text-xs">
             </div>
             <div class="space-y-1">
-              <label class="text-[9px] font-bold text-slate-400 uppercase">Acimut (°)</label>
+              <label class="text-[9px] font-semibold text-slate-400 uppercase">Acimut (°)</label>
               <input type="number" step="0.1" v-model.number="hardwareForm.azimuth_deg" class="w-full input-standard font-mono text-xs">
             </div>
-            <div><p class="text-[9px] font-bold text-slate-400 uppercase mb-0.5">Imágenes almacenadas</p><p class="font-mono">{{ viewing().images_count }}</p></div>
+            <div><p class="text-[9px] font-semibold text-slate-400 uppercase mb-0.5">Imágenes almacenadas</p><p class="font-mono">{{ viewing().images_count }}</p></div>
           </div>
         </div>
         <div class="space-y-4">
-          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Región de interés (ROI)</div>
+          <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Región de interés (ROI)</div>
           <div class="grid grid-cols-2 gap-4 text-xs">
             <div class="space-y-1">
-              <label class="text-[9px] font-bold text-slate-400 uppercase">X min (px)</label>
+              <label class="text-[9px] font-semibold text-slate-400 uppercase">X min (px)</label>
               <input type="number" v-model.number="roiForm.x_min" class="w-full input-standard font-mono text-xs">
             </div>
             <div class="space-y-1">
-              <label class="text-[9px] font-bold text-slate-400 uppercase">X max (px)</label>
+              <label class="text-[9px] font-semibold text-slate-400 uppercase">X max (px)</label>
               <input type="number" v-model.number="roiForm.x_max" class="w-full input-standard font-mono text-xs">
             </div>
             <div class="space-y-1">
-              <label class="text-[9px] font-bold text-slate-400 uppercase">Y min (px)</label>
+              <label class="text-[9px] font-semibold text-slate-400 uppercase">Y min (px)</label>
               <input type="number" v-model.number="roiForm.y_min" class="w-full input-standard font-mono text-xs">
             </div>
             <div class="space-y-1">
-              <label class="text-[9px] font-bold text-slate-400 uppercase">Y max (px)</label>
+              <label class="text-[9px] font-semibold text-slate-400 uppercase">Y max (px)</label>
               <input type="number" v-model.number="roiForm.y_max" class="w-full input-standard font-mono text-xs">
             </div>
             <div class="col-span-2 space-y-1">
-              <label class="text-[9px] font-bold text-slate-400 uppercase">Descripción</label>
+              <label class="text-[9px] font-semibold text-slate-400 uppercase">Descripción</label>
               <input v-model="roiForm.description" class="w-full input-standard text-xs">
             </div>
           </div>

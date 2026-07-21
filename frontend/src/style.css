@@ -1,9 +1,26 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
+:root {
+  /* Tokens 1:1 con Linea de costa-6/calibration/calibration.css (mock.pdf) */
+  --bg: #fafbfc;
+  --bg2: #f1f3f5;
+  --bg3: #e6e9ec;
+  --border: #dde1e6;
+  --border2: #c8cdd3;
+  --text: #1c2530;
+  --text2: #5a6472;
+  --text3: #8a92a0;
+}
+
 @theme {
   --color-primary: #1c2530;
   --color-accent: #2f6690;
+  /* Segundo acento — el color real de las varillas GCP en campo (naranja
+     flúor, ver mock.pdf "Color varillas: Naranja flúor"). Se usa SOLO para
+     lo que representa una varilla/dato de arena — nunca como color de marca
+     o de acción, para no competir con el azul principal. */
+  --color-accent2: #c98f3e;
   --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
 
@@ -65,27 +82,101 @@
     @apply bg-[#f1f3f5] text-slate-800;
     -webkit-font-smoothing: antialiased;
   }
+  /* Foco de teclado visible y consistente en toda la app — con el acento,
+     no el azul de sistema por defecto del navegador. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
 }
+
+/* Ítem de navegación del sidebar en formato píldora (en vez de solo un
+   borde izquierdo): fondo tenue del acento + icono, más cercano a cómo
+   escanea el ojo una barra lateral moderna (Linear/Vercel) que al mock
+   original, que no llevaba ni iconos ni resalte de fondo. */
+.nav-item {
+  @apply flex items-center gap-2.5 w-full text-left px-3 py-2 mx-2 rounded-md text-[13px] font-medium text-slate-600 transition-colors;
+  width: calc(100% - 1rem);
+}
+.nav-item:hover { @apply bg-slate-200/50 text-slate-900; }
+.nav-item.active { @apply bg-blue-600/10 text-blue-700; }
+.nav-item svg { @apply w-4 h-4 shrink-0 opacity-70; }
+.nav-item.active svg { @apply opacity-100; }
+
+/* ── Superficie plana estilo "Línea de Costa" (mock.pdf / calibration.css) ──
+   Sin sombras, radios pequeños, bordes de 1px: estética de herramienta
+   técnica, no de dashboard SaaS. Todas las páginas comparten estas clases
+   para que la app se vea como un único sistema. */
 
 .card-standard {
-  @apply bg-white border border-slate-200 rounded-md transition-shadow;
+  @apply bg-white border border-slate-200 rounded-md;
+  box-shadow: none !important;
 }
 
+/* En el mock (calibration.css .card-title) la etiqueta de una card NO lleva
+   barra de fondo ni separador: es solo texto pequeño dentro del propio
+   padding de la card. Antes esto tenía bg-slate-50 + border-b, lo que le
+   daba aspecto de "cabecera de panel SaaS" en vez de la ficha plana del mock. */
 .card-header {
-  @apply px-5 py-3.5 border-b border-slate-200 bg-slate-50/60 text-[11px] font-semibold uppercase tracking-wider text-slate-500;
+  @apply px-3.5 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500;
 }
+.card-header.with-divider { @apply border-b border-slate-200 bg-slate-50; }
 
 .btn-standard {
-  @apply px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-40;
+  @apply inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 text-white rounded-md text-[13px] font-medium hover:bg-blue-700 active:scale-[0.98] transition disabled:opacity-40 disabled:active:scale-100;
+  box-shadow: none !important;
 }
 
 .btn-secondary {
-  @apply px-4 py-2 bg-slate-100 border border-slate-200 text-slate-600 rounded-md text-sm font-medium hover:bg-slate-200 hover:text-slate-900 transition-colors;
+  @apply inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 border border-slate-200 text-slate-600 rounded-md text-[13px] font-medium hover:bg-slate-200 hover:text-slate-900 active:scale-[0.98] transition disabled:opacity-40 disabled:active:scale-100;
+  box-shadow: none !important;
+}
+
+.btn-ghost {
+  @apply inline-flex items-center gap-1.5 px-3.5 py-2 bg-transparent border border-blue-600 text-blue-600 rounded-md text-[13px] font-medium hover:bg-blue-50 active:scale-[0.98] transition;
 }
 
 .input-standard {
-  @apply bg-white border border-slate-300 rounded px-3 py-1.5 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-500/15 outline-none transition-all;
+  @apply bg-white border border-slate-300 rounded px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500/25 outline-none transition-colors;
 }
+
+/* Badges tipo píldora — estado (calibrada/pendiente/error) en toda la app */
+.badge {
+  @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium;
+}
+.badge-ok { @apply bg-emerald-100 text-emerald-700; }
+.badge-warn { @apply bg-amber-100 text-amber-700; }
+.badge-err { @apply bg-red-100 text-red-700; }
+.badge-neutral { @apply bg-slate-100 text-slate-500; }
+.badge-info { @apply bg-blue-50 text-blue-700; }
+
+/* Cabecera de página persistente (App.vue): título + subtítulo + acciones,
+   igual que el topbar del mock — sustituye a los antiguos <h1> con
+   border-b repetidos en cada componente. */
+.page-topbar {
+  @apply flex items-center justify-between gap-4 pb-3.5 mb-5 border-b border-slate-200;
+}
+.page-title { @apply text-base font-semibold text-slate-900; }
+.page-sub { @apply text-xs text-slate-400 mt-0.5; }
+
+/* Stepper de puntos conectados (paso a paso de Calibración, como en el mock) */
+.stepper { @apply flex items-center mb-4; }
+.stepper .step { @apply flex items-center gap-1.5; }
+.stepper .dot {
+  @apply w-[22px] h-[22px] rounded-full flex items-center justify-center text-[11px] font-semibold bg-slate-200 text-slate-400 shrink-0;
+}
+.stepper .step.done .dot { @apply bg-emerald-600 text-white; }
+.stepper .step.active .dot { @apply bg-blue-600 text-white; }
+.stepper .step .label { @apply text-xs font-medium text-slate-400; }
+.stepper .step.active .label, .stepper .step.done .label { @apply text-slate-700; }
+.stepper .connector { @apply flex-1 h-px bg-slate-300 mx-2.5; }
 
 /* Print Styles for Reports */
 @media print {

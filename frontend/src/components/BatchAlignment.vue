@@ -334,7 +334,7 @@ onUnmounted(() => clearInterval(pollInterval))
   <div v-if="phase === 'idle'" class="flex flex-col items-center justify-center h-64 space-y-4">
     <div class="text-slate-400 text-sm">Alineación masiva de fotogramas</div>
     <button @click="startConfiguring"
-            class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm transition-colors shadow">
+            class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm transition-colors">
       Iniciar lote de alineación
     </button>
   </div>
@@ -345,15 +345,15 @@ onUnmounted(() => clearInterval(pollInterval))
   <div v-else-if="phase === 'configuring'" class="flex flex-col h-full space-y-4">
     <!-- Header -->
     <div class="flex items-center justify-between">
-      <h2 class="text-base font-bold text-slate-800">Configurar lote · CAM {{ camId }}</h2>
+      <h2 class="text-base font-semibold text-slate-800">Configurar lote · CAM {{ camId }}</h2>
       <button @click="discardJob" class="text-xs text-slate-400 hover:text-red-500 transition-colors">
         Cancelar
       </button>
     </div>
 
     <!-- Imagen base -->
-    <div class="bg-white rounded-lg border border-slate-200 p-4 space-y-2">
-      <label class="text-xs font-bold text-slate-600 uppercase tracking-widest block">
+    <div class="card-standard p-4 space-y-2">
+      <label class="text-xs font-semibold text-slate-600 uppercase tracking-wider block">
         Imagen base de referencia
       </label>
       <select v-model="baseFilename"
@@ -369,9 +369,9 @@ onUnmounted(() => clearInterval(pollInterval))
     </div>
 
     <!-- Máscara SIFT (zonas estables) -->
-    <div v-if="baseFilename" class="bg-white rounded-lg border border-slate-200 p-4 space-y-3">
+    <div v-if="baseFilename" class="card-standard p-4 space-y-3">
       <div class="flex items-center justify-between">
-        <label class="text-xs font-bold text-slate-600 uppercase tracking-widest">
+        <label class="text-xs font-semibold text-slate-600 uppercase tracking-wider">
           Máscara SIFT (zonas estables)
         </label>
         <label class="flex items-center space-x-2 text-[10px] text-slate-500 cursor-pointer">
@@ -395,11 +395,11 @@ onUnmounted(() => clearInterval(pollInterval))
              class="absolute border-2 border-emerald-400 bg-emerald-400/20 group"
              :style="{ left: (r.x0*100)+'%', top: (r.y0*100)+'%',
                        width: ((r.x1-r.x0)*100)+'%', height: ((r.y1-r.y0)*100)+'%' }">
-          <span class="absolute -top-5 left-0 text-[9px] font-bold text-emerald-300 bg-slate-900/80 px-1 rounded whitespace-nowrap">
+          <span class="absolute -top-5 left-0 text-[9px] font-semibold text-emerald-300 bg-slate-900/80 px-1 rounded whitespace-nowrap">
             {{ r.label }}
           </span>
           <button @mousedown.stop @click.stop="removeMaskRegion(idx)"
-                  class="absolute -top-5 right-0 text-[9px] font-bold text-red-300 bg-slate-900/80 px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                  class="absolute -top-5 right-0 text-[9px] font-semibold text-red-300 bg-slate-900/80 px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
             ✕
           </button>
         </div>
@@ -421,9 +421,9 @@ onUnmounted(() => clearInterval(pollInterval))
     </div>
 
     <!-- Selección de imágenes -->
-    <div class="bg-white rounded-lg border border-slate-200 p-4 flex-1 flex flex-col min-h-0 space-y-2">
+    <div class="card-standard p-4 flex-1 flex flex-col min-h-0 space-y-2">
       <div class="flex items-center justify-between">
-        <label class="text-xs font-bold text-slate-600 uppercase tracking-widest">
+        <label class="text-xs font-semibold text-slate-600 uppercase tracking-wider">
           Imágenes en el lote ({{ selectedFiles.size }} / {{ imageList.length }})
         </label>
         <div class="flex space-x-2 text-[10px]">
@@ -441,14 +441,14 @@ onUnmounted(() => clearInterval(pollInterval))
                  class="rounded accent-blue-600" />
           <span class="flex-1 font-mono text-xs truncate text-slate-700">{{ img.filename }}</span>
           <span v-if="img.filename === baseFilename"
-                class="text-[9px] font-bold bg-blue-600 text-white px-1.5 py-0.5 rounded">BASE</span>
+                class="text-[9px] font-semibold bg-blue-600 text-white px-1.5 py-0.5 rounded">BASE</span>
         </label>
       </div>
     </div>
 
     <button @click="startBatch"
             :disabled="!baseFilename || selectedFiles.size < 2"
-            class="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-sm transition-colors shadow">
+            class="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-sm transition-colors">
       Alinear {{ selectedFiles.size }} imágenes
     </button>
   </div>
@@ -456,7 +456,7 @@ onUnmounted(() => clearInterval(pollInterval))
   <!-- ════════════════════════════════════════════════════════════════
        PROCESSING — barra de progreso
   ════════════════════════════════════════════════════════════════ -->
-  <div v-else-if="phase === 'processing'" class="flex flex-col items-center justify-center h-64 space-y-6 p-8">
+  <div v-else-if="phase === 'processing'" class="flex flex-col items-center justify-center h-64 space-y-4 p-5">
     <div class="text-sm font-semibold text-slate-700">Alineando fotogramas…</div>
 
     <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
@@ -484,19 +484,19 @@ onUnmounted(() => clearInterval(pollInterval))
     <!-- ── Panel izquierdo: filmstrip + métricas ─────────────────── -->
     <div class="w-56 flex flex-col min-h-0 space-y-3 shrink-0">
       <!-- Resumen del lote -->
-      <div class="bg-white rounded-lg border border-slate-200 p-3 text-xs space-y-1.5">
-        <div class="font-bold text-slate-700 uppercase tracking-widest text-[10px] mb-1">Resumen lote</div>
+      <div class="card-standard p-3 text-xs space-y-1.5">
+        <div class="font-semibold text-slate-700 uppercase tracking-wider text-[10px] mb-1">Resumen lote</div>
         <div class="flex justify-between">
           <span class="text-slate-500">Aprobadas</span>
-          <span class="font-bold text-emerald-600">{{ approvedCount }}</span>
+          <span class="font-semibold text-emerald-600">{{ approvedCount }}</span>
         </div>
         <div class="flex justify-between">
           <span class="text-slate-500">Omitidas</span>
-          <span class="font-bold text-amber-600">{{ skippedCount }}</span>
+          <span class="font-semibold text-amber-600">{{ skippedCount }}</span>
         </div>
         <div class="flex justify-between">
           <span class="text-slate-500">Fallidas</span>
-          <span class="font-bold text-red-600">{{ failedCount }}</span>
+          <span class="font-semibold text-red-600">{{ failedCount }}</span>
         </div>
       </div>
 
@@ -506,9 +506,7 @@ onUnmounted(() => clearInterval(pollInterval))
                 @click="selected = r.filename"
                 :title="statusTooltip(r)"
                 class="w-full flex items-center space-x-2 px-2 py-1.5 rounded text-left transition-colors"
-                :class="selected === r.filename
-                  ? 'bg-blue-600 text-white'
-                  : 'hover:bg-slate-100 text-slate-700'">
+                :class="selected === r.filename ? 'bg-blue-600 text-white' : 'hover:bg-slate-100 text-slate-700'">
 
           <!-- Indicador de estado -->
           <div class="w-2 h-2 rounded-full shrink-0" :class="statusColor(r)"></div>
@@ -517,7 +515,7 @@ onUnmounted(() => clearInterval(pollInterval))
           <span class="flex-1 text-[10px] font-mono truncate min-w-0">{{ r.filename }}</span>
 
           <!-- Etiqueta compacta -->
-          <span class="text-[9px] font-bold shrink-0" :class="selected === r.filename ? 'text-blue-200' : 'text-slate-400'">
+          <span class="text-[9px] font-semibold shrink-0" :class="selected === r.filename ? 'text-blue-200' : 'text-slate-400'">
             {{ statusLabel(r) }}
           </span>
         </button>
@@ -526,7 +524,7 @@ onUnmounted(() => clearInterval(pollInterval))
       <!-- Botones de acción -->
       <div class="space-y-2 shrink-0">
         <button @click="commitBatch" :disabled="committing || approvedCount === 0"
-                class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-xs transition-colors shadow">
+                class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-xs transition-colors">
           {{ committing ? 'Confirmando…' : `Confirmar lote (${approvedCount})` }}
         </button>
         <button @click="discardJob"
@@ -540,7 +538,7 @@ onUnmounted(() => clearInterval(pollInterval))
     <div class="flex-1 flex flex-col min-h-0 min-w-0 space-y-3">
 
       <!-- Toolbar del visor -->
-      <div class="bg-white rounded-lg border border-slate-200 p-3 flex items-center justify-between shrink-0">
+      <div class="card-standard p-3 flex items-center justify-between shrink-0">
         <!-- Selector de modo -->
         <div class="flex space-x-1">
           <button v-for="m in [
@@ -551,9 +549,7 @@ onUnmounted(() => clearInterval(pollInterval))
             :key="m.key"
             @click="viewMode = m.key"
             class="px-3 py-1.5 rounded text-xs font-semibold transition-colors"
-            :class="viewMode === m.key
-              ? 'bg-blue-600 text-white'
-              : 'text-slate-500 hover:bg-slate-100'">
+            :class="viewMode === m.key ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100'">
             {{ m.label }}
           </button>
         </div>
@@ -563,25 +559,23 @@ onUnmounted(() => clearInterval(pollInterval))
           <span class="font-mono text-slate-500 truncate max-w-[180px]">{{ selectedResult.filename }}</span>
           <div class="flex space-x-3">
             <div class="text-slate-500">
-              Inliers: <span class="font-bold text-slate-800">{{ selectedResult.inliers }}</span>
+              Inliers: <span class="font-semibold text-slate-800">{{ selectedResult.inliers }}</span>
             </div>
             <div class="text-slate-500">
               Delta:
-              <span class="font-bold"
+              <span class="font-semibold"
                     :class="selectedResult.mean_shift_px > 3 ? 'text-amber-600' : 'text-emerald-600'">
                 {{ selectedResult.mean_shift_px === -1 ? 'N/A' : `${selectedResult.mean_shift_px} px` }}
               </span>
             </div>
             <div v-if="selectedResult.status !== 'reference'" class="flex items-center space-x-1">
               <button @click="toggleApproval(selectedResult.filename)"
-                      class="px-2 py-0.5 rounded text-[10px] font-bold transition-colors"
-                      :class="selectedResult.approved
-                        ? 'bg-emerald-100 text-emerald-700 hover:bg-red-100 hover:text-red-700'
-                        : 'bg-red-100 text-red-700 hover:bg-emerald-100 hover:text-emerald-700'">
+                      class="px-2 py-0.5 rounded text-[10px] font-semibold transition-colors"
+                      :class="selectedResult.approved ? 'bg-emerald-100 text-emerald-700 hover:bg-red-100 hover:text-red-700' : 'bg-red-100 text-red-700 hover:bg-emerald-100 hover:text-emerald-700'">
                 {{ selectedResult.approved ? '✓ Aprobada' : '✗ Omitida' }}
               </button>
             </div>
-            <span v-else class="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+            <span v-else class="text-[10px] font-semibold bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
               REFERENCIA BASE
             </span>
           </div>
@@ -593,7 +587,7 @@ onUnmounted(() => clearInterval(pollInterval))
 
         <!-- Izquierda: siempre original -->
         <div class="flex-1 flex flex-col min-h-0">
-          <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-2 py-1 bg-slate-800 shrink-0">
+          <div class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider px-2 py-1 bg-slate-800 shrink-0">
             Original
           </div>
           <div class="flex-1 overflow-hidden flex items-center justify-center bg-slate-900">
@@ -608,12 +602,8 @@ onUnmounted(() => clearInterval(pollInterval))
 
         <!-- Derecha: modo seleccionado -->
         <div class="flex-1 flex flex-col min-h-0">
-          <div class="text-[9px] font-bold uppercase tracking-widest px-2 py-1 bg-slate-800 shrink-0 flex items-center space-x-2">
-            <span :class="{
-              'text-red-400':    viewMode === 'diff',
-              'text-blue-400':   viewMode === 'blend',
-              'text-emerald-400': viewMode === 'aligned',
-            }">
+          <div class="text-[9px] font-semibold uppercase tracking-wider px-2 py-1 bg-slate-800 shrink-0 flex items-center space-x-2">
+            <span :class="{ 'text-red-400': viewMode === 'diff', 'text-blue-400': viewMode === 'blend', 'text-emerald-400': viewMode === 'aligned', }">
               {{ viewMode === 'diff' ? 'Mapa de delta (negro=OK · rojo=error · cian=bordes)' :
                  viewMode === 'blend' ? 'Blend 50/50 escala de grises' :
                  'Imagen alineada (staging)' }}
@@ -629,7 +619,7 @@ onUnmounted(() => clearInterval(pollInterval))
 
       <!-- Leyenda del mapa delta -->
       <div v-if="viewMode === 'diff'" class="bg-slate-800 rounded-lg px-4 py-2 flex items-center space-x-6 text-[10px] text-slate-300 shrink-0">
-        <span class="font-bold text-slate-400 uppercase tracking-widest">Leyenda delta:</span>
+        <span class="font-semibold text-slate-400 uppercase tracking-wider">Leyenda delta:</span>
         <div class="flex items-center space-x-1.5">
           <div class="w-3 h-3 rounded bg-black border border-slate-600"></div>
           <span>Alineación perfecta</span>

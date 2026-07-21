@@ -15,5 +15,11 @@
 # Checkpoints de modelos descargables (SAM ViT-H, ~2.5GB) — no van en git
 *.pth
 
+# Material de referencia de diseño (mocks HTML/CSS/capturas de la propuesta
+# de interfaz), no es código de la app
+/Linea de costa-6/
+Linea de costa-6.zip
+/mocks/
+
 node_modules/
 node_modules/

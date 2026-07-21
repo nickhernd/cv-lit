@@ -113,12 +113,16 @@ const mapView = ref(false)
 const mapFitSignal = ref(0)
 const gcpGeoJson = computed(() => ({
   type: 'FeatureCollection',
+  // idx conserva la posición ORIGINAL en currentProfile.gcps (no la posición
+  // tras el filtro) — si no, en cuanto hay una varilla sin UTM válida el
+  // número mostrado en el mapa deja de corresponder con el de la lista/foto.
   features: (currentProfile.value.gcps || [])
-    .filter(g => Array.isArray(g.utm) && g.utm.length === 2 && g.utm.every(v => v !== null && v !== '' && !Number.isNaN(Number(v))))
-    .map((g, i) => ({
+    .map((g, origIdx) => ({ g, origIdx }))
+    .filter(({ g }) => Array.isArray(g.utm) && g.utm.length === 2 && g.utm.every(v => v !== null && v !== '' && !Number.isNaN(Number(v))))
+    .map(({ g, origIdx }) => ({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [Number(g.utm[0]), Number(g.utm[1])] },
-      properties: { label: g.label, idx: i }
+      properties: { label: g.label, idx: origIdx }
     }))
 }))
 watch(mapView, (v) => { if (v) mapFitSignal.value++ })
@@ -656,43 +660,42 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="flex justify-between items-center border-b border-slate-200 pb-4">
-      <h1 class="text-xl font-semibold text-slate-900 tracking-tight">Calibración Geométrica</h1>
-      <div v-if="selectedCamId" class="flex items-center space-x-2 text-xs font-bold text-blue-600 uppercase">
-        <span>Cámara Activa:</span>
-        <span class="bg-blue-600 text-white px-2 py-0.5 rounded shadow-sm">{{ cameras.find(c => c.idx === selectedCamId)?.name }}</span>
-      </div>
+  <div class="space-y-4">
+    <div v-if="selectedCamId" class="flex justify-end">
+      <span class="badge badge-info">
+        Cámara activa: <strong class="font-semibold">{{ cameras.find(c => c.idx === selectedCamId)?.name }}</strong>
+      </span>
     </div>
 
-    <!-- TABS -->
-    <div class="flex bg-white rounded-md shadow-sm border border-slate-200 overflow-hidden">
-      <button v-for="step in steps" :key="step.id"
-              @click="currentStep = step.id"
-              :disabled="!selectedCamId && step.id > 1"
-              :class="[
-                currentStep === step.id ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50',
-                !selectedCamId && step.id > 1 ? 'opacity-50 cursor-not-allowed' : ''
-              ]"
-              class="px-4 py-3 text-[10px] font-bold uppercase tracking-widest transition-all flex-1 text-center border-r last:border-r-0 border-slate-200">
-        {{ step.id }}. {{ step.name }}
-      </button>
+    <!-- Stepper de puntos conectados, como en Calibrar · Cámara N del mock -->
+    <div class="stepper">
+      <template v-for="(step, i) in steps" :key="step.id">
+        <div class="step" :class="[
+               currentStep === step.id ? 'active' : (currentStep > step.id ? 'done' : ''),
+               (!selectedCamId && step.id > 1) ? 'opacity-40 pointer-events-none' : 'cursor-pointer'
+             ]"
+             @click="currentStep = step.id">
+          <div class="dot">{{ currentStep > step.id ? '✓' : step.id }}</div>
+          <span class="label">{{ step.name }}</span>
+        </div>
+        <div v-if="i < steps.length - 1" class="connector"></div>
+      </template>
     </div>
 
     <!-- PASO 1: VISTA GENERAL -->
-    <div v-if="currentStep === 1" class="space-y-6">
+    <div v-if="currentStep === 1" class="space-y-4">
       <div class="grid grid-cols-3 gap-4">
         <div class="card-standard p-4">
-          <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Cámaras calibradas</p>
-          <p class="text-xl font-bold text-slate-900 tabular-nums">{{ calibratedCount }} / {{ cameras.length }}</p>
+          <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Cámaras calibradas</p>
+          <p class="text-xl font-mono font-medium text-slate-900 tabular-nums">{{ calibratedCount }} / {{ cameras.length }}</p>
         </div>
         <div class="card-standard p-4">
-          <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">RMSE medio</p>
-          <p class="text-xl font-bold text-slate-900 tabular-nums">{{ avgRmse }}</p>
+          <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">RMSE medio</p>
+          <p class="text-xl font-mono font-medium text-slate-900 tabular-nums">{{ avgRmse }}</p>
         </div>
         <div class="card-standard p-4">
-          <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">GCPs registrados</p>
-          <p class="text-xl font-bold text-slate-900 tabular-nums">{{ totalGcps }}</p>
+          <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">GCPs registrados</p>
+          <p class="text-xl font-mono font-medium text-slate-900 tabular-nums">{{ totalGcps }}</p>
         </div>
       </div>
 
@@ -700,37 +703,37 @@ onMounted(() => {
         <div class="card-header uppercase tracking-wider text-[10px]">Perfiles de calibración</div>
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm">
-            <thead class="bg-slate-50/60 text-slate-500 font-semibold border-b border-slate-100">
+            <thead class="text-slate-500 font-semibold border-b border-slate-200">
               <tr>
-                <th class="px-6 py-3 uppercase tracking-widest text-[10px]">Cám.</th>
-                <th class="px-6 py-3 uppercase tracking-widest text-[10px]">Estado</th>
-                <th class="px-6 py-3 uppercase tracking-widest text-[10px]">Última calibración</th>
-                <th class="px-6 py-3 uppercase tracking-widest text-[10px]">RMSE</th>
-                <th class="px-6 py-3 uppercase tracking-widest text-[10px]">GCPs</th>
-                <th class="px-6 py-3 text-right uppercase tracking-widest text-[10px]">Acciones</th>
+                <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">Cám.</th>
+                <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">Estado</th>
+                <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">Última calibración</th>
+                <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">RMSE</th>
+                <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">GCPs</th>
+                <th class="px-3.5 py-2 text-right uppercase tracking-wider text-[10px]">Acciones</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr v-for="cam in cameras" :key="cam.idx" class="hover:bg-slate-50 transition-colors text-slate-700">
-                <td class="px-6 py-4">
-                  <p class="font-bold uppercase text-[11px]">{{ cam.id }}</p>
+                <td class="px-3.5 py-2.5">
+                  <p class="font-semibold uppercase text-[11px]">{{ cam.id }}</p>
                   <p class="text-[10px] text-slate-400">{{ cam.name }}</p>
                 </td>
-                <td class="px-6 py-4">
+                <td class="px-3.5 py-2.5">
                   <span class="inline-flex items-center space-x-1.5">
                     <span :class="cam.calibrated ? 'bg-emerald-500' : 'bg-slate-300'" class="w-1.5 h-1.5 rounded-full"></span>
-                    <span class="text-[10px] font-bold uppercase">{{ cam.calibrated ? 'Calibrada' : 'Sin calibrar' }}</span>
+                    <span class="text-[10px] font-semibold uppercase">{{ cam.calibrated ? 'Calibrada' : 'Sin calibrar' }}</span>
                   </span>
                 </td>
-                <td class="px-6 py-4 text-[10px] font-mono text-slate-500">{{ cam.last_calibration_date || '—' }}</td>
-                <td class="px-6 py-4 text-[10px] font-mono" :class="cam.rmse_m > 2 ? 'text-amber-600' : 'text-slate-600'">
+                <td class="px-3.5 py-2.5 text-[10px] font-mono text-slate-500">{{ cam.last_calibration_date || '—' }}</td>
+                <td class="px-3.5 py-2.5 text-[10px] font-mono" :class="cam.rmse_m > 2 ? 'text-amber-600' : 'text-slate-600'">
                   <template v-if="cam.rmse_m != null">
                     {{ cam.rmse_m.toFixed(2) }} m<span v-if="cam.rmse_px != null" class="text-slate-400"> · {{ cam.rmse_px.toFixed(2) }} px</span>
                   </template>
                   <template v-else>—</template>
                 </td>
-                <td class="px-6 py-4 text-[10px] font-mono text-slate-500">{{ cam.gcps_count ?? '—' }}</td>
-                <td class="px-6 py-4 text-right space-x-2">
+                <td class="px-3.5 py-2.5 text-[10px] font-mono text-slate-500">{{ cam.gcps_count ?? '—' }}</td>
+                <td class="px-3.5 py-2.5 text-right space-x-2">
                   <button v-if="cam.calibrated" @click="viewCamera(cam.idx)" class="btn-secondary py-1 px-3 text-[10px]">Ver</button>
                   <button @click="editCamera(cam.idx)" class="btn-standard py-1 px-3 text-[10px]">{{ cam.calibrated ? 'Editar' : 'Iniciar' }}</button>
                 </td>
@@ -742,17 +745,17 @@ onMounted(() => {
     </div>
 
     <!-- PASO 2: GESTION DE IMAGENES -->
-    <div v-if="currentStep === 2" class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <div v-if="currentStep === 2" class="grid grid-cols-1 lg:grid-cols-4 gap-4">
        <!-- Upload & List -->
        <div class="lg:col-span-1 space-y-4">
           <div @dragover.prevent="isDraggingOver = true"
                @dragleave.prevent="isDraggingOver = false"
                @drop.prevent="onDrop"
                :class="isDraggingOver ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white'"
-               class="p-6 border-2 border-dashed rounded-lg text-center transition-colors relative">
+               class="p-4 border-2 border-dashed rounded-lg text-center transition-colors relative">
             <input type="file" multiple @change="handleFiles($event.target.files)" class="absolute inset-0 opacity-0 cursor-pointer">
             <svg class="w-8 h-8 mx-auto text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" stroke-width="2"/></svg>
-            <p class="text-xs font-bold text-slate-600 uppercase">Añadir Imágenes</p>
+            <p class="text-xs font-semibold text-slate-600 uppercase">Añadir Imágenes</p>
             <p class="text-[9px] text-slate-400 uppercase mt-1">Arrastra o haz click</p>
           </div>
 
@@ -770,7 +773,7 @@ onMounted(() => {
                     <img :src="`http://localhost:8000/api/cameras/${selectedCamId}/image?file=${img.filename}&thumb=1`" class="w-full h-full object-cover">
                   </div>
                   <div class="flex-1 min-w-0">
-                    <p class="text-[10px] font-bold truncate" :class="selectedImage === img.filename ? 'text-blue-700' : 'text-slate-700'">{{ img.filename }}</p>
+                    <p class="text-[10px] font-semibold truncate" :class="selectedImage === img.filename ? 'text-blue-700' : 'text-slate-700'">{{ img.filename }}</p>
                     <p class="text-[9px] text-slate-400">
                       <span class="font-mono">{{ img.captured_at ? formatTs(img.captured_at) : 'Sin fecha de captura' }}</span>
                       <span class="uppercase"> · {{ (img.size / 1024 / 1024).toFixed(1) }} MB</span>
@@ -790,12 +793,12 @@ onMounted(() => {
        <div class="lg:col-span-3 card-standard flex flex-col overflow-hidden bg-slate-900 relative">
           <div v-if="selectedImage" class="h-full flex flex-col">
             <div class="flex-1 flex items-center justify-center p-4">
-              <img :src="imageUrl" class="max-w-full max-h-full object-contain shadow-2xl">
+              <img :src="imageUrl" class="max-w-full max-h-full object-contain">
             </div>
             <div class="p-4 bg-slate-900/90 backdrop-blur border-t border-white/10 flex justify-between items-center">
               <div class="flex space-x-4 items-center">
-                <span class="text-xs font-bold text-white uppercase">{{ selectedImage }}</span>
-                <span v-if="currentProfile.reference_image === selectedImage" class="bg-emerald-600 text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-sm">REFERENCIA BASE</span>
+                <span class="text-xs font-semibold text-white uppercase">{{ selectedImage }}</span>
+                <span v-if="currentProfile.reference_image === selectedImage" class="bg-emerald-600 text-white text-[9px] font-semibold px-2 py-0.5 rounded">REFERENCIA BASE</span>
               </div>
               <div class="space-x-2">
                 <button v-if="currentProfile.reference_image !== selectedImage" @click="setAsReference(selectedImage)" class="btn-secondary py-1 text-[10px]">Set como Referencia</button>
@@ -805,7 +808,7 @@ onMounted(() => {
           </div>
           <div v-else class="flex-1 flex flex-col items-center justify-center text-slate-500 space-y-4">
             <svg class="w-16 h-16 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" stroke-width="1.5"/></svg>
-            <p class="text-sm font-bold uppercase tracking-widest">Selecciona o sube un fotograma</p>
+            <p class="text-sm font-semibold uppercase tracking-wider">Selecciona o sube un fotograma</p>
           </div>
        </div>
     </div>
@@ -823,21 +826,21 @@ onMounted(() => {
     </div>
 
     <!-- PASO 4: CATALOGO (importar CSV de varillas topografiadas y corregirlas) -->
-    <div v-if="currentStep === 4" class="space-y-6">
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div v-if="currentStep === 4" class="space-y-4">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div @dragover.prevent="isDraggingRodsCsv = true"
              @dragleave.prevent="isDraggingRodsCsv = false"
              @drop.prevent="onDropRodsCsv"
              :class="isDraggingRodsCsv ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white'"
-             class="p-6 border-2 border-dashed rounded-lg text-center transition-colors relative">
+             class="p-4 border-2 border-dashed rounded-lg text-center transition-colors relative">
           <input type="file" accept=".csv,.txt" @change="importRodsCsv" class="absolute inset-0 opacity-0 cursor-pointer" :disabled="importingRods">
           <svg class="w-8 h-8 mx-auto text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" stroke-width="2"/></svg>
-          <p class="text-xs font-bold text-slate-600 uppercase">{{ importingRods ? 'Importando…' : (importMode ? 'Reimportar CSV' : 'Importar CSV de Varillas') }}</p>
+          <p class="text-xs font-semibold text-slate-600 uppercase">{{ importingRods ? 'Importando…' : (importMode ? 'Reimportar CSV' : 'Importar CSV de Varillas') }}</p>
           <p class="text-[9px] text-slate-400 uppercase mt-1">Arrastra el archivo o haz click</p>
         </div>
 
         <div class="lg:col-span-2 card-standard p-4 flex flex-col justify-center space-y-2">
-          <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Formato esperado</p>
+          <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Formato esperado</p>
           <p class="text-xs text-slate-500 leading-relaxed">
             Columnas <span class="font-mono text-slate-700">id / X / Y</span> (o equivalentes en español: <span class="font-mono text-slate-700">nombre, este, norte</span>…),
             opcionalmente <span class="font-mono text-slate-700">Z</span> y <span class="font-mono text-slate-700">notas</span>. Separador coma o punto y coma, decimales con coma o punto.
@@ -862,7 +865,7 @@ onMounted(() => {
             <div v-for="(group, gi) in unmatchedGroups" :key="'u' + gi" class="p-4 space-y-3">
               <div class="flex items-center justify-between flex-wrap gap-2">
                 <div>
-                  <p class="text-xs font-bold text-slate-700">Sesión <span class="font-mono">{{ group.file_tag || '(sin etiqueta)' }}</span></p>
+                  <p class="text-xs font-semibold text-slate-700">Sesión <span class="font-mono">{{ group.file_tag || '(sin etiqueta)' }}</span></p>
                   <p class="text-[10px] text-slate-400">{{ group.points.length }} varilla(s) · no se encontró ninguna imagen subida con esa fecha/hora</p>
                 </div>
                 <div class="flex items-center space-x-2">
@@ -879,15 +882,15 @@ onMounted(() => {
               </div>
               <div class="overflow-x-auto border border-slate-100 rounded">
                 <table class="w-full text-left text-sm">
-                  <thead class="bg-slate-50/60 text-slate-500 font-semibold border-b border-slate-100">
+                  <thead class="text-slate-500 font-semibold border-b border-slate-200">
                     <tr>
-                      <th class="px-3 py-2 uppercase tracking-widest text-[9px]">Etiqueta</th>
-                      <th class="px-3 py-2 uppercase tracking-widest text-[9px]">Píxel X</th>
-                      <th class="px-3 py-2 uppercase tracking-widest text-[9px]">Píxel Y</th>
-                      <th class="px-3 py-2 uppercase tracking-widest text-[9px]">UTM X</th>
-                      <th class="px-3 py-2 uppercase tracking-widest text-[9px]">UTM Y</th>
-                      <th class="px-3 py-2 uppercase tracking-widest text-[9px]">Notas</th>
-                      <th class="px-3 py-2 uppercase tracking-widest text-[9px] text-center">Quitar</th>
+                      <th class="px-3 py-2 uppercase tracking-wider text-[9px]">Etiqueta</th>
+                      <th class="px-3 py-2 uppercase tracking-wider text-[9px]">Píxel X</th>
+                      <th class="px-3 py-2 uppercase tracking-wider text-[9px]">Píxel Y</th>
+                      <th class="px-3 py-2 uppercase tracking-wider text-[9px]">UTM X</th>
+                      <th class="px-3 py-2 uppercase tracking-wider text-[9px]">UTM Y</th>
+                      <th class="px-3 py-2 uppercase tracking-wider text-[9px]">Notas</th>
+                      <th class="px-3 py-2 uppercase tracking-wider text-[9px] text-center">Quitar</th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-slate-100">
@@ -908,13 +911,13 @@ onMounted(() => {
                   </tbody>
                 </table>
               </div>
-              <button @click="addGroupPoint(group.points)" class="text-blue-600 hover:underline text-[10px] font-bold uppercase">+ Añadir varilla</button>
+              <button @click="addGroupPoint(group.points)" class="text-blue-600 hover:underline text-[10px] font-semibold uppercase">+ Añadir varilla</button>
             </div>
           </div>
         </div>
 
         <div v-if="!imageGroups.length" class="card-standard p-12 text-center space-y-2">
-          <p class="text-sm font-bold uppercase tracking-widest text-slate-300">Ninguna imagen emparejada</p>
+          <p class="text-sm font-semibold uppercase tracking-wider text-slate-300">Ninguna imagen emparejada</p>
           <p class="text-[10px] text-slate-400">Sube antes las imágenes de esta cámara (paso 2) o asigna manualmente las sesiones de arriba.</p>
         </div>
 
@@ -925,9 +928,9 @@ onMounted(() => {
               <span class="text-[9px] text-slate-400 ml-2">{{ formatTs(group.captured_at) }} · {{ group.points.length }} varilla(s)</span>
             </div>
             <div class="flex items-center space-x-3">
-              <span v-if="groupHasIssues(group.points)" class="text-[9px] font-bold text-red-600 uppercase">⚠ Corrige antes de guardar</span>
-              <span v-else-if="group.savedAt" class="text-[9px] font-bold text-emerald-600 uppercase">Guardado {{ formatTs(group.savedAt) }}</span>
-              <button @click="addGroupPoint(group.points)" class="text-blue-600 hover:underline text-[10px] font-bold uppercase">+ Añadir</button>
+              <span v-if="groupHasIssues(group.points)" class="text-[9px] font-semibold text-red-600 uppercase">⚠ Corrige antes de guardar</span>
+              <span v-else-if="group.savedAt" class="text-[9px] font-semibold text-emerald-600 uppercase">Guardado {{ formatTs(group.savedAt) }}</span>
+              <button @click="addGroupPoint(group.points)" class="text-blue-600 hover:underline text-[10px] font-semibold uppercase">+ Añadir</button>
               <button @click="saveImageGroup(group, group.filename)" :disabled="groupHasIssues(group.points) || group.saving"
                       class="btn-standard py-1 text-[10px] uppercase disabled:opacity-40 disabled:cursor-not-allowed">
                 {{ group.saving ? 'Guardando…' : 'Guardar en esta imagen' }}
@@ -936,22 +939,22 @@ onMounted(() => {
           </div>
           <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
-              <thead class="bg-slate-50/60 text-slate-500 font-semibold border-b border-slate-100">
+              <thead class="text-slate-500 font-semibold border-b border-slate-200">
                 <tr>
-                  <th class="px-4 py-3 uppercase tracking-widest text-[10px]">#</th>
-                  <th class="px-4 py-3 uppercase tracking-widest text-[10px]">Etiqueta</th>
-                  <th class="px-4 py-3 uppercase tracking-widest text-[10px]">Píxel X</th>
-                  <th class="px-4 py-3 uppercase tracking-widest text-[10px]">Píxel Y</th>
-                  <th class="px-4 py-3 uppercase tracking-widest text-[10px]">UTM X</th>
-                  <th class="px-4 py-3 uppercase tracking-widest text-[10px]">UTM Y</th>
-                  <th class="px-4 py-3 uppercase tracking-widest text-[10px]">Notas</th>
-                  <th class="px-4 py-3 uppercase tracking-widest text-[10px] text-center">Quitar</th>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px]">#</th>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px]">Etiqueta</th>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px]">Píxel X</th>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px]">Píxel Y</th>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px]">UTM X</th>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px]">UTM Y</th>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px]">Notas</th>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-center">Quitar</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
                 <tr v-for="(p, pi) in group.points" :key="pi"
                     :class="Object.values(pointIssues(group.points)[pi]).some(Boolean) ? 'bg-red-50' : ''">
-                  <td class="px-4 py-2 text-[10px] font-bold text-slate-400">{{ pi + 1 }}</td>
+                  <td class="px-4 py-2 text-[10px] font-semibold text-slate-400">{{ pi + 1 }}</td>
                   <td class="px-2 py-2"><input v-model="p.label" class="w-full input-standard py-1 text-[11px] font-mono uppercase"></td>
                   <td class="px-2 py-2"><input type="number" step="any" v-model.number="p.pixel[0]" class="w-24 input-standard py-1 text-[11px] font-mono text-right"></td>
                   <td class="px-2 py-2"><input type="number" step="any" v-model.number="p.pixel[1]" class="w-24 input-standard py-1 text-[11px] font-mono text-right"></td>
@@ -979,35 +982,35 @@ onMounted(() => {
         <div class="card-header flex justify-between items-center">
           <span class="uppercase tracking-wider text-[10px]">Catálogo de Varillas ({{ rods.length }})</span>
           <div class="flex items-center space-x-3">
-            <span v-if="rodsHasIssues" class="text-[9px] font-bold text-red-600 uppercase">⚠ Corrige las filas resaltadas antes de guardar</span>
-            <span v-else-if="rodsDirty" class="text-[9px] font-bold text-amber-600 uppercase">Cambios sin guardar</span>
-            <button @click="addRodRow" class="text-blue-600 hover:underline text-[10px] font-bold uppercase">+ Añadir fila</button>
+            <span v-if="rodsHasIssues" class="text-[9px] font-semibold text-red-600 uppercase">⚠ Corrige las filas resaltadas antes de guardar</span>
+            <span v-else-if="rodsDirty" class="text-[9px] font-semibold text-amber-600 uppercase">Cambios sin guardar</span>
+            <button @click="addRodRow" class="text-blue-600 hover:underline text-[10px] font-semibold uppercase">+ Añadir fila</button>
           </div>
         </div>
 
         <div v-if="!rods.length" class="p-12 text-center space-y-2">
-          <p class="text-sm font-bold uppercase tracking-widest text-slate-300">Sin varillas todavía</p>
+          <p class="text-sm font-semibold uppercase tracking-wider text-slate-300">Sin varillas todavía</p>
           <p class="text-[10px] text-slate-400">Importa un CSV o añade filas manualmente para construir el catálogo.</p>
         </div>
 
         <div v-else class="overflow-x-auto">
           <table class="w-full text-left text-sm">
-            <thead class="bg-slate-50/60 text-slate-500 font-semibold border-b border-slate-100">
+            <thead class="text-slate-500 font-semibold border-b border-slate-200">
               <tr>
-                <th class="px-4 py-3 uppercase tracking-widest text-[10px]">#</th>
-                <th class="px-4 py-3 uppercase tracking-widest text-[10px]">Etiqueta</th>
-                <th class="px-4 py-3 uppercase tracking-widest text-[10px]">UTM X</th>
-                <th class="px-4 py-3 uppercase tracking-widest text-[10px]">UTM Y</th>
-                <th class="px-4 py-3 uppercase tracking-widest text-[10px]">Z</th>
-                <th class="px-4 py-3 uppercase tracking-widest text-[10px]">Notas</th>
-                <th class="px-4 py-3 uppercase tracking-widest text-[10px] text-center">Quitar</th>
+                <th class="px-4 py-3 uppercase tracking-wider text-[10px]">#</th>
+                <th class="px-4 py-3 uppercase tracking-wider text-[10px]">Etiqueta</th>
+                <th class="px-4 py-3 uppercase tracking-wider text-[10px]">UTM X</th>
+                <th class="px-4 py-3 uppercase tracking-wider text-[10px]">UTM Y</th>
+                <th class="px-4 py-3 uppercase tracking-wider text-[10px]">Z</th>
+                <th class="px-4 py-3 uppercase tracking-wider text-[10px]">Notas</th>
+                <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-center">Quitar</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr v-for="(rod, idx) in rods" :key="idx"
                   :class="(rodsIssues[idx]?.emptyLabel || rodsIssues[idx]?.duplicateLabel || rodsIssues[idx]?.invalidCoords) ? 'bg-red-50' : ''"
                   class="transition-colors">
-                <td class="px-4 py-2 text-[10px] font-bold text-slate-400">{{ idx + 1 }}</td>
+                <td class="px-4 py-2 text-[10px] font-semibold text-slate-400">{{ idx + 1 }}</td>
                 <td class="px-2 py-2">
                   <input v-model="rod.label" @input="markRodsDirty"
                          :class="(rodsIssues[idx]?.emptyLabel || rodsIssues[idx]?.duplicateLabel) ? 'border-red-300 focus:border-red-400' : ''"
@@ -1056,11 +1059,11 @@ onMounted(() => {
     </div>
 
     <!-- PASO 5: MARCACION (GCPs) -->
-    <div v-if="currentStep === 5" class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <div v-if="currentStep === 5" class="grid grid-cols-1 lg:grid-cols-4 gap-4">
        <div class="lg:col-span-3 card-standard overflow-hidden bg-slate-900 relative min-h-[600px]">
-          <div class="absolute top-4 right-4 z-20 flex bg-black/60 backdrop-blur border border-white/20 rounded-full overflow-hidden shadow-xl">
-            <button @click="mapView = false" :class="!mapView ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-white/10'" class="px-3 py-1.5 text-[9px] font-bold uppercase transition-colors">Foto</button>
-            <button @click="mapView = true" :class="mapView ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-white/10'" class="px-3 py-1.5 text-[9px] font-bold uppercase transition-colors">Mapa</button>
+          <div class="absolute top-4 right-4 z-20 flex bg-black/60 backdrop-blur border border-white/20 rounded-full overflow-hidden">
+            <button @click="mapView = false" :class="!mapView ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-white/10'" class="px-3 py-1.5 text-[9px] font-semibold uppercase transition-colors">Foto</button>
+            <button @click="mapView = true" :class="mapView ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-white/10'" class="px-3 py-1.5 text-[9px] font-semibold uppercase transition-colors">Mapa</button>
           </div>
 
           <template v-if="!mapView">
@@ -1070,32 +1073,33 @@ onMounted(() => {
                  class="absolute -translate-x-1/2 -translate-y-1/2"
                  :style="gcpMarkerStyle(gcp)">
               <div @click.stop="selectedGcpIdx = idx"
-                   :class="selectedGcpIdx === idx ? 'bg-yellow-400 scale-150 ring-4 ring-white' : 'bg-blue-600 scale-100'"
-                   class="w-4 h-4 rounded-full border-2 border-white shadow-lg cursor-pointer transition-all hover:scale-125 z-10 flex items-center justify-center">
-                   <span class="text-[8px] font-bold text-white">{{ idx + 1 }}</span>
+                   :class="selectedGcpIdx === idx ? 'bg-accent2 scale-150 ring-4 ring-blue-500/50' : 'bg-accent2 scale-100'"
+                   class="w-4 h-4 rounded-full border-2 border-white cursor-pointer transition-all hover:scale-125 z-10 flex items-center justify-center">
+                   <span class="text-[8px] font-semibold text-white">{{ idx + 1 }}</span>
               </div>
             </div>
-            <div class="absolute bottom-4 left-4 bg-black/60 text-white text-[10px] px-3 py-1.5 rounded-full font-bold uppercase tracking-widest backdrop-blur-sm border border-white/20 shadow-xl">Modo Marcación: Varillas GCP</div>
+            <div class="absolute bottom-4 left-4 bg-black/60 text-white text-[10px] px-3 py-1.5 rounded-full font-semibold uppercase tracking-wider backdrop-blur-sm border border-white/20">Modo Marcación: Varillas GCP</div>
           </template>
 
           <div v-else class="absolute inset-0">
-            <Map :geojsonData="gcpGeoJson" :fit-signal="mapFitSignal" />
+            <Map :geojsonData="gcpGeoJson" :fit-signal="mapFitSignal"
+                 :selected-index="selectedGcpIdx" @select-feature="selectedGcpIdx = $event" />
             <div v-if="!gcpGeoJson.features.length" class="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <p class="bg-black/60 text-white text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-full">Ninguna varilla con UTM válida todavía</p>
+              <p class="bg-black/60 text-white text-[10px] font-semibold uppercase tracking-wider px-4 py-2 rounded-full">Ninguna varilla con UTM válida todavía</p>
             </div>
-            <div class="absolute bottom-4 left-4 bg-black/60 text-white text-[10px] px-3 py-1.5 rounded-full font-bold uppercase tracking-widest backdrop-blur-sm border border-white/20 shadow-xl z-[401]">Vista mapa: verificación UTM</div>
+            <div class="absolute bottom-4 left-4 bg-black/60 text-white text-[10px] px-3 py-1.5 rounded-full font-semibold uppercase tracking-wider backdrop-blur-sm border border-white/20 z-[401]">Vista mapa: verificación UTM · clic en un punto para seleccionarlo</div>
           </div>
        </div>
 
-       <aside class="space-y-6">
-          <div v-if="selectedGcpIdx !== null" class="card-standard border-blue-200 shadow-xl animate-fade-in">
+       <aside class="space-y-4">
+          <div v-if="selectedGcpIdx !== null" class="card-standard border-blue-200 animate-fade-in">
             <div class="card-header bg-blue-600 text-white flex justify-between items-center py-2">
-              <span class="text-[10px] font-bold uppercase tracking-widest">Editar Punto {{ selectedGcpIdx + 1 }}</span>
+              <span class="text-[10px] font-semibold uppercase tracking-wider">Editar Punto {{ selectedGcpIdx + 1 }}</span>
               <button @click="selectedGcpIdx = null" class="hover:bg-blue-700 rounded px-1">×</button>
             </div>
             <div class="p-4 space-y-4">
               <div v-if="rods.length" class="space-y-1">
-                <label class="text-[10px] font-bold text-slate-500 uppercase">Varilla del catálogo</label>
+                <label class="text-[10px] font-semibold text-slate-500 uppercase">Varilla del catálogo</label>
                 <select @change="assignRod($event.target.value)" class="w-full input-standard text-xs">
                   <option value="" selected disabled>Autocompletar desde catálogo…</option>
                   <option v-for="(rod, i) in rods" :key="i" :value="i">
@@ -1104,27 +1108,27 @@ onMounted(() => {
                 </select>
               </div>
               <div class="space-y-1">
-                <label class="text-[10px] font-bold text-slate-500 uppercase">Etiqueta</label>
+                <label class="text-[10px] font-semibold text-slate-500 uppercase">Etiqueta</label>
                 <input v-model="currentProfile.gcps[selectedGcpIdx].label" class="w-full input-standard">
               </div>
               <div class="grid grid-cols-2 gap-2">
                 <div class="space-y-1">
-                  <label class="text-[10px] font-bold text-slate-500 uppercase">UTM X</label>
+                  <label class="text-[10px] font-semibold text-slate-500 uppercase">UTM X</label>
                   <input type="number" v-model.number="currentProfile.gcps[selectedGcpIdx].utm[0]" class="w-full input-standard font-mono text-xs">
                 </div>
                 <div class="space-y-1">
-                  <label class="text-[10px] font-bold text-slate-500 uppercase">UTM Y</label>
+                  <label class="text-[10px] font-semibold text-slate-500 uppercase">UTM Y</label>
                   <input type="number" v-model.number="currentProfile.gcps[selectedGcpIdx].utm[1]" class="w-full input-standard font-mono text-xs">
                 </div>
               </div>
-              <button @click="currentProfile.gcps.splice(selectedGcpIdx, 1); selectedGcpIdx = null; saveAnnotations()" class="w-full bg-red-50 text-red-600 text-[10px] font-bold py-2 rounded uppercase border border-red-100 hover:bg-red-100 transition-colors">Eliminar Punto</button>
+              <button @click="currentProfile.gcps.splice(selectedGcpIdx, 1); selectedGcpIdx = null; saveAnnotations()" class="w-full bg-red-50 text-red-600 text-[10px] font-semibold py-2 rounded uppercase border border-red-100 hover:bg-red-100 transition-colors">Eliminar Punto</button>
             </div>
           </div>
 
           <div class="card-standard">
             <div class="card-header flex justify-between items-center">
               <span class="uppercase tracking-wider text-[10px]">Catálogo UTM ({{ rods.length }})</span>
-              <button @click="currentStep = 4" class="text-blue-600 hover:underline text-[10px] font-bold uppercase">Editar catálogo</button>
+              <button @click="currentStep = 4" class="text-blue-600 hover:underline text-[10px] font-semibold uppercase">Editar catálogo</button>
             </div>
             <p v-if="!rods.length" class="p-3 text-[10px] text-slate-400 leading-relaxed">
               Todavía no hay varillas topografiadas. Ve al paso <strong>Catálogo</strong> para importar el CSV o añadirlas a mano.
@@ -1140,12 +1144,12 @@ onMounted(() => {
                <div v-for="(gcp, idx) in currentProfile.gcps" :key="idx"
                     @click="selectedGcpIdx = idx"
                     class="p-3 text-xs flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors"
-                    :class="selectedGcpIdx === idx ? 'bg-blue-50 border-l-4 border-blue-600' : ''">
+                    :class="selectedGcpIdx === idx ? 'bg-amber-50 border-l-4 border-accent2' : ''">
                   <div>
-                    <p class="font-bold text-slate-700 uppercase text-[10px]">{{ gcp.label }}</p>
+                    <p class="font-semibold text-slate-700 uppercase text-[10px]">{{ gcp.label }}</p>
                     <p class="text-[9px] text-slate-400 font-mono">{{ gcp.utm[0].toFixed(1) }}, {{ gcp.utm[1].toFixed(1) }}</p>
                   </div>
-                  <span class="text-[9px] font-bold text-slate-300">#{{ idx + 1 }}</span>
+                  <span class="text-[9px] font-semibold text-slate-300">#{{ idx + 1 }}</span>
                </div>
             </div>
             <div class="p-4 border-t border-slate-100 bg-slate-50 space-y-2">
@@ -1162,17 +1166,17 @@ onMounted(() => {
     </div>
 
     <!-- PASO 6: VALIDACION (análisis de error de reproyección por varilla) -->
-    <div v-if="currentStep === 6" class="space-y-6">
+    <div v-if="currentStep === 6" class="space-y-4">
       <div v-if="!calibResult" class="card-standard p-16 text-center space-y-4 min-h-[400px] flex flex-col items-center justify-center">
         <svg class="w-12 h-12 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="1.5"/></svg>
-        <p class="text-sm font-bold uppercase tracking-widest text-slate-400">Esta imagen aún no tiene calibración calculada</p>
+        <p class="text-sm font-semibold uppercase tracking-wider text-slate-400">Esta imagen aún no tiene calibración calculada</p>
         <button @click="currentStep = 5" class="btn-standard uppercase text-xs">Ir a Marcación</button>
       </div>
 
       <template v-else>
         <div class="flex items-center justify-between flex-wrap gap-2">
           <div :class="calibOk ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-red-100 text-red-800 border-red-200'"
-               class="inline-flex items-center space-x-2 px-5 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest border shadow-sm">
+               class="inline-flex items-center space-x-2 px-5 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider border">
             <svg v-if="!calibOk" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" stroke-width="2"/></svg>
             <span>{{ calibOk ? 'Calibración dentro de tolerancia' : `${flaggedCount} varilla(s) superan el umbral` }}</span>
           </div>
@@ -1181,64 +1185,64 @@ onMounted(() => {
 
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div class="card-standard p-4">
-            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">RMSE reproyección</p>
-            <p class="text-xl font-bold font-mono" :class="calibOk ? 'text-slate-900' : 'text-red-600'">{{ calibResult.rmse_px?.toFixed(2) }} px</p>
+            <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">RMSE reproyección</p>
+            <p class="text-xl font-semibold font-mono" :class="calibOk ? 'text-slate-900' : 'text-red-600'">{{ calibResult.rmse_px?.toFixed(2) }} px</p>
           </div>
           <div class="card-standard p-4">
-            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">RMSE terreno</p>
-            <p class="text-xl font-bold text-slate-900 font-mono">{{ calibResult.rmse_m?.toFixed(3) }} m</p>
+            <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">RMSE terreno</p>
+            <p class="text-xl font-semibold text-slate-900 font-mono">{{ calibResult.rmse_m?.toFixed(3) }} m</p>
           </div>
           <div class="card-standard p-4">
-            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Varillas usadas</p>
-            <p class="text-xl font-bold text-slate-900 font-mono">{{ calibResult.gcps_used }} / {{ calibResult.residuals?.length }}</p>
+            <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Varillas usadas</p>
+            <p class="text-xl font-semibold text-slate-900 font-mono">{{ calibResult.gcps_used }} / {{ calibResult.residuals?.length }}</p>
           </div>
           <div class="card-standard p-4">
-            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Estado · EPSG:25830</p>
+            <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Estado · EPSG:25830</p>
             <div class="flex items-center space-x-2">
               <div :class="calibOk ? 'bg-emerald-500' : 'bg-red-500'" class="w-2 h-2 rounded-full animate-pulse"></div>
-              <p class="text-sm font-bold uppercase" :class="calibOk ? 'text-slate-700' : 'text-red-600'">{{ calibOk ? 'Óptimo' : 'Revisar' }}</p>
+              <p class="text-sm font-semibold uppercase" :class="calibOk ? 'text-slate-700' : 'text-red-600'">{{ calibOk ? 'Óptimo' : 'Revisar' }}</p>
             </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <!-- Tabla de residuos por varilla -->
           <div class="lg:col-span-2 card-standard overflow-hidden flex flex-col">
             <div class="card-header flex justify-between items-center">
               <span>Error de reproyección por varilla</span>
               <div class="flex items-center space-x-2">
-                <label class="text-[9px] text-slate-400 uppercase font-bold">Umbral (px)</label>
+                <label class="text-[9px] text-slate-400 uppercase font-semibold">Umbral (px)</label>
                 <input type="number" step="0.1" min="0.1" v-model.number="threshold"
                        class="input-standard w-20 py-1 text-xs font-mono text-right">
               </div>
             </div>
             <div class="overflow-x-auto flex-1">
               <table class="w-full text-left text-sm">
-                <thead class="bg-slate-50/60 text-slate-500 font-semibold border-b border-slate-100">
+                <thead class="text-slate-500 font-semibold border-b border-slate-200">
                   <tr>
-                    <th class="px-4 py-3 uppercase tracking-widest text-[10px]">#</th>
-                    <th class="px-4 py-3 uppercase tracking-widest text-[10px]">Varilla</th>
-                    <th class="px-4 py-3 uppercase tracking-widest text-[10px] text-right">Error (px)</th>
-                    <th class="px-4 py-3 uppercase tracking-widest text-[10px] text-right">Error (m)</th>
-                    <th class="px-4 py-3 uppercase tracking-widest text-[10px] text-center">Estado</th>
-                    <th class="px-4 py-3 uppercase tracking-widest text-[10px] text-center">Excluir</th>
+                    <th class="px-4 py-3 uppercase tracking-wider text-[10px]">#</th>
+                    <th class="px-4 py-3 uppercase tracking-wider text-[10px]">Varilla</th>
+                    <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-right">Error (px)</th>
+                    <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-right">Error (m)</th>
+                    <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-center">Estado</th>
+                    <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-center">Excluir</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                   <tr v-for="r in calibResult.residuals" :key="r.idx"
                       :class="r.excluded ? 'opacity-40 bg-slate-50' : (r.above_threshold ? 'bg-red-50' : 'hover:bg-slate-50')"
                       class="transition-colors text-slate-700">
-                    <td class="px-4 py-3 text-[10px] font-bold text-slate-400">{{ r.idx + 1 }}</td>
-                    <td class="px-4 py-3 text-[11px] font-bold uppercase">{{ r.label }}</td>
+                    <td class="px-4 py-3 text-[10px] font-semibold text-slate-400">{{ r.idx + 1 }}</td>
+                    <td class="px-4 py-3 text-[11px] font-semibold uppercase">{{ r.label }}</td>
                     <td class="px-4 py-3 text-right font-mono text-[11px]"
-                        :class="r.above_threshold ? 'text-red-600 font-bold' : 'text-slate-600'">
+                        :class="r.above_threshold ? 'text-red-600 font-semibold' : 'text-slate-600'">
                       {{ r.error_px.toFixed(2) }}
                     </td>
                     <td class="px-4 py-3 text-right font-mono text-[11px] text-slate-500">{{ r.error_m.toFixed(3) }}</td>
                     <td class="px-4 py-3 text-center">
-                      <span v-if="r.excluded" class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-slate-100 text-slate-500 border border-slate-200">Excluida</span>
-                      <span v-else-if="r.above_threshold" class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-red-100 text-red-700 border border-red-200">⚠ Sobre umbral</span>
-                      <span v-else class="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-emerald-100 text-emerald-700 border border-emerald-200">OK</span>
+                      <span v-if="r.excluded" class="px-2 py-0.5 rounded text-[9px] font-semibold uppercase bg-slate-100 text-slate-500 border border-slate-200">Excluida</span>
+                      <span v-else-if="r.above_threshold" class="px-2 py-0.5 rounded text-[9px] font-semibold uppercase bg-red-100 text-red-700 border border-red-200">⚠ Sobre umbral</span>
+                      <span v-else class="px-2 py-0.5 rounded text-[9px] font-semibold uppercase bg-emerald-100 text-emerald-700 border border-emerald-200">OK</span>
                     </td>
                     <td class="px-4 py-3 text-center">
                       <input type="checkbox" :checked="excludedIdx.includes(r.idx)" @change="toggleExcluded(r.idx)"
@@ -1250,10 +1254,10 @@ onMounted(() => {
             </div>
             <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center">
               <button v-if="flaggedCount" @click="excludeFlagged" :disabled="calculating"
-                      class="text-red-600 hover:underline text-[10px] font-bold uppercase">
+                      class="text-red-600 hover:underline text-[10px] font-semibold uppercase">
                 Excluir {{ flaggedCount }} sobre umbral y recalcular
               </button>
-              <span v-else class="text-[10px] text-slate-400 uppercase font-bold">Todas las varillas activas dentro de tolerancia</span>
+              <span v-else class="text-[10px] text-slate-400 uppercase font-semibold">Todas las varillas activas dentro de tolerancia</span>
               <button @click="recalculate" :disabled="calculating" class="btn-standard py-1.5 text-[10px] uppercase">
                 {{ calculating ? 'Recalculando…' : 'Recalcular' }}
               </button>
@@ -1261,13 +1265,13 @@ onMounted(() => {
           </div>
 
           <!-- Vista rectificada + acciones -->
-          <div class="space-y-6">
+          <div class="space-y-4">
             <div class="card-standard overflow-hidden">
               <div class="card-header uppercase tracking-wider text-[10px]">Vista rectificada (UTM)</div>
               <div class="aspect-video bg-slate-900 relative">
                 <img v-if="rectifiedUrl && !rectifiedFailed" :src="rectifiedUrl" @error="rectifiedFailed = true"
                      class="w-full h-full object-contain">
-                <div v-else class="w-full h-full flex items-center justify-center text-slate-500 text-[10px] font-bold uppercase tracking-widest">
+                <div v-else class="w-full h-full flex items-center justify-center text-slate-500 text-[10px] font-semibold uppercase tracking-wider">
                   Vista previa no disponible
                 </div>
               </div>

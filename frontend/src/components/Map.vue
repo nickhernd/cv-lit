@@ -67,6 +67,9 @@ const mapContainer = ref(null)
 let map = null
 let geoJsonLayer = null
 const currentLayer = ref('vector')
+// idx (properties.idx del GeoJSON) -> capa Leaflet, para resaltar/seleccionar
+// puntos sin tener que reconstruir toda la capa (p.ej. varillas GCP)
+const markerLayersByIdx = {}
 
 const props = defineProps({
   geojsonData: {
@@ -78,8 +81,16 @@ const props = defineProps({
   fitSignal: {
     type: Number,
     default: 0
+  },
+  // idx del punto actualmente seleccionado (p.ej. varilla GCP elegida en la
+  // lista o en la foto) — se resalta con un anillo y se agranda en el mapa
+  selectedIndex: {
+    type: Number,
+    default: null
   }
 })
+
+const emit = defineEmits(['select-feature'])
 
 const layers = {
   vector: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
@@ -113,6 +124,7 @@ function updateGeoJson(data) {
     map.removeLayer(geoJsonLayer)
     geoJsonLayer = null
   }
+  Object.keys(markerLayersByIdx).forEach(k => delete markerLayersByIdx[k])
   const projected = reprojectGeoJson(data)
   if (!projected?.features?.length) return
   geoJsonLayer = L.geoJSON(projected, {
@@ -125,11 +137,13 @@ function updateGeoJson(data) {
     }),
     // Puntos (p.ej. varillas GCP) como círculos propios en vez del icono por
     // defecto de Leaflet, que no resuelve sus imágenes con el bundler.
+    // Color por defecto: ámbar — es el color real de las varillas en campo
+    // (naranja flúor), no un azul genérico.
     pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
       radius: 7,
       weight: 2,
       color: '#fff',
-      fillColor: feature?.properties?._style?.color ?? '#2f6690',
+      fillColor: feature?.properties?._style?.color ?? '#c98f3e',
       fillOpacity: 0.9,
     }),
     onEachFeature: (feature, layer) => {
@@ -143,10 +157,19 @@ function updateGeoJson(data) {
         )
       } else if (p.label != null) {
         layer.bindPopup(`<b>${p.label}</b>`)
-        if (p.idx != null) layer.bindTooltip(String(p.idx + 1), { permanent: true, direction: 'top', offset: [0, -8], className: 'gcp-tooltip' })
+        if (p.idx != null) {
+          layer.bindTooltip(String(p.idx + 1), { permanent: true, direction: 'top', offset: [0, -8], className: 'gcp-tooltip' })
+          markerLayersByIdx[p.idx] = layer
+          // Seleccionar la varilla desde el mapa, igual que se hace desde la
+          // lista o clicando sobre la foto — la selección queda sincronizada
+          // entre las tres vistas.
+          layer.on('click', () => emit('select-feature', p.idx))
+        }
       }
     }
   }).addTo(map)
+
+  applySelectionStyle()
 
   // Encajar la vista solo la primera vez: al animar la línea temporal o
   // alternar capas el mapa no debe estar saltando de encuadre.
@@ -158,6 +181,22 @@ function updateGeoJson(data) {
     }
   }
 }
+
+// Resalta en el mapa la varilla actualmente seleccionada (agrandada + anillo
+// azul) sin reconstruir la capa entera, para no perder zoom/encuadre.
+function applySelectionStyle() {
+  Object.entries(markerLayersByIdx).forEach(([idx, layer]) => {
+    const isSelected = Number(idx) === props.selectedIndex
+    layer.setRadius(isSelected ? 11 : 7)
+    layer.setStyle({
+      color: isSelected ? '#2f6690' : '#fff',
+      weight: isSelected ? 3 : 2,
+    })
+    if (isSelected) layer.bringToFront()
+  })
+}
+
+watch(() => props.selectedIndex, applySelectionStyle)
 
 watch(() => props.geojsonData, (newData) => {
   if (newData && map) {
@@ -173,16 +212,16 @@ watch(() => props.fitSignal, () => {
 
 <template>
   <div class="relative w-full h-full">
-    <div ref="mapContainer" class="w-full h-full bg-slate-100 rounded-md border border-slate-200 shadow-inner"></div>
+    <div ref="mapContainer" class="w-full h-full bg-slate-100 rounded-md border border-slate-200"></div>
     
     <!-- Simple Layer Switcher -->
-    <div class="absolute top-4 right-4 z-[400] flex bg-white border border-slate-300 rounded shadow-md overflow-hidden">
+    <div class="absolute top-4 right-4 z-[400] flex bg-white border border-slate-300 rounded overflow-hidden">
        <button @click="switchLayer('vector')" 
                :class="currentLayer === 'vector' ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-50'"
-               class="px-3 py-1.5 text-[10px] font-bold uppercase border-r border-slate-300 transition-colors">Vector</button>
+               class="px-3 py-1.5 text-[10px] font-semibold uppercase border-r border-slate-300 transition-colors">Vector</button>
        <button @click="switchLayer('satellite')" 
                :class="currentLayer === 'satellite' ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-50'"
-               class="px-3 py-1.5 text-[10px] font-bold uppercase transition-colors">Satélite</button>
+               class="px-3 py-1.5 text-[10px] font-semibold uppercase transition-colors">Satélite</button>
     </div>
   </div>
 </template>

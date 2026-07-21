@@ -76,6 +76,26 @@ function toggleSelect(filename) {
 function selectAll() { selected.value = new Set(filteredImages.value.map(i => i.filename)) }
 function selectNone() { selected.value = new Set() }
 
+// Hora del reloj con más imágenes en la lista filtrada — permite seleccionar
+// de un click la sesión de disparo dominante en vez de marcar una a una.
+const dominantHour = computed(() => {
+  if (!filteredImages.value.length) return null
+  const counts = {}
+  filteredImages.value.forEach(img => {
+    const h = new Date(img.modified * 1000).getHours()
+    counts[h] = (counts[h] || 0) + 1
+  })
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+})
+function selectDominantHour() {
+  if (dominantHour.value === null) return
+  selected.value = new Set(
+    filteredImages.value
+      .filter(img => new Date(img.modified * 1000).getHours() === Number(dominantHour.value))
+      .map(i => i.filename)
+  )
+}
+
 async function deleteImage(filename) {
   if (!confirm(`¿Eliminar ${filename}?`)) return
   try {
@@ -115,18 +135,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div class="flex justify-between items-center border-b border-slate-200 pb-4">
-      <div>
-        <h1 class="text-xl font-semibold text-slate-900 tracking-tight">Carga de Imágenes</h1>
-        <p class="text-xs text-slate-400 font-medium">Selecciona cámara y directorio de imágenes</p>
-      </div>
+  <div class="space-y-4">
+    <div class="flex justify-end">
       <button @click="processSelection" class="btn-standard uppercase text-xs">
         Procesar selección ({{ selected.size }})
       </button>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
       <!-- CAMARA -->
       <div class="card-standard">
         <div class="card-header uppercase tracking-wider text-[10px]">Cámara</div>
@@ -134,29 +150,29 @@ onMounted(async () => {
           <button v-for="cam in cameras" :key="cam.idx" @click="camId = cam.idx"
                   :class="camId === cam.idx ? 'bg-blue-50 text-blue-700' : 'hover:bg-slate-50 text-slate-700'"
                   class="w-full flex items-center justify-between px-4 py-3 text-left transition-colors">
-            <span class="text-xs font-bold">{{ cam.name }}</span>
+            <span class="text-xs font-semibold">{{ cam.name }}</span>
             <span :class="cam.status === 'Sin calibrar' ? 'bg-slate-100 text-slate-500' : 'bg-emerald-100 text-emerald-700'"
-                  class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded">{{ cam.status === 'Sin calibrar' ? 'Sin calib' : 'Calib' }}</span>
+                  class="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded">{{ cam.status === 'Sin calibrar' ? 'Sin calib' : 'Calib' }}</span>
           </button>
         </div>
       </div>
 
       <!-- DIRECTORIO / IMAGENES -->
-      <div class="lg:col-span-2 space-y-6">
+      <div class="lg:col-span-2 space-y-4">
         <div class="card-standard p-4 space-y-4">
           <div @dragover.prevent="isDraggingOver = true" @dragleave.prevent="isDraggingOver = false" @drop.prevent="onDrop"
                :class="isDraggingOver ? 'border-blue-600 bg-blue-50' : 'border-slate-200'"
-               class="p-6 border-2 border-dashed rounded-lg text-center relative transition-colors">
+               class="p-4 border-2 border-dashed rounded-lg text-center relative transition-colors">
             <input type="file" multiple @change="handleFiles($event.target.files)" class="absolute inset-0 opacity-0 cursor-pointer">
-            <p class="text-xs font-bold text-slate-600 uppercase">Arrastra o haz click para añadir imágenes</p>
+            <p class="text-xs font-semibold text-slate-600 uppercase">Arrastra o haz click para añadir imágenes</p>
           </div>
           <div class="grid grid-cols-2 gap-3">
             <div class="space-y-1">
-              <label class="text-[10px] font-bold text-slate-400 uppercase">Desde</label>
+              <label class="text-[10px] font-semibold text-slate-400 uppercase">Desde</label>
               <input type="date" v-model="dateFrom" class="w-full input-standard text-xs">
             </div>
             <div class="space-y-1">
-              <label class="text-[10px] font-bold text-slate-400 uppercase">Hasta</label>
+              <label class="text-[10px] font-semibold text-slate-400 uppercase">Hasta</label>
               <input type="date" v-model="dateTo" class="w-full input-standard text-xs">
             </div>
           </div>
@@ -165,11 +181,17 @@ onMounted(async () => {
         <div class="card-standard flex flex-col">
           <div class="card-header flex justify-between items-center">
             <span>Imágenes encontradas ({{ filteredImages.length }})</span>
-            <div class="space-x-2 text-[10px] font-bold uppercase">
+            <div class="space-x-2 text-[10px] font-semibold uppercase">
+              <button v-if="dominantHour !== null" @click="selectDominantHour" class="text-blue-600 hover:underline">
+                Solo {{ dominantHour.toString().padStart(2, '0') }}:00h
+              </button>
               <button @click="selectAll" class="text-blue-600 hover:underline">Todas</button>
               <button @click="selectNone" class="text-slate-400 hover:underline">Ninguna</button>
             </div>
           </div>
+          <p v-if="selected.size" class="px-3.5 pt-2 text-[10px] text-slate-400">
+            {{ selected.size }} seleccionada{{ selected.size === 1 ? '' : 's' }} · clic en una miniatura para (de)seleccionarla
+          </p>
           <div class="grid grid-cols-3 sm:grid-cols-4 gap-2 p-4 max-h-[420px] overflow-y-auto">
             <div v-for="img in filteredImages" :key="img.filename" @click="toggleSelect(img.filename)"
                  :class="selected.has(img.filename) ? 'ring-2 ring-blue-600' : 'hover:ring-1 hover:ring-slate-300'"
@@ -181,7 +203,7 @@ onMounted(async () => {
               <button @click.stop="deleteImage(img.filename)" class="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 bg-red-600/90 rounded p-0.5 transition-opacity">
                 <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
               </button>
-              <span class="absolute bottom-0.5 left-1 text-[8px] font-bold text-white bg-black/50 px-1 rounded">{{ new Date(img.modified*1000).toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'}) }}</span>
+              <span class="absolute bottom-0.5 left-1 text-[8px] font-semibold text-white bg-black/50 px-1 rounded">{{ new Date(img.modified*1000).toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'}) }}</span>
             </div>
             <p v-if="!filteredImages.length" class="col-span-full text-center text-xs text-slate-400 py-8">Sin imágenes para esta cámara</p>
           </div>
@@ -190,10 +212,10 @@ onMounted(async () => {
 
       <!-- PERFIL DE CALIBRACION -->
       <div class="card-standard p-4 space-y-3 h-fit">
-        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Perfil de calibración cargado</div>
+        <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Perfil de calibración cargado</div>
         <div v-if="profile && profile.gcps_count" class="space-y-2">
           <div class="flex items-center space-x-2">
-            <span class="bg-emerald-100 text-emerald-700 text-[9px] font-bold px-2 py-0.5 rounded uppercase">{{ cameras.find(c => c.idx === camId)?.id }} — {{ profile.date }}</span>
+            <span class="bg-emerald-100 text-emerald-700 text-[9px] font-semibold px-2 py-0.5 rounded uppercase">{{ cameras.find(c => c.idx === camId)?.id }} — {{ profile.date }}</span>
           </div>
           <p class="text-xs text-slate-600">RMSE {{ profile.rmse_m?.toFixed(2) }} m · {{ profile.gcps_count }} GCPs</p>
         </div>

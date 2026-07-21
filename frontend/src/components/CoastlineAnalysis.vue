@@ -105,30 +105,28 @@ const CAMS = [1, 2, 3, 4, 5, 6]
 </script>
 
 <template>
-  <div class="flex h-full gap-6">
+  <div class="flex h-full gap-4">
 
     <!-- ── Panel izquierdo: controles ──────────────────────────────────────── -->
     <aside class="w-72 shrink-0 flex flex-col gap-4">
 
       <!-- Selector de cámara -->
-      <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-        <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Cámara</h3>
+      <div class="card-standard p-4">
+        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Cámara</h3>
         <div class="grid grid-cols-3 gap-2">
           <button
             v-for="c in CAMS" :key="c"
             @click="camId = c"
-            :class="camId === c
-              ? 'bg-blue-600 text-white shadow-md'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
-            class="rounded-lg py-2 text-sm font-bold transition-all">
+            :class="camId === c ? 'bg-blue-600 text-white ' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+            class="rounded-lg py-2 text-sm font-semibold transition-all">
             CAM {{ c }}
           </button>
         </div>
       </div>
 
       <!-- Selector de imagen -->
-      <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-        <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Imagen</h3>
+      <div class="card-standard p-4">
+        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Imagen</h3>
         <select
           v-model="selectedFile"
           class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -144,7 +142,7 @@ const CAMS = [1, 2, 3, 4, 5, 6]
       <button
         @click="analyze"
         :disabled="loading || !selectedFile"
-        class="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold py-3 rounded-xl transition-all shadow-sm text-sm">
+        class="btn-standard w-full justify-center py-2.5 text-sm">
         <svg v-if="!loading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
         </svg>
@@ -156,12 +154,12 @@ const CAMS = [1, 2, 3, 4, 5, 6]
       </button>
 
       <!-- Métricas (#86) -->
-      <div v-if="result" class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
-        <h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest">Métricas</h3>
+      <div v-if="result" class="card-standard p-4 space-y-4">
+        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Métricas</h3>
 
         <!-- Alerta rechazo -->
         <div v-if="result.rejected" class="bg-red-50 border border-red-200 rounded-lg p-3">
-          <p class="text-xs font-bold text-red-600 mb-1">Imagen rechazada</p>
+          <p class="text-xs font-semibold text-red-600 mb-1">Imagen rechazada</p>
           <p class="text-[10px] text-red-500 font-mono">{{ result.reject_reason }}</p>
         </div>
 
@@ -170,7 +168,7 @@ const CAMS = [1, 2, 3, 4, 5, 6]
           <div>
             <div class="flex justify-between text-xs mb-1">
               <span class="text-slate-500 font-medium">Confianza IA</span>
-              <span class="font-bold" :class="result.confidence >= 0.7 ? 'text-emerald-600' : result.confidence >= 0.5 ? 'text-amber-500' : 'text-red-500'">
+              <span class="font-semibold" :class="result.confidence >= 0.7 ? 'text-emerald-600' : result.confidence >= 0.5 ? 'text-amber-500' : 'text-red-500'">
                 {{ confidencePct }}%
               </span>
             </div>
@@ -183,13 +181,13 @@ const CAMS = [1, 2, 3, 4, 5, 6]
           <!-- Área seca -->
           <div class="flex justify-between items-center">
             <span class="text-xs text-slate-500">Área seca</span>
-            <span class="text-sm font-bold text-slate-800">{{ result.dry_area_m2?.toLocaleString('es-ES') }} m²</span>
+            <span class="text-sm font-semibold text-slate-800">{{ result.dry_area_m2?.toLocaleString('es-ES') }} m²</span>
           </div>
 
           <!-- Puntos UTM -->
           <div class="flex justify-between items-center">
             <span class="text-xs text-slate-500">Puntos UTM</span>
-            <span class="text-sm font-bold text-slate-800">{{ result.points_utm }}</span>
+            <span class="text-sm font-semibold text-slate-800">{{ result.points_utm }}</span>
           </div>
 
           <!-- Timestamp -->
@@ -203,7 +201,7 @@ const CAMS = [1, 2, 3, 4, 5, 6]
       <!-- Botón GeoJSON (#87) -->
       <button
         @click="exportGeoJSON"
-        class="w-full flex items-center justify-center gap-2 border border-emerald-500 text-emerald-600 hover:bg-emerald-50 font-bold py-2.5 rounded-xl transition-all text-sm">
+        class="w-full flex items-center justify-center gap-1.5 border border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-medium py-2 rounded-md transition-colors text-[13px]">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
         </svg>
@@ -213,9 +211,9 @@ const CAMS = [1, 2, 3, 4, 5, 6]
     </aside>
 
     <!-- ── Panel central: imagen con overlay de segmentación y línea de costa (#84, #85) ── -->
-    <main class="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-      <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
-        <h2 class="text-sm font-bold text-slate-700">
+    <main class="flex-1 card-standard overflow-hidden flex flex-col">
+      <div class="card-header flex items-center justify-between shrink-0 normal-case">
+        <h2 class="text-sm font-semibold text-slate-700">
           Línea de costa — CAM {{ camId }}
           <span v-if="selectedFile" class="font-normal text-slate-400 ml-2 text-xs">{{ selectedFile }}</span>
         </h2>
@@ -252,7 +250,7 @@ const CAMS = [1, 2, 3, 4, 5, 6]
               <path stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
             </svg>
           </div>
-          <p class="text-sm font-bold text-red-600">Imagen rechazada</p>
+          <p class="text-sm font-semibold text-red-600">Imagen rechazada</p>
           <p class="text-xs text-red-400 mt-1 font-mono">{{ result.reject_reason }}</p>
         </div>
 
@@ -260,12 +258,12 @@ const CAMS = [1, 2, 3, 4, 5, 6]
         <img v-else-if="resultImageUrl"
              :src="resultImageUrl"
              :key="imgTs"
-             class="max-w-full max-h-full object-contain rounded-lg shadow"
+             class="max-w-full max-h-full object-contain rounded-lg"
              alt="Línea de costa detectada" />
       </div>
 
       <!-- Leyenda -->
-      <div v-if="result && !result.rejected" class="px-5 py-3 border-t border-slate-100 flex items-center gap-6 text-xs text-slate-500 shrink-0">
+      <div v-if="result && !result.rejected" class="px-5 py-3 border-t border-slate-100 flex items-center gap-4 text-xs text-slate-500 shrink-0">
         <div class="flex items-center gap-1.5">
           <div class="w-3 h-0.5 bg-red-500"></div>
           <span>Línea de costa</span>

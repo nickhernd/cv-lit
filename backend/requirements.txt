@@ -9,3 +9,4 @@ torchvision
 segment-anything
 requests
 matplotlib
+pytest

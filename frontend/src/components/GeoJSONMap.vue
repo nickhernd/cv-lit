@@ -139,29 +139,25 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-6 h-full flex flex-col">
-    <div class="flex justify-between items-center border-b border-slate-200 pb-4 shrink-0">
-      <div>
-        <h1 class="text-xl font-semibold text-slate-900 tracking-tight">Mapa GeoJSON</h1>
-        <p class="text-xs text-slate-400 font-medium">EPSG:25830 · Guardamar del Segura</p>
-      </div>
+  <div class="space-y-4 h-full flex flex-col">
+    <div class="flex justify-end shrink-0">
       <button @click="exportCombined" class="btn-standard uppercase text-xs">↓ GeoJSON combinado</button>
     </div>
 
-    <div class="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-6 min-h-[500px]">
+    <div class="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4 min-h-[500px]">
       <div class="lg:col-span-3 card-standard overflow-hidden">
         <Map :geojsonData="displayedGeoJson" :fit-signal="fitSignal" />
       </div>
 
       <aside class="space-y-4">
         <div class="card-standard p-4 space-y-3">
-          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Capas</div>
+          <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Capas</div>
           <label class="flex items-center space-x-2 text-xs font-medium text-slate-700">
             <input type="checkbox" v-model="showCombined" class="rounded">
             <span>Línea de costa (combinada)</span>
           </label>
           <div class="pt-2 border-t border-slate-100 space-y-2">
-            <p class="text-[9px] font-bold text-slate-400 uppercase">Por estación</p>
+            <p class="text-[9px] font-semibold text-slate-400 uppercase">Por estación</p>
             <label v-for="cam in cameras" :key="cam.idx" class="flex items-center space-x-2 text-xs font-medium text-slate-700">
               <input type="checkbox" :checked="selectedCams.has(cam.idx)" @change="toggleCamLayer(cam.idx)" class="rounded">
               <span>{{ cam.name }}</span>
@@ -170,7 +166,7 @@ onMounted(() => {
         </div>
 
         <div class="card-standard p-4 space-y-3">
-          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Evolución temporal</div>
+          <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Evolución temporal</div>
           <select v-model="historyCam" @change="loadHistory" class="w-full input-standard text-xs">
             <option value="">Desactivada</option>
             <option v-for="cam in cameras" :key="cam.idx" :value="cam.idx">{{ cam.name }}</option>
@@ -188,13 +184,13 @@ onMounted(() => {
               <input type="checkbox" v-model="showTrails" class="rounded">
               <span>Mostrar líneas anteriores</span>
             </label>
-            <p class="text-[9px] text-slate-400 uppercase font-bold">Captura {{ timeIdx + 1 }} / {{ historyFeatures.length }}</p>
+            <p class="text-[9px] text-slate-400 uppercase font-semibold">Captura {{ timeIdx + 1 }} / {{ historyFeatures.length }}</p>
           </template>
           <p v-else-if="historyCam" class="text-[10px] text-slate-400">Sin histórico para esta cámara todavía. Se irá llenando con cada análisis.</p>
         </div>
 
         <div class="card-standard p-4 space-y-2">
-          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resumen</div>
+          <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Resumen</div>
           <p class="text-xs text-slate-600">{{ displayedGeoJson.features.length }} feature(s) visibles</p>
         </div>
       </aside>
