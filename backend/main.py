@@ -601,6 +601,34 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
     # analyze_roi carga la homografía desde el .npy — mantenerlo sincronizado
     np.save(os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_H.npy"), H)
 
+    # Vista previa rectificada (planta cenital) para el paso de Validación: reproyecta
+    # la foto completa a un lienzo en UTM local componiendo T (UTM->lienzo, origen y
+    # escala ajustados a la huella de la imagen) con H (píxel->UTM). Sin esto, el
+    # endpoint /rectified-preview nunca tiene el JPG que sirve y el panel se queda
+    # permanentemente en "vista previa no disponible".
+    try:
+        img_path = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"], image_name)
+        img = cv2.imread(img_path)
+        if img is not None:
+            h_img, w_img = img.shape[:2]
+            corners_px = np.array([[0, 0], [w_img, 0], [w_img, h_img], [0, h_img]], dtype=np.float64)
+            corners_utm = cv2.perspectiveTransform(corners_px.reshape(-1, 1, 2), H).reshape(-1, 2)
+            min_x, min_y = corners_utm.min(axis=0)
+            max_x, max_y = corners_utm.max(axis=0)
+            extent_x, extent_y = max(max_x - min_x, 1e-6), max(max_y - min_y, 1e-6)
+            scale = 1000 / max(extent_x, extent_y)
+            canvas_w, canvas_h = max(1, round(extent_x * scale)), max(1, round(extent_y * scale))
+            # T: UTM -> lienzo (Y invertida para que el norte quede arriba)
+            T = np.array([
+                [scale, 0, -min_x * scale],
+                [0, -scale, max_y * scale],
+                [0, 0, 1],
+            ], dtype=np.float64)
+            rectified = cv2.warpPerspective(img, T @ H, (canvas_w, canvas_h))
+            cv2.imwrite(os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_rectified.jpg"), rectified)
+    except Exception as e:
+        add_log(f"No se pudo generar la vista rectificada de Cam {cam_id}: {e}", "warning")
+
     flagged = sum(1 for r in residuals if r["above_threshold"])
     msg = f"Homografía Cam {cam_id} ({image_name}) calculada. RMSE: {rmse_px:.2f}px / {rmse_m:.3f}m"
     if flagged:

@@ -227,6 +227,17 @@ _jobs: Dict[str, BatchJob] = {}
 
 # ── Lógica de procesamiento de imágenes ─────────────────────────────────────
 
+# Techo de diferencia de intensidad (0-255) que se pinta como error máximo
+# (rojo/blanco puro) en el heatmap. Es una escala FIJA a propósito: con
+# NORM_MINMAX cada imagen estira su propio rango de diferencias a 0-255, así
+# que una alineación casi perfecta (diferencias mínimas, solo luz/oleaje)
+# terminaba pintada igual de roja que una realmente desalineada, porque el
+# minmax siempre usa el pixel más distinto de ESA imagen como techo. Con una
+# escala fija, negro sigue siendo alineación perfecta pero el rojo solo
+# aparece cuando la diferencia real es grande, y los mapas son comparables
+# entre imágenes distintas.
+DIFF_MAX_INTENSITY = 40.0
+
 # DEBUG: genera la imagen de diagnóstico visual "diff" que ve el usuario al revisar
 # el resultado de una alineación (heatmap + bordes divergentes).
 def _compute_diff_map(ref: np.ndarray, aligned: np.ndarray) -> np.ndarray:
@@ -244,11 +255,11 @@ def _compute_diff_map(ref: np.ndarray, aligned: np.ndarray) -> np.ndarray:
     ref_f  = ref.astype(np.float32)
     ali_f  = aligned_r.astype(np.float32)
 
-    
+
 
     # ── Capa 1: heatmap de diferencia absoluta por canal ────────────────────
     diff_abs = np.abs(ref_f - ali_f).mean(axis=2)  # (H, W) float
-    diff_norm = cv2.normalize(diff_abs, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    diff_norm = np.clip(diff_abs * (255.0 / DIFF_MAX_INTENSITY), 0, 255).astype(np.uint8)
     heatmap = cv2.applyColorMap(diff_norm, cv2.COLORMAP_HOT)
 
     # ── Capa 2: divergencia de bordes ───────────────────────────────────────

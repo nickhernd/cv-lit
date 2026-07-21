@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import BatchAlignment from './BatchAlignment.vue'
 import Map from './Map.vue'
 
@@ -46,6 +46,65 @@ const unmatchedGroups = ref([])       // [{ file_tag, points, assignedFilename, 
 const selectedGcpIdx = ref(null)
 const isDraggingOver = ref(false)
 const isDraggingRodsCsv = ref(false)
+
+// Paso 5 (Marcación): la imagen se pinta con object-contain, así que si su
+// proporción no coincide con la del panel quedan bandas (letterbox) a los
+// lados o arriba/abajo. Guardamos el tamaño real renderizado de la imagen
+// (no el del contenedor) para dibujar cada punto sobre su píxel real y para
+// recalcular en cuanto cambie el tamaño de la ventana — si no, los puntos se
+// quedan flotando separados de la imagen en vez de moverse con ella.
+const markImgRef = ref(null)
+const imgNatural = ref({ width: 0, height: 0 })
+const stageSize = ref({ width: 0, height: 0 })
+let stageResizeObserver = null
+
+function updateStageSize() {
+  if (!markImgRef.value) return
+  stageSize.value = { width: markImgRef.value.clientWidth, height: markImgRef.value.clientHeight }
+}
+
+function onMarkImageLoad(e) {
+  imgNatural.value = { width: e.target.naturalWidth, height: e.target.naturalHeight }
+  updateStageSize()
+}
+
+// Rectángulo que ocupa REALMENTE la imagen dentro de su contenedor (con
+// object-contain puede haber bandas). Clicks, píxeles guardados y posición de
+// los puntos se calculan siempre contra este rectángulo, nunca contra el
+// contenedor completo.
+const imageRect = computed(() => {
+  const { width: natW, height: natH } = imgNatural.value
+  const { width: boxW, height: boxH } = stageSize.value
+  if (!natW || !natH || !boxW || !boxH) return { offsetX: 0, offsetY: 0, width: 0, height: 0 }
+  const scale = Math.min(boxW / natW, boxH / natH)
+  const width = natW * scale
+  const height = natH * scale
+  return { offsetX: (boxW - width) / 2, offsetY: (boxH - height) / 2, width, height }
+})
+
+function gcpMarkerStyle(gcp) {
+  const r = imageRect.value
+  if (!r.width || !r.height) return { left: gcp.rel[0] + '%', top: gcp.rel[1] + '%' }
+  return {
+    left: (r.offsetX + (gcp.rel[0] / 100) * r.width) + 'px',
+    top: (r.offsetY + (gcp.rel[1] / 100) * r.height) + 'px'
+  }
+}
+
+// El <img> del paso 5 se monta/desmonta al cambiar de paso (v-if), así que
+// el ResizeObserver se (re)conecta cada vez que aparece el elemento real.
+watch(markImgRef, (el) => {
+  if (stageResizeObserver) { stageResizeObserver.disconnect(); stageResizeObserver = null }
+  if (el) {
+    updateStageSize()
+    stageResizeObserver = new ResizeObserver(updateStageSize)
+    stageResizeObserver.observe(el)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (stageResizeObserver) stageResizeObserver.disconnect()
+})
 
 // Vista de mapa en el paso de Marcación: sitúa las varillas marcadas (UTM)
 // sobre un mapa real para comprobar de un vistazo que las coordenadas caen
@@ -527,14 +586,26 @@ const rectifiedUrl = computed(() => {
 // Handlers
 function handleImageClick(event) {
   if (currentStep.value !== 5) return
-  const rect = event.target.getBoundingClientRect()
-  const x = event.clientX - rect.left
-  const y = event.clientY - rect.top
-  const relX = (x / event.target.clientWidth) * 100
-  const relY = (y / event.target.clientHeight) * 100
+  const r = imageRect.value
+  if (!r.width || !r.height) return // la imagen todavía no ha reportado su tamaño real
+
+  const box = event.currentTarget.getBoundingClientRect()
+  const x = event.clientX - box.left - r.offsetX
+  const y = event.clientY - box.top - r.offsetY
+  // Click en la banda de letterbox (fuera del área real de la imagen): ignorar
+  if (x < 0 || y < 0 || x > r.width || y > r.height) return
+
+  const relX = (x / r.width) * 100
+  const relY = (y / r.height) * 100
+  // "pixel" debe quedar en resolución NATIVA de la foto (la que espera el
+  // backend para calcular la homografía en calculate-homography), no en
+  // píxeles CSS de pantalla — si no, la calibración sale mal en cuanto la
+  // imagen no se muestra a tamaño real (que es prácticamente siempre).
+  const pixelX = (relX / 100) * imgNatural.value.width
+  const pixelY = (relY / 100) * imgNatural.value.height
 
   const newGcp = {
-    pixel: [x, y],
+    pixel: [pixelX, pixelY],
     utm: [0, 0],
     label: `VARILLA_${currentProfile.value.gcps.length + 1}`,
     type: 'calib',
@@ -823,10 +894,10 @@ onMounted(() => {
                     <tr v-for="(p, pi) in group.points" :key="pi"
                         :class="Object.values(pointIssues(group.points)[pi]).some(Boolean) ? 'bg-red-50' : ''">
                       <td class="px-2 py-1.5"><input v-model="p.label" class="w-28 input-standard py-1 text-[11px] font-mono uppercase"></td>
-                      <td class="px-2 py-1.5"><input type="number" step="any" v-model.number="p.pixel[0]" class="w-20 input-standard py-1 text-[11px] font-mono text-right"></td>
-                      <td class="px-2 py-1.5"><input type="number" step="any" v-model.number="p.pixel[1]" class="w-20 input-standard py-1 text-[11px] font-mono text-right"></td>
-                      <td class="px-2 py-1.5"><input type="number" step="any" v-model.number="p.utm[0]" class="w-24 input-standard py-1 text-[11px] font-mono text-right"></td>
-                      <td class="px-2 py-1.5"><input type="number" step="any" v-model.number="p.utm[1]" class="w-24 input-standard py-1 text-[11px] font-mono text-right"></td>
+                      <td class="px-2 py-1.5"><input type="number" step="any" v-model.number="p.pixel[0]" class="w-24 input-standard py-1 text-[11px] font-mono text-right"></td>
+                      <td class="px-2 py-1.5"><input type="number" step="any" v-model.number="p.pixel[1]" class="w-24 input-standard py-1 text-[11px] font-mono text-right"></td>
+                      <td class="px-2 py-1.5"><input type="number" step="any" v-model.number="p.utm[0]" class="w-32 input-standard py-1 text-[11px] font-mono text-right"></td>
+                      <td class="px-2 py-1.5"><input type="number" step="any" v-model.number="p.utm[1]" class="w-32 input-standard py-1 text-[11px] font-mono text-right"></td>
                       <td class="px-2 py-1.5"><input v-model="p.notes" placeholder="—" class="w-full input-standard py-1 text-[11px]"></td>
                       <td class="px-2 py-1.5 text-center">
                         <button @click="removeGroupPoint(group.points, pi)" class="p-1 text-red-500 hover:bg-red-50 rounded transition-colors">
@@ -882,10 +953,10 @@ onMounted(() => {
                     :class="Object.values(pointIssues(group.points)[pi]).some(Boolean) ? 'bg-red-50' : ''">
                   <td class="px-4 py-2 text-[10px] font-bold text-slate-400">{{ pi + 1 }}</td>
                   <td class="px-2 py-2"><input v-model="p.label" class="w-full input-standard py-1 text-[11px] font-mono uppercase"></td>
-                  <td class="px-2 py-2"><input type="number" step="any" v-model.number="p.pixel[0]" class="w-20 input-standard py-1 text-[11px] font-mono text-right"></td>
-                  <td class="px-2 py-2"><input type="number" step="any" v-model.number="p.pixel[1]" class="w-20 input-standard py-1 text-[11px] font-mono text-right"></td>
-                  <td class="px-2 py-2"><input type="number" step="any" v-model.number="p.utm[0]" class="w-24 input-standard py-1 text-[11px] font-mono text-right"></td>
-                  <td class="px-2 py-2"><input type="number" step="any" v-model.number="p.utm[1]" class="w-24 input-standard py-1 text-[11px] font-mono text-right"></td>
+                  <td class="px-2 py-2"><input type="number" step="any" v-model.number="p.pixel[0]" class="w-24 input-standard py-1 text-[11px] font-mono text-right"></td>
+                  <td class="px-2 py-2"><input type="number" step="any" v-model.number="p.pixel[1]" class="w-24 input-standard py-1 text-[11px] font-mono text-right"></td>
+                  <td class="px-2 py-2"><input type="number" step="any" v-model.number="p.utm[0]" class="w-32 input-standard py-1 text-[11px] font-mono text-right"></td>
+                  <td class="px-2 py-2"><input type="number" step="any" v-model.number="p.utm[1]" class="w-32 input-standard py-1 text-[11px] font-mono text-right"></td>
                   <td class="px-2 py-2"><input v-model="p.notes" placeholder="—" class="w-full input-standard py-1 text-[11px]"></td>
                   <td class="px-2 py-2 text-center">
                     <button @click="removeGroupPoint(group.points, pi)" class="p-1 text-red-500 hover:bg-red-50 rounded transition-colors">
@@ -945,12 +1016,12 @@ onMounted(() => {
                 <td class="px-2 py-2">
                   <input type="number" step="any" v-model.number="rod.utm[0]" @input="markRodsDirty"
                          :class="rodsIssues[idx]?.invalidCoords ? 'border-red-300 focus:border-red-400' : ''"
-                         class="w-24 input-standard py-1 text-[11px] font-mono text-right">
+                         class="w-32 input-standard py-1 text-[11px] font-mono text-right">
                 </td>
                 <td class="px-2 py-2">
                   <input type="number" step="any" v-model.number="rod.utm[1]" @input="markRodsDirty"
                          :class="rodsIssues[idx]?.invalidCoords ? 'border-red-300 focus:border-red-400' : ''"
-                         class="w-24 input-standard py-1 text-[11px] font-mono text-right">
+                         class="w-32 input-standard py-1 text-[11px] font-mono text-right">
                 </td>
                 <td class="px-2 py-2">
                   <input type="number" step="any" v-model.number="rod.z" @input="markRodsDirty" placeholder="—"
@@ -993,11 +1064,11 @@ onMounted(() => {
           </div>
 
           <template v-if="!mapView">
-            <img :src="imageUrl" @click="handleImageClick" class="absolute inset-0 w-full h-full object-contain cursor-crosshair select-none">
+            <img ref="markImgRef" :src="imageUrl" @click="handleImageClick" @load="onMarkImageLoad" class="absolute inset-0 w-full h-full object-contain cursor-crosshair select-none">
 
             <div v-for="(gcp, idx) in currentProfile.gcps" :key="idx"
                  class="absolute -translate-x-1/2 -translate-y-1/2"
-                 :style="{ left: gcp.rel[0] + '%', top: gcp.rel[1] + '%' }">
+                 :style="gcpMarkerStyle(gcp)">
               <div @click.stop="selectedGcpIdx = idx"
                    :class="selectedGcpIdx === idx ? 'bg-yellow-400 scale-150 ring-4 ring-white' : 'bg-blue-600 scale-100'"
                    class="w-4 h-4 rounded-full border-2 border-white shadow-lg cursor-pointer transition-all hover:scale-125 z-10 flex items-center justify-center">
