@@ -123,6 +123,15 @@ function updateGeoJson(data) {
       weight: f?.properties?._style?.weight ?? 3,
       opacity: f?.properties?._style?.opacity ?? 0.8,
     }),
+    // Puntos (p.ej. varillas GCP) como círculos propios en vez del icono por
+    // defecto de Leaflet, que no resuelve sus imágenes con el bundler.
+    pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+      radius: 7,
+      weight: 2,
+      color: '#fff',
+      fillColor: feature?.properties?._style?.color ?? '#2f6690',
+      fillOpacity: 0.9,
+    }),
     onEachFeature: (feature, layer) => {
       const p = feature.properties || {}
       if (p.ID_Camara != null) {
@@ -132,6 +141,9 @@ function updateGeoJson(data) {
           (p.Area_Seca_m2 != null ? `Área seca: ${p.Area_Seca_m2} m²<br>` : '') +
           (p.Confianza_IA != null ? `Confianza: ${(p.Confianza_IA * 100).toFixed(0)}%` : '')
         )
+      } else if (p.label != null) {
+        layer.bindPopup(`<b>${p.label}</b>`)
+        if (p.idx != null) layer.bindTooltip(String(p.idx + 1), { permanent: true, direction: 'top', offset: [0, -8], className: 'gcp-tooltip' })
       }
     }
   }).addTo(map)
@@ -180,4 +192,16 @@ watch(() => props.fitSignal, () => {
 .leaflet-container {
   background: #f1f5f9;
 }
+
+.gcp-tooltip {
+  background: rgba(15, 23, 42, 0.75);
+  border: none;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 999px;
+  box-shadow: none;
+}
+.gcp-tooltip::before { display: none; }
 </style>

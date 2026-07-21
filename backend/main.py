@@ -1006,6 +1006,27 @@ def _find_col(columns: dict, candidates: tuple):
 def _rods_path(cam_id: int) -> str:
     return os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_rods.json")
 
+# El campo FILE del CSV de campo identifica la sesión de disparo como
+# "YYYYMMDD_HHMM" (sin segundos ni serial). Empareja esa etiqueta con el
+# nombre de archivo real "<epoch>_<YYYYMMDD>_<HHMMSS>_<serial>.jpg" comparando
+# fecha y HHMM — cada sesión de campo generaba sus propias varillas, distintas
+# de las de otra imagen, así que no hay catálogo compartido que valga para todas.
+FILE_TAG_RE = re.compile(r"^(\d{8})_(\d{4})$")
+
+def _match_image_for_file_tag(cam_id: int, file_tag: str) -> Optional[dict]:
+    m = FILE_TAG_RE.match(str(file_tag).strip())
+    if not m:
+        return None
+    date_str, hhmm = m.group(1), m.group(2)
+    cam_folder = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"])
+    if not os.path.exists(cam_folder):
+        return None
+    for f in sorted(os.listdir(cam_folder)):
+        fm = FILENAME_TS_RE.match(f)
+        if fm and fm.group(2) == date_str and fm.group(3)[:4] == hhmm:
+            return {"filename": f, "captured_at": _parse_capture_ts(f)}
+    return None
+
 @app.post("/api/cameras/{cam_id}/import-rods")
 async def import_rods(cam_id: int, file: UploadFile = File(...)):
     if cam_id not in CAMERAS:
@@ -1030,6 +1051,9 @@ async def import_rods(cam_id: int, file: UploadFile = File(...)):
         # Formato de levantamiento GCP del proyecto: doble cabecera (fila de grupos
         # IMG/UTM + fila de nombres), columnas X/Y duplicadas (píxel y UTM),
         # decimales con coma y filas de varias cámaras mezcladas (columna CAMERA).
+        # La columna FILE liga cada fila a la sesión de disparo en la que se
+        # topografió: las varillas de una imagen NO son las de otra, así que
+        # agrupamos por FILE y las repartimos entre las imágenes reales.
         try:
             df = pd.read_csv(io.StringIO(text), sep=None, engine="python", header=1)
         except Exception as e:
@@ -1043,6 +1067,7 @@ async def import_rods(cam_id: int, file: UploadFile = File(...)):
         if utm_x is None or utm_y is None:
             raise HTTPException(status_code=400, detail="Formato GCP no reconocido: faltan columnas UTM X/Y")
         cam_tag = f"CAM{cam_id}"
+        groups = {}          # file_tag (o "" si no hay columna FILE) -> [puntos]
         for _, row in df.iterrows():
             if cam_col is not None:
                 cam_val = str(row[cam_col]).strip().upper().replace(" ", "").replace("_", "")
@@ -1054,18 +1079,41 @@ async def import_rods(cam_id: int, file: UploadFile = File(...)):
                 skipped += 1
                 continue
             label = f"GCP_{str(row[id_col]).strip()}" if id_col is not None and not pd.isna(row[id_col]) else f"VARILLA_{len(rods) + 1}"
-            rod = {"label": label, "utm": [x, y]}
+            point = {"label": label, "utm": [x, y]}
             if px_x is not None and px_y is not None and not pd.isna(row[px_x]) and not pd.isna(row[px_y]):
                 try:
-                    rod["pixel"] = [_num(row[px_x]), _num(row[px_y])]
+                    point["pixel"] = [_num(row[px_x]), _num(row[px_y])]
                 except (TypeError, ValueError):
                     pass
-            notes = []
-            if file_col is not None and not pd.isna(row[file_col]): notes.append(str(row[file_col]).strip())
-            if color_col is not None and not pd.isna(row[color_col]): notes.append(str(row[color_col]).strip())
-            if notes:
-                rod["notes"] = " · ".join(notes)
-            rods.append(rod)
+            if color_col is not None and not pd.isna(row[color_col]):
+                point["notes"] = str(row[color_col]).strip()
+            file_tag = str(row[file_col]).strip() if file_col is not None and not pd.isna(row[file_col]) else ""
+            groups.setdefault(file_tag, []).append(point)
+            rods.append(point)
+
+        if file_col is not None:
+            matched, unmatched = [], []
+            for file_tag, points in groups.items():
+                match = _match_image_for_file_tag(cam_id, file_tag) if file_tag else None
+                if match:
+                    matched.append({**match, "file_tag": file_tag, "points": points})
+                else:
+                    unmatched.append({"file_tag": file_tag, "points": points})
+            if not rods:
+                raise HTTPException(status_code=400, detail="El CSV no contiene ninguna fila con coordenadas válidas")
+            msg = f"CSV de campo leído: {len(rods)} varillas en {len(matched)} imagen(es) emparejada(s)"
+            if unmatched:
+                msg += f", {len(unmatched)} sesión(es) sin imagen coincidente"
+            if skipped:
+                msg += f" ({skipped} filas omitidas por coordenadas inválidas)"
+            add_log(msg, "success" if not unmatched else "warning")
+            return {
+                "status": "success",
+                "mode": "per_image",
+                "skipped": skipped,
+                "matched": matched,
+                "unmatched": unmatched,
+            }
     else:
         # Formato genérico: una cabecera con columnas id/x/y (nombres flexibles)
         try:
@@ -1120,7 +1168,7 @@ async def import_rods(cam_id: int, file: UploadFile = File(...)):
     if skipped:
         msg += f" ({skipped} filas omitidas por coordenadas inválidas)"
     add_log(msg, "success")
-    return {"status": "success", "count": len(rods), "skipped": skipped, "rods": rods}
+    return {"status": "success", "mode": "catalog", "count": len(rods), "skipped": skipped, "rods": rods}
 
 # DEBUG: devuelve el catálogo de varillas importado para una cámara (o vacío).
 @app.get("/api/cameras/{cam_id}/rods")
@@ -1132,3 +1180,47 @@ def get_rods(cam_id: int):
         with open(path, "r") as f:
             return json.load(f)
     return {"cam_id": cam_id, "rods": []}
+
+class RodIn(BaseModel):
+    label: str
+    utm: List[float]
+    z: Optional[float] = None
+    notes: Optional[str] = None
+    pixel: Optional[List[float]] = None
+
+class RodsUpdatePayload(BaseModel):
+    rods: List[RodIn]
+
+# Guarda el catálogo de varillas tras la revisión manual del usuario en el
+# paso "Catálogo": permite corregir etiquetas/coordenadas mal importadas del
+# CSV, borrar filas erróneas o añadir varillas a mano, sin volver a subir el
+# archivo completo.
+@app.put("/api/cameras/{cam_id}/rods")
+def update_rods(cam_id: int, payload: RodsUpdatePayload):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    for rod in payload.rods:
+        if not rod.label.strip():
+            raise HTTPException(status_code=400, detail="Todas las varillas necesitan una etiqueta")
+        if len(rod.utm) != 2:
+            raise HTTPException(status_code=400, detail=f"La varilla '{rod.label}' necesita coordenadas UTM [X, Y]")
+
+    path = _rods_path(cam_id)
+    existing = {}
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            existing = json.load(f)
+
+    out = {
+        "cam_id": cam_id,
+        "source_file": existing.get("source_file"),
+        "imported_at": existing.get("imported_at"),
+        "edited_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "rods": [r.dict(exclude_none=True) for r in payload.rods],
+    }
+    os.makedirs(CALIBRATION_DIR, exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(out, f, indent=2)
+
+    add_log(f"Catálogo de varillas corregido manualmente para Cam {cam_id} ({len(payload.rods)} varillas)", "success")
+    return {"status": "success", "count": len(payload.rods), "rods": out["rods"]}
