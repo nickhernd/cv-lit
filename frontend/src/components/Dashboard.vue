@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import Map from './Map.vue'
 
 const emit = defineEmits(['select-camera', 'notify'])
@@ -10,24 +10,33 @@ const geojson = ref(null)
 const historicalData = ref([])
 const cameraDetails = ref([])   // /api/cameras — trae rmse_m, para derivar tareas reales
 const logs = ref([])            // /api/logs — para "Actividad reciente"
+const histCam = ref(null)       // null = todas las cámaras combinadas (media diaria)
+
+async function fetchHistorical() {
+  const url = 'http://localhost:8000/api/historical-data' + (histCam.value ? `?cam_id=${histCam.value}` : '')
+  try {
+    const res = await fetch(url)
+    historicalData.value = res.ok ? await res.json() : []
+  } catch (err) { historicalData.value = [] }
+}
+watch(histCam, fetchHistorical)
 
 async function fetchData() {
   try {
-    const [dashRes, geoRes, histRes, camRes, logRes] = await Promise.all([
+    const [dashRes, geoRes, camRes, logRes] = await Promise.all([
       fetch('http://localhost:8000/api/dashboard'),
       fetch('http://localhost:8000/api/geojson'),
-      fetch('http://localhost:8000/api/historical-data'),
       fetch('http://localhost:8000/api/cameras'),
       fetch('http://localhost:8000/api/logs')
     ])
 
-    if (!dashRes.ok || !geoRes.ok || !histRes.ok) throw new Error('Error al conectar con el servidor')
+    if (!dashRes.ok || !geoRes.ok) throw new Error('Error al conectar con el servidor')
 
     data.value = await dashRes.json()
     geojson.value = await geoRes.json()
-    historicalData.value = await histRes.json()
     cameraDetails.value = camRes.ok ? await camRes.json() : []
     logs.value = logRes.ok ? await logRes.json() : []
+    await fetchHistorical()
   } catch (err) {
     error.value = err.message
     emit('notify', 'Fallo en la sincronización con el servidor', 'error')
@@ -38,14 +47,24 @@ async function fetchData() {
 const recentActivity = computed(() => logs.value.slice(-6).reverse())
 
 // Tareas derivadas del estado real de las cámaras — nunca inventadas: solo
-// "hay que calibrar" (sin calibrar) o "revisar" (RMSE por encima de umbral).
+// "hay que calibrar" (sin calibrar), "revisar" (RMSE por encima de umbral) o
+// "sin capturas recientes" (frescura de datos, a partir de last_image_ts que
+// ya devuelve /api/cameras — sin inventar ningún dato nuevo).
 const RMSE_REVIEW_THRESHOLD_M = 1.0
+const STALE_HOURS_THRESHOLD = 48
 const upcomingTasks = computed(() => {
   const tasks = []
+  const nowSec = Date.now() / 1000
   for (const cam of cameraDetails.value) {
     if (!cam.calibrated) tasks.push({ label: `Calibrar ${cam.id}`, severity: 'warn' })
     else if (cam.rmse_m != null && cam.rmse_m > RMSE_REVIEW_THRESHOLD_M) {
       tasks.push({ label: `Revisar ${cam.id} — RMSE ${cam.rmse_m.toFixed(2)} m`, severity: 'err' })
+    }
+    if (cam.last_image_ts != null) {
+      const hoursSince = (nowSec - cam.last_image_ts) / 3600
+      if (hoursSince > STALE_HOURS_THRESHOLD) {
+        tasks.push({ label: `${cam.id} sin capturas hace ${Math.floor(hoursSince / 24)} día(s)`, severity: 'warn' })
+      }
     }
   }
   return tasks
@@ -65,6 +84,30 @@ function downloadCSV() {
   document.body.appendChild(link)
   link.click()
   emit('notify', 'Archivo CSV generado con éxito', 'success')
+}
+
+// Informe completo (backend): una fila por análisis aceptado, con cámara,
+// imagen y confianza — a diferencia de downloadCSV() arriba, que solo exporta
+// la media diaria global que alimenta el gráfico.
+function downloadReportCSV() {
+  window.open('http://localhost:8000/api/report?format=csv', '_blank')
+}
+async function downloadReportJSON() {
+  try {
+    const res = await fetch('http://localhost:8000/api/report?format=json')
+    if (!res.ok) throw new Error('HTTP ' + res.status)
+    const data = await res.json()
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'cv-lit_informe_completo.json'
+    link.click()
+    URL.revokeObjectURL(url)
+    emit('notify', 'Informe JSON descargado', 'success')
+  } catch (err) {
+    emit('notify', 'Error al descargar el informe', 'error')
+  }
 }
 
 // El backend ya no genera una fila por día fijo (era relleno aleatorio) —
@@ -100,6 +143,18 @@ const lastPoint = computed(() => {
   return { x, y }
 })
 
+// Variación dentro de la ventana visible (primer punto vs. último): sube =
+// más arena seca (acreción), baja = menos (erosión). Con menos de 2 puntos
+// no hay variación que mostrar todavía.
+const trend = computed(() => {
+  if (chartData.value.length < 2) return null
+  const first = chartData.value[0].area
+  const last = chartData.value[chartData.value.length - 1].area
+  const delta = last - first
+  const pct = first !== 0 ? (delta / first) * 100 : 0
+  return { delta, pct, up: delta >= 0 }
+})
+
 onMounted(fetchData)
 </script>
 
@@ -115,6 +170,14 @@ onMounted(fetchData)
   <div v-else-if="data" class="space-y-4 animate-fade-in">
     <div class="flex justify-end items-center gap-3 no-print">
       <span class="text-[11px] font-medium text-slate-400">Guardamar del Segura · Red Obscape</span>
+      <button @click="downloadReportCSV" class="btn-secondary" title="Un análisis por fila: cámara, imagen, área seca, confianza">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" stroke-width="2"/></svg>
+        <span>Informe CSV</span>
+      </button>
+      <button @click="downloadReportJSON" class="btn-secondary" title="Mismo informe completo en JSON">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" stroke-width="2"/></svg>
+        <span>Informe JSON</span>
+      </button>
       <button @click="printReport" class="btn-secondary">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 00-2 2h2m2 4h10a2 2 0 002-2v-4H5v4a2 2 0 002 2z" stroke-width="2"/><path d="M17 9V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4" stroke-width="2"/></svg>
         <span>Imprimir Reporte</span>
@@ -205,15 +268,27 @@ onMounted(fetchData)
         <span>Localización ROI</span>
         <button @click="fetchData" class="text-blue-600 hover:text-blue-800 text-[10px] font-semibold uppercase no-print">Sincronizar</button>
       </div>
-      <div class="min-h-[320px]">
-        <Map :geojsonData="geojson" />
+      <!-- Altura FIJA, no min-height: Leaflet necesita que su contenedor tenga
+           una altura ya resuelta al montarse — con solo min-height (altura
+           auto por defecto) el mapa medía 0px y quedaba en blanco. -->
+      <div class="h-[320px]">
+        <Map :geojsonData="geojson" @select-camera="emit('select-camera', $event)" />
       </div>
     </div>
 
     <!-- HISTORICAL CHART -->
     <div class="card-standard overflow-hidden">
-       <div class="card-header flex justify-between items-center uppercase tracking-wider text-[10px]">
-          <span>Tendencia Histórica: Área Seca (30 días)</span>
+       <div class="card-header flex justify-between items-center uppercase tracking-wider text-[10px] gap-3 flex-wrap">
+          <div class="flex items-center gap-3">
+            <span>Tendencia Histórica: Área Seca (30 días)</span>
+            <select v-model="histCam" class="input-standard py-0.5 text-[10px] normal-case font-medium no-print">
+              <option :value="null">Todas las cámaras (media)</option>
+              <option v-for="cam in cameraDetails" :key="cam.idx" :value="cam.idx">{{ cam.name }}</option>
+            </select>
+            <span v-if="trend" class="badge no-print" :class="trend.up ? 'badge-ok' : 'badge-err'">
+              {{ trend.up ? '▲' : '▼' }} {{ Math.abs(trend.pct).toFixed(1) }}% en la ventana
+            </span>
+          </div>
           <button @click="downloadCSV" class="text-blue-600 hover:text-blue-800 text-[10px] font-semibold no-print uppercase">Descargar CSV</button>
        </div>
        <div v-if="chartData.length" class="p-4 bg-white">

@@ -1,9 +1,10 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response, JSONResponse
 from pydantic import BaseModel
 import os
 import io
+import csv
 import re
 import json
 import glob
@@ -33,12 +34,13 @@ try:
     from extract_coastline import extract_coastline_from_mask, draw_coastline
     from test_mes3_pipeline import color_fallback_segmentation
     from cam_thresholds import get_threshold, validate_mask
-    from georef_export import confidence_index
+    from georef_export import confidence_index, RMSE_GOOD_M
 except ImportError:
     print("[WARNING] No se pudieron importar los modulos de procesamiento.")
     def get_threshold(cam_id): return {"confidence_min": 0.45, "mask_area_min_ratio": 0.05, "mask_area_max_ratio": 0.70}
     def validate_mask(mask, cam_id, shape): return True, ""
-    def confidence_index(prob_map): return 0.0
+    def confidence_index(mask, rmse_m, coastline_points=None, prob_map=None): return 0.0
+    RMSE_GOOD_M = 2.0
 
 # DEBUG (INIT): umbral global de confianza para aceptar/rechazar un análisis de línea de costa.
 # Sobreescribible con la variable de entorno CONFIDENCE_THRESHOLD; se usa como fallback,
@@ -58,18 +60,54 @@ app.include_router(batch_router)
 APP_MODE = os.getenv("APP_MODE", "real").lower()
 print(f"[INFO] Iniciando en MODO: {APP_MODE.upper()}")
 
-# DEBUG (INIT): buffer en memoria (no persistente) de los últimos logs del sistema,
-# expuesto vía GET /api/logs y alimentado por add_log() en cada endpoint relevante.
-system_logs = [
+# Log persistente (JSONL, una línea por entrada) — antes system_logs vivía
+# solo en memoria y se perdía en cada reinicio del backend (`uvicorn --reload`
+# lo hace constantemente en desarrollo). Un fichero por workspace (vive en
+# DATA_DIR, así que dev/demo/real no se mezclan entre sí).
+LOG_FILE = os.path.join(DATA_DIR, "system_logs.jsonl")
+
+def _load_persisted_logs(limit: int = 50):
+    if not os.path.exists(LOG_FILE):
+        return []
+    try:
+        with open(LOG_FILE, "r") as f:
+            lines = f.readlines()[-limit:]
+        return [json.loads(l) for l in lines if l.strip()]
+    except (OSError, json.JSONDecodeError):
+        return []
+
+# Buffer en memoria para servir GET /api/logs sin releer el fichero en cada
+# petición — se rehidrata desde LOG_FILE al arrancar para no perder el
+# historial reciente entre reinicios.
+system_logs = _load_persisted_logs() or [
     {"time": datetime.datetime.now().strftime("%H:%M:%S"), "msg": "Sistema iniciado correctamente", "type": "info"},
 ]
 
-# DEBUG: helper de logging in-memory usado por casi todos los endpoints para dejar
-# trazabilidad de lo que hace el backend en tiempo real (lo consume el frontend vía /api/logs).
+# DEBUG: helper de logging usado por casi todos los endpoints para dejar
+# trazabilidad de lo que hace el backend en tiempo real (lo consume el frontend
+# vía /api/logs). Escribe tanto en memoria (rápido, lo que se sirve) como en
+# disco (persiste entre reinicios).
+LOG_FILE_MAX_BYTES = 2_000_000  # ~2MB (miles de entradas) antes de rotar
+LOG_FILE_KEEP_LINES = 5000
+
 def add_log(msg: str, log_type: str = "info"):
-    now = datetime.datetime.now().strftime("%H:%M:%S")
-    system_logs.append({"time": now, "msg": msg, "type": log_type})
+    now = datetime.datetime.now()
+    entry = {"time": now.strftime("%H:%M:%S"), "date": now.strftime("%Y-%m-%d"), "msg": msg, "type": log_type}
+    system_logs.append(entry)
     if len(system_logs) > 50: system_logs.pop(0)
+    try:
+        # Rotación simple: sin esto el .jsonl crece para siempre en un
+        # servicio de larga duración. Comprobar el tamaño es barato (una
+        # llamada al SO), así que se hace en cada escritura sin problema.
+        if os.path.exists(LOG_FILE) and os.path.getsize(LOG_FILE) > LOG_FILE_MAX_BYTES:
+            with open(LOG_FILE, "r") as f:
+                kept = f.readlines()[-LOG_FILE_KEEP_LINES:]
+            with open(LOG_FILE, "w") as f:
+                f.writelines(kept)
+        with open(LOG_FILE, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except OSError:
+        pass
 
 # DEBUG (INIT): instancia global del segmentador SAM, con lazy loading (None = aún no cargado).
 segmenter = None
@@ -106,6 +144,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Autenticación por API key — OPCIONAL y desactivada por defecto (si
+# CVLIT_API_KEY no está definida, la app se comporta exactamente igual que
+# antes: sin auth, pensada para desarrollo/demo en local). En cuanto se
+# arranque el backend en una red donde no todos los que puedan alcanzar el
+# puerto sean de confianza, basta con definir CVLIT_API_KEY y exigir la
+# cabecera `X-API-Key` en cada petición (el proxy/frontend que se despliegue
+# delante es quien debe inyectarla).
+CVLIT_API_KEY = os.environ.get("CVLIT_API_KEY")
+
+@app.middleware("http")
+async def require_api_key(request: Request, call_next):
+    if CVLIT_API_KEY and request.url.path.startswith("/api/"):
+        if request.headers.get("X-API-Key") != CVLIT_API_KEY:
+            return JSONResponse(status_code=401, content={"detail": "API key ausente o inválida (cabecera X-API-Key)"})
+    return await call_next(request)
 
 class GCP(BaseModel):
     pixel: List[float]
@@ -209,6 +263,44 @@ def _append_history(cam_id: int, feature: dict, max_entries: int = 500):
     with open(path, "w") as f:
         json.dump(history, f)
 
+# Umbrales para la alerta de degradación de RMSE (#robustez): una calibración
+# puede salir con buen RMSE en sus propios puntos y aun así ser peor que la
+# anterior — sin guardar un histórico no hay forma de saber si una cámara se
+# está "desafinando" con el tiempo hasta que ya da problemas en analyze_roi.
+RMSE_DEGRADATION_ABS_M = 0.15   # empeora al menos 15 cm frente a la anterior...
+RMSE_DEGRADATION_REL = 0.30    # ...o un 30% relativo, lo que sea mayor umbral
+
+def _rmse_history_path(cam_id: int) -> str:
+    return os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_rmse_log.json")
+
+def _check_rmse_trend(cam_id: int, rmse_m: float, max_entries: int = 20):
+    """Compara el RMSE de esta calibración con la anterior de la MISMA cámara
+    y deja un aviso en el log si ha empeorado significativamente. Acumula un
+    histórico corto (no el detalle de residuos, solo fecha+valor) para poder
+    comparar en la siguiente calibración."""
+    path = _rmse_history_path(cam_id)
+    entries = []
+    if os.path.exists(path):
+        try:
+            with open(path, "r") as f:
+                entries = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            entries = []
+
+    if entries:
+        prev_rmse = entries[-1]["rmse_m"]
+        delta = rmse_m - prev_rmse
+        if delta > max(RMSE_DEGRADATION_ABS_M, prev_rmse * RMSE_DEGRADATION_REL):
+            add_log(
+                f"Cam {cam_id}: el RMSE ha empeorado respecto a la calibración anterior "
+                f"({prev_rmse:.3f} m → {rmse_m:.3f} m) — revisar varillas/GCPs",
+                "warning",
+            )
+
+    entries.append({"date": datetime.datetime.now().isoformat(timespec="seconds"), "rmse_m": round(rmse_m, 4)})
+    with open(path, "w") as f:
+        json.dump(entries[-max_entries:], f, indent=2)
+
 # DEBUG: alinea `img` contra `ref_img` con ORB+RANSAC (versión más simple/antigua
 # que la de batch_alignment.py, que usa SIFT). No parece estar referenciada por
 # ningún endpoint activo de este archivo — revisar si sigue en uso.
@@ -253,9 +345,13 @@ def get_logs():
 # promediando por día natural. Si un día tiene varias capturas (de una o varias
 # cámaras) se muestra la media del día, no cada captura suelta.
 @app.get("/api/historical-data")
-def get_historical_data():
+def get_historical_data(cam_id: Optional[int] = None):
     by_date = {}
-    for path in glob.glob(os.path.join(DATA_DIR, "coastline_history_cam*.json")):
+    if cam_id is not None:
+        paths = [os.path.join(DATA_DIR, f"coastline_history_cam{cam_id}.json")]
+    else:
+        paths = glob.glob(os.path.join(DATA_DIR, "coastline_history_cam*.json"))
+    for path in paths:
         try:
             with open(path, "r") as f:
                 history = json.load(f)
@@ -273,6 +369,48 @@ def get_historical_data():
         {"date": date, "area": round(sum(areas) / len(areas), 2)}
         for date, areas in sorted(by_date.items())
     ]
+
+# Informe completo: una fila por análisis aceptado, con cámara, imagen, área
+# seca y confianza — a diferencia de /api/historical-data (que solo da la
+# media diaria global para el gráfico), esto es el detalle exportable para
+# analizar fuera de la app. format=csv devuelve un fichero descargable.
+@app.get("/api/report")
+def get_report(format: str = "json"):
+    rows = []
+    for cam_idx, info in sorted(CAMERAS.items()):
+        path = _history_path(cam_idx)
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, "r") as f:
+                history = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+        for feature in history.get("features", []):
+            p = feature.get("properties", {})
+            rows.append({
+                "camara_idx": cam_idx,
+                "camara_nombre": info["name"],
+                "timestamp": p.get("Timestamp"),
+                "imagen": p.get("Imagen"),
+                "area_seca_m2": p.get("Area_Seca_m2"),
+                "confianza_ia": p.get("Confianza_IA"),
+                "epsg": p.get("EPSG"),
+            })
+    rows.sort(key=lambda r: (r["timestamp"] or "", r["camara_idx"]))
+
+    if format == "csv":
+        buf = io.StringIO()
+        fieldnames = ["camara_idx", "camara_nombre", "timestamp", "imagen", "area_seca_m2", "confianza_ia", "epsg"]
+        writer = csv.DictWriter(buf, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+        return Response(
+            content=buf.getvalue(),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=cv-lit_informe_completo.csv"},
+        )
+    return rows
 
 # DEBUG: guarda qué imagen se usa como referencia/base para alinear el resto de
 # capturas de una cámara. Escribe en calibration/cam_{id}_profile.json.
@@ -647,6 +785,8 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
     with open(profile_path, "w") as f:
         json.dump(profile, f, indent=2)
 
+    _check_rmse_trend(cam_id, rmse_m)
+
     # analyze_roi carga la homografía desde el .npy — mantenerlo sincronizado
     np.save(os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_H.npy"), H)
 
@@ -660,7 +800,19 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
         img = cv2.imread(img_path)
         if img is not None:
             h_img, w_img = img.shape[:2]
-            corners_px = np.array([[0, 0], [w_img, 0], [w_img, h_img], [0, h_img]], dtype=np.float64)
+            # Acotar el lienzo a la franja por DEBAJO de las varillas de
+            # calibración: la homografía solo es fiable cerca de donde se
+            # calibró. Si los límites del lienzo se calculan con la foto
+            # ENTERA (cielo/horizonte incluidos, muy lejos del plano de la
+            # playa), esas esquinas se proyectan a UTM que se dispara hacia
+            # el infinito y la franja real de playa queda como una tira
+            # minúscula en una esquina del resultado — de ahí que la vista
+            # rectificada se viera irreconocible. Se recorta un margen por
+            # encima de la varilla más alta marcada de esta imagen.
+            gcp_y_min = float(pts_px[:, 1].min())
+            margin = 0.10 * max(h_img - gcp_y_min, 1.0)
+            y0 = max(0.0, gcp_y_min - margin)
+            corners_px = np.array([[0, y0], [w_img, y0], [w_img, h_img], [0, h_img]], dtype=np.float64)
             corners_utm = cv2.perspectiveTransform(corners_px.reshape(-1, 1, 2), H).reshape(-1, 2)
             min_x, min_y = corners_utm.min(axis=0)
             max_x, max_y = corners_utm.max(axis=0)
@@ -726,6 +878,16 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
         add_log(f"Falta calibración para Cam {cam_id}", "error")
         raise HTTPException(status_code=400, detail="Camera not calibrated")
 
+    # rmse_m de la última calibración: alimenta el factor de "calidad de
+    # calibración" de confidence_index() (peso 3 del índice, ver georef_export.py).
+    profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_profile.json")
+    rmse_m = None
+    if os.path.exists(profile_path):
+        with open(profile_path, "r") as f:
+            rmse_m = json.load(f).get("rmse_m")
+    if rmse_m is None:
+        rmse_m = RMSE_GOOD_M  # sin RMSE registrado: ni penaliza ni premia el índice
+
     # 3. Segmentación con estrategia de tres niveles (#81):
     #    Nivel 1 → SAM (requiere GPU + checkpoint)
     #    Nivel 2 → color_fallback (HSV heurístico, siempre disponible)
@@ -769,7 +931,7 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
 
     # 4. Calcular confianza real (#79)
     if prob_map is not None:
-        conf = float(confidence_index(prob_map))
+        conf = float(confidence_index(mask, rmse_m, prob_map=prob_map))
     else:
         # Proxy sin prob_map: normalizar número de puntos de costa detectados
         n_px = int(mask.sum() > 0) and len(extract_coastline_from_mask(mask) or [])
@@ -807,9 +969,39 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
     pts_utm = cv2.perspectiveTransform(pts_array, H).reshape(-1, 2)
     pts_utm = _smooth_polyline(pts_utm)
 
-    # 7. Calcular área seca en m² (fórmula del trapecio / shoelace sobre UTM)
-    mask_px_count = int(np.sum(mask > 0))
-    area_m2 = float(mask_px_count) * 0.25  # estimación: ~0.5m por píxel en cada eje
+    # 7. Calcular área seca en m²: proyectar el CONTORNO de la máscara a UTM con
+    # la homografía y aplicar la fórmula shoelace — no un factor fijo de m²/píxel,
+    # que ignora la perspectiva oblicua (un píxel cerca de la cámara cubre mucho
+    # menos terreno real que uno cerca del horizonte, y varía con la resolución
+    # de la foto de origen).
+    contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    area_m2 = 0.0
+    if contours:
+        largest_px = max(contours, key=cv2.contourArea).astype(np.float32)
+        largest_utm = cv2.perspectiveTransform(largest_px, H).reshape(-1, 2).astype(np.float64)
+        # Recentrar en el origen ANTES del shoelace: las UTM absolutas rondan
+        # las 7 cifras (ej. x≈706644) mientras el polígono mide decenas/cientos
+        # de metros — hacer x*y con esas magnitudes directamente satura la
+        # precisión de punto flotante y el área sale exactamente 0 por
+        # cancelación catastrófica, incluso en float64.
+        largest_utm -= largest_utm.mean(axis=0)
+        x, y = largest_utm[:, 0], largest_utm[:, 1]
+        area_m2 = float(abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))) / 2.0)
+
+    # Salvaguarda: una homografía ajustada con pocas varillas (mínimo 4) puede
+    # tener buen RMSE EN esos puntos y aun así extrapolar muy mal fuera de su
+    # zona de calibración — si la máscara de arena seca se extiende más allá
+    # de esa zona, el área proyectada se dispara varios órdenes de magnitud
+    # (se ha visto un caso real: 15 millones de m² con solo 5 GCPs). Mejor
+    # rechazar con un motivo claro que mostrar una cifra fabricada.
+    MAX_PLAUSIBLE_AREA_M2 = 50_000  # ~5 ha: por encima del mayor tramo real observado (~1.9 ha)
+    if area_m2 > MAX_PLAUSIBLE_AREA_M2:
+        add_log(f"Cam {cam_id}: área calculada no fiable ({area_m2:,.0f} m² — homografía mal condicionada fuera de las varillas de calibración)", "error")
+        return {
+            "dry_area_m2": 0, "confidence": round(conf, 4),
+            "timestamp": str(datetime.datetime.now()),
+            "rejected": True, "reject_reason": f"area_no_fiable:{area_m2:.0f}m2 — recalibrar con más varillas",
+        }
 
     # El timestamp de la feature es el de CAPTURA de la imagen (del nombre de
     # archivo), no el de procesado — es lo que da sentido a la línea temporal.
@@ -835,13 +1027,11 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
     }
     fc = {"type": "FeatureCollection", "features": [feature]}
 
-    # Guardar resultado compartido + resultado por cámara (#87) + histórico temporal
-    for path in [
-        os.path.join(DATA_DIR, "latest_result.json"),
-        os.path.join(DATA_DIR, f"latest_result_cam{cam_id}.json"),
-    ]:
-        with open(path, "w") as f:
-            json.dump(fc, f)
+    # Guardar resultado por cámara (#87) + histórico temporal — /api/geojson agrega
+    # estos ficheros en caliente para el mapa global, así que no hace falta un
+    # "latest_result.json" compartido aparte.
+    with open(os.path.join(DATA_DIR, f"latest_result_cam{cam_id}.json"), "w") as f:
+        json.dump(fc, f)
     _append_history(cam_id, feature)
 
     # Guardar imagen con línea dibujada para preview
@@ -960,26 +1150,29 @@ async def align_preview(
     _, buf = cv2.imencode(".png", blend)
     return StreamingResponse(io.BytesIO(buf.tobytes()), media_type="image/png")
 
-# DEBUG: devuelve el último GeoJSON global (todas las cámaras combinadas) generado
-# por analyze_roi(), leído de DATA_DIR/latest_result.json.
+# Devuelve el GeoJSON global (TODAS las cámaras combinadas), agregando en caliente
+# el último resultado de CADA cámara (latest_result_cam{id}.json) — antes leía un
+# único latest_result.json que analyze_roi() sobrescribe en cada llamada, así que
+# solo mostraba la cámara analizada más recientemente, nunca las 6 a la vez.
 @app.get("/api/geojson")
 def get_geojson():
-    path = os.path.join(DATA_DIR, "latest_result.json")
-    if os.path.exists(path):
-        with open(path, "r") as f: return json.load(f)
-    return {"type": "FeatureCollection", "features": []}
+    features = []
+    for cam_idx in sorted(CAMERAS.keys()):
+        cam_path = os.path.join(DATA_DIR, f"latest_result_cam{cam_idx}.json")
+        if os.path.exists(cam_path):
+            with open(cam_path, "r") as f:
+                fc = json.load(f)
+            features.extend(fc.get("features", []))
+    return {"type": "FeatureCollection", "features": features}
 
 
-# DEBUG: variante de get_geojson() por cámara individual; cae al GeoJSON global
-# si todavía no existe un resultado específico para esta cámara.
+# Variante de get_geojson() por cámara individual.
 @app.get("/api/cameras/{cam_id}/geojson")
 def get_camera_geojson(cam_id: int):
     """Devuelve el último GeoJSON generado para esta cámara (#87)."""
     if cam_id not in CAMERAS:
         raise HTTPException(404, "Cámara no encontrada")
     cam_path = os.path.join(DATA_DIR, f"latest_result_cam{cam_id}.json")
-    if not os.path.exists(cam_path):
-        cam_path = os.path.join(DATA_DIR, "latest_result.json")
     if os.path.exists(cam_path):
         with open(cam_path) as f:
             return json.load(f)

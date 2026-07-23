@@ -162,7 +162,7 @@ onMounted(async () => {
         <div class="card-standard p-4 space-y-4">
           <div @dragover.prevent="isDraggingOver = true" @dragleave.prevent="isDraggingOver = false" @drop.prevent="onDrop"
                :class="isDraggingOver ? 'border-blue-600 bg-blue-50' : 'border-slate-200'"
-               class="p-4 border-2 border-dashed rounded-lg text-center relative transition-colors">
+               class="p-4 border-2 border-dashed rounded-md text-center relative transition-colors">
             <input type="file" multiple @change="handleFiles($event.target.files)" class="absolute inset-0 opacity-0 cursor-pointer">
             <p class="text-xs font-semibold text-slate-600 uppercase">Arrastra o haz click para añadir imágenes</p>
           </div>

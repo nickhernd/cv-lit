@@ -333,8 +333,7 @@ onUnmounted(() => clearInterval(pollInterval))
   ════════════════════════════════════════════════════════════════ -->
   <div v-if="phase === 'idle'" class="flex flex-col items-center justify-center h-64 space-y-4">
     <div class="text-slate-400 text-sm">Alineación masiva de fotogramas</div>
-    <button @click="startConfiguring"
-            class="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm transition-colors">
+    <button @click="startConfiguring" class="btn-standard">
       Iniciar lote de alineación
     </button>
   </div>
@@ -356,8 +355,7 @@ onUnmounted(() => clearInterval(pollInterval))
       <label class="text-xs font-semibold text-slate-600 uppercase tracking-wider block">
         Imagen base de referencia
       </label>
-      <select v-model="baseFilename"
-              class="w-full text-sm border border-slate-200 rounded px-3 py-2 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
+      <select v-model="baseFilename" class="input-standard w-full">
         <option value="" disabled>— Seleccionar —</option>
         <option v-for="img in imageList" :key="img.filename" :value="img.filename">
           {{ img.filename }}
@@ -414,7 +412,7 @@ onUnmounted(() => clearInterval(pollInterval))
       <div class="flex items-center justify-between">
         <span class="text-[10px] text-slate-400">{{ maskRegions.length }} zona(s) definida(s)</span>
         <button @click="saveMask" :disabled="maskSaving || maskLoading"
-                class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded text-xs font-semibold transition-colors">
+                class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-md text-xs font-semibold transition-colors">
           {{ maskSaving ? 'Guardando…' : 'Guardar máscara' }}
         </button>
       </div>
@@ -448,7 +446,7 @@ onUnmounted(() => clearInterval(pollInterval))
 
     <button @click="startBatch"
             :disabled="!baseFilename || selectedFiles.size < 2"
-            class="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-sm transition-colors">
+            class="btn-standard w-full justify-center py-3">
       Alinear {{ selectedFiles.size }} imágenes
     </button>
   </div>
@@ -524,7 +522,7 @@ onUnmounted(() => clearInterval(pollInterval))
       <!-- Botones de acción -->
       <div class="space-y-2 shrink-0">
         <button @click="commitBatch" :disabled="committing || approvedCount === 0"
-                class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-semibold text-xs transition-colors">
+                class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-md font-semibold text-xs transition-colors">
           {{ committing ? 'Confirmando…' : `Confirmar lote (${approvedCount})` }}
         </button>
         <button @click="discardJob"
@@ -583,7 +581,7 @@ onUnmounted(() => clearInterval(pollInterval))
       </div>
 
       <!-- Visor de imágenes -->
-      <div v-if="selected" class="flex-1 min-h-0 bg-slate-900 rounded-lg overflow-hidden flex gap-px">
+      <div v-if="selected" class="flex-1 min-h-0 bg-slate-900 rounded-md overflow-hidden flex gap-px">
 
         <!-- Izquierda: siempre original -->
         <div class="flex-1 flex flex-col min-h-0">
@@ -618,7 +616,7 @@ onUnmounted(() => clearInterval(pollInterval))
       </div>
 
       <!-- Leyenda del mapa delta -->
-      <div v-if="viewMode === 'diff'" class="bg-slate-800 rounded-lg px-4 py-2 flex items-center space-x-6 text-[10px] text-slate-300 shrink-0">
+      <div v-if="viewMode === 'diff'" class="bg-slate-800 rounded-md px-4 py-2 flex items-center space-x-6 text-[10px] text-slate-300 shrink-0">
         <span class="font-semibold text-slate-400 uppercase tracking-wider">Leyenda delta:</span>
         <div class="flex items-center space-x-1.5">
           <div class="w-3 h-3 rounded bg-black border border-slate-600"></div>
@@ -651,8 +649,7 @@ onUnmounted(() => clearInterval(pollInterval))
     </div>
     <div class="text-sm font-semibold text-slate-700">Lote enviado al módulo de marcación</div>
     <div class="text-xs text-slate-400">Las imágenes alineadas están disponibles en la carpeta <code>aligned/</code> de la cámara.</div>
-    <button @click="_reset(); emit('discard')"
-            class="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-medium transition-colors">
+    <button @click="_reset(); emit('discard')" class="btn-secondary">
       Nuevo lote
     </button>
   </div>

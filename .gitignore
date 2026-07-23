@@ -23,3 +23,7 @@ Linea de costa-6.zip
 
 node_modules/
 node_modules/
+
+# Bytecode compilado de Python — se regenera solo, no aporta nada versionado
+__pycache__/
+*.pyc

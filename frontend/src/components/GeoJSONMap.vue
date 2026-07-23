@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import Map from './Map.vue'
 
-const emit = defineEmits(['notify'])
+const emit = defineEmits(['notify', 'calibrate-camera'])
 const API = 'http://localhost:8000'
 
 const combined = ref(null)
@@ -146,7 +146,7 @@ onMounted(() => {
 
     <div class="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4 min-h-[500px]">
       <div class="lg:col-span-3 card-standard overflow-hidden">
-        <Map :geojsonData="displayedGeoJson" :fit-signal="fitSignal" />
+        <Map :geojsonData="displayedGeoJson" :fit-signal="fitSignal" @select-camera="emit('calibrate-camera', $event)" />
       </div>
 
       <aside class="space-y-4">

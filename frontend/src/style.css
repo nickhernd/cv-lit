@@ -143,6 +143,28 @@
   @apply inline-flex items-center gap-1.5 px-3.5 py-2 bg-transparent border border-blue-600 text-blue-600 rounded-md text-[13px] font-medium hover:bg-blue-50 active:scale-[0.98] transition;
 }
 
+.btn-ghost-ok {
+  @apply inline-flex items-center gap-1.5 px-3.5 py-2 bg-transparent border border-emerald-600 text-emerald-700 rounded-md text-[13px] font-medium hover:bg-emerald-50 active:scale-[0.98] transition disabled:opacity-40;
+}
+
+/* Selector de opción tipo chip (p.ej. cámara CAM1..6): mismo lenguaje visual
+   que btn-secondary/btn-standard, nunca rounded-full ni sombra. */
+.chip {
+  @apply px-2.5 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider border transition-colors;
+}
+.chip.active { @apply bg-blue-600 border-blue-600 text-white; }
+.chip:not(.active) { @apply bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50; }
+
+/* Barra de alternancia flotante sobre una imagen (Original/Resultado/Mapa) */
+.segmented-dark {
+  @apply inline-flex bg-black/60 backdrop-blur border border-white/20 rounded-md overflow-hidden;
+}
+.segmented-dark button {
+  @apply px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-300 transition-colors;
+}
+.segmented-dark button.active { @apply bg-blue-600 text-white; }
+.segmented-dark button:not(.active):hover { @apply bg-white/10; }
+
 .input-standard {
   @apply bg-white border border-slate-300 rounded px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500/25 outline-none transition-colors;
 }

@@ -112,13 +112,13 @@ const CAMS = [1, 2, 3, 4, 5, 6]
 
       <!-- Selector de cámara -->
       <div class="card-standard p-4">
-        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Cámara</h3>
+        <h3 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3">Cámara</h3>
         <div class="grid grid-cols-3 gap-2">
           <button
             v-for="c in CAMS" :key="c"
             @click="camId = c"
-            :class="camId === c ? 'bg-blue-600 text-white ' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
-            class="rounded-lg py-2 text-sm font-semibold transition-all">
+            :class="camId === c ? 'chip active' : 'chip'"
+            class="text-center">
             CAM {{ c }}
           </button>
         </div>
@@ -126,16 +126,14 @@ const CAMS = [1, 2, 3, 4, 5, 6]
 
       <!-- Selector de imagen -->
       <div class="card-standard p-4">
-        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Imagen</h3>
-        <select
-          v-model="selectedFile"
-          class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <h3 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3">Imagen</h3>
+        <select v-model="selectedFile" class="input-standard w-full">
           <option v-if="imageList.length === 0" value="">Sin imágenes</option>
           <option v-for="img in imageList" :key="img.filename" :value="img.filename">
             {{ img.filename }}
           </option>
         </select>
-        <p class="text-[10px] text-slate-400 mt-2">{{ imageList.length }} imágenes disponibles</p>
+        <p class="text-[10px] text-slate-400 mt-2 font-mono">{{ imageList.length }} imágenes disponibles</p>
       </div>
 
       <!-- Botón analizar -->
@@ -154,11 +152,12 @@ const CAMS = [1, 2, 3, 4, 5, 6]
       </button>
 
       <!-- Métricas (#86) -->
-      <div v-if="result" class="card-standard p-4 space-y-4">
-        <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Métricas</h3>
+      <div v-if="result" class="card-standard overflow-hidden">
+        <div class="card-header">Métricas</div>
+        <div class="p-4 space-y-4">
 
         <!-- Alerta rechazo -->
-        <div v-if="result.rejected" class="bg-red-50 border border-red-200 rounded-lg p-3">
+        <div v-if="result.rejected" class="bg-red-50 border border-red-200 rounded-md p-3">
           <p class="text-xs font-semibold text-red-600 mb-1">Imagen rechazada</p>
           <p class="text-[10px] text-red-500 font-mono">{{ result.reject_reason }}</p>
         </div>
@@ -168,12 +167,12 @@ const CAMS = [1, 2, 3, 4, 5, 6]
           <div>
             <div class="flex justify-between text-xs mb-1">
               <span class="text-slate-500 font-medium">Confianza IA</span>
-              <span class="font-semibold" :class="result.confidence >= 0.7 ? 'text-emerald-600' : result.confidence >= 0.5 ? 'text-amber-500' : 'text-red-500'">
+              <span class="font-mono font-semibold" :class="result.confidence >= 0.7 ? 'text-emerald-600' : result.confidence >= 0.5 ? 'text-amber-500' : 'text-red-500'">
                 {{ confidencePct }}%
               </span>
             </div>
-            <div class="w-full bg-slate-100 rounded-full h-2">
-              <div :class="confidenceColor" class="h-2 rounded-full transition-all duration-500"
+            <div class="w-full bg-slate-100 rounded-full h-1.5">
+              <div :class="confidenceColor" class="h-1.5 rounded-full transition-all duration-500"
                    :style="`width:${confidencePct}%`"></div>
             </div>
           </div>
@@ -181,13 +180,13 @@ const CAMS = [1, 2, 3, 4, 5, 6]
           <!-- Área seca -->
           <div class="flex justify-between items-center">
             <span class="text-xs text-slate-500">Área seca</span>
-            <span class="text-sm font-semibold text-slate-800">{{ result.dry_area_m2?.toLocaleString('es-ES') }} m²</span>
+            <span class="text-sm font-mono font-semibold text-slate-800">{{ result.dry_area_m2?.toLocaleString('es-ES') }} m²</span>
           </div>
 
           <!-- Puntos UTM -->
           <div class="flex justify-between items-center">
             <span class="text-xs text-slate-500">Puntos UTM</span>
-            <span class="text-sm font-semibold text-slate-800">{{ result.points_utm }}</span>
+            <span class="text-sm font-mono font-semibold text-slate-800">{{ result.points_utm }}</span>
           </div>
 
           <!-- Timestamp -->
@@ -196,12 +195,11 @@ const CAMS = [1, 2, 3, 4, 5, 6]
             <p class="text-[10px] font-mono text-slate-600 mt-0.5 break-all">{{ result.timestamp }}</p>
           </div>
         </template>
+        </div>
       </div>
 
       <!-- Botón GeoJSON (#87) -->
-      <button
-        @click="exportGeoJSON"
-        class="w-full flex items-center justify-center gap-1.5 border border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-medium py-2 rounded-md transition-colors text-[13px]">
+      <button @click="exportGeoJSON" class="btn-ghost-ok w-full justify-center">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
         </svg>
@@ -213,14 +211,14 @@ const CAMS = [1, 2, 3, 4, 5, 6]
     <!-- ── Panel central: imagen con overlay de segmentación y línea de costa (#84, #85) ── -->
     <main class="flex-1 card-standard overflow-hidden flex flex-col">
       <div class="card-header flex items-center justify-between shrink-0 normal-case">
-        <h2 class="text-sm font-semibold text-slate-700">
+        <h2 class="text-[13px] font-semibold text-slate-700">
           Línea de costa — CAM {{ camId }}
-          <span v-if="selectedFile" class="font-normal text-slate-400 ml-2 text-xs">{{ selectedFile }}</span>
+          <span v-if="selectedFile" class="font-normal text-slate-400 ml-2 text-xs font-mono">{{ selectedFile }}</span>
         </h2>
-        <div v-if="result && !result.rejected" class="flex items-center gap-2 text-xs text-emerald-600 font-medium">
-          <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+        <span v-if="result && !result.rejected" class="badge badge-ok">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
           Segmentación activa
-        </div>
+        </span>
       </div>
 
       <div class="flex-1 flex items-center justify-center bg-slate-50 p-4">
@@ -258,7 +256,7 @@ const CAMS = [1, 2, 3, 4, 5, 6]
         <img v-else-if="resultImageUrl"
              :src="resultImageUrl"
              :key="imgTs"
-             class="max-w-full max-h-full object-contain rounded-lg"
+             class="max-w-full max-h-full object-contain rounded-md"
              alt="Línea de costa detectada" />
       </div>
 

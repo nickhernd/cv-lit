@@ -1,0 +1,10 @@
+{"time": "22:12:39", "date": "2026-07-23", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "22:12:39", "date": "2026-07-23", "msg": "Cargando segmentador SAM desde sam_vit_h_4b8939.pth", "type": "info"}
+{"time": "22:12:43", "date": "2026-07-23", "msg": "SAM Segmenter cargado con \u00e9xito", "type": "success"}
+{"time": "22:12:43", "date": "2026-07-23", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "22:12:51", "date": "2026-07-23", "msg": "Cam 1: rechazada por baja confianza (0.40 < 0.45)", "type": "error"}
+{"time": "22:14:24", "date": "2026-07-23", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "22:14:24", "date": "2026-07-23", "msg": "Cargando segmentador SAM desde sam_vit_h_4b8939.pth", "type": "info"}
+{"time": "22:14:28", "date": "2026-07-23", "msg": "SAM Segmenter cargado con \u00e9xito", "type": "success"}
+{"time": "22:14:28", "date": "2026-07-23", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "22:14:36", "date": "2026-07-23", "msg": "Cam 1: rechazada por baja confianza (0.40 < 0.45)", "type": "error"}

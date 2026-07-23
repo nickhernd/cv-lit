@@ -90,7 +90,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['select-feature'])
+const emit = defineEmits(['select-feature', 'select-camera'])
 
 const layers = {
   vector: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
@@ -111,6 +111,22 @@ function switchLayer(type) {
 onMounted(() => {
   map = L.map(mapContainer.value).setView([38.085, -0.648], 15)
   layers.vector.addTo(map)
+
+  // El enlace "Ir a la cámara" vive dentro del HTML del popup de Leaflet
+  // (fuera del árbol de Vue, reinsertado cada vez que se abre un popup) —
+  // engancharlo a mano en cada popupopen no es fiable (el evento no siempre
+  // llega a tiempo). Delegar el click una única vez sobre el contenedor del
+  // mapa evita depender de ese timing — pero Leaflet para la propagación de
+  // los clics dentro del popup (para no disparar el pan/zoom del mapa que
+  // hay debajo), así que un listener normal (fase de burbuja) en el
+  // contenedor nunca lo recibe. En fase de CAPTURA sí, porque se ejecuta de
+  // fuera hacia dentro, antes de que Leaflet llegue a detener la propagación.
+  mapContainer.value.addEventListener('click', (e) => {
+    const link = e.target.closest('.map-goto-camera')
+    if (!link) return
+    e.preventDefault()
+    emit('select-camera', Number(link.dataset.cam))
+  }, true)
 
   if (props.geojsonData) {
     updateGeoJson(props.geojsonData)
@@ -153,7 +169,8 @@ function updateGeoJson(data) {
           `<b>Cámara ${p.ID_Camara}</b><br>` +
           (p.Timestamp ? `${String(p.Timestamp).replace('T', ' ').slice(0, 16)}<br>` : '') +
           (p.Area_Seca_m2 != null ? `Área seca: ${p.Area_Seca_m2} m²<br>` : '') +
-          (p.Confianza_IA != null ? `Confianza: ${(p.Confianza_IA * 100).toFixed(0)}%` : '')
+          (p.Confianza_IA != null ? `Confianza: ${(p.Confianza_IA * 100).toFixed(0)}%<br>` : '') +
+          `<a href="#" class="map-goto-camera" data-cam="${p.ID_Camara}">Ir a la cámara →</a>`
         )
       } else if (p.label != null) {
         layer.bindPopup(`<b>${p.label}</b>`)
@@ -243,4 +260,14 @@ watch(() => props.fitSignal, () => {
   box-shadow: none;
 }
 .gcp-tooltip::before { display: none; }
+
+.map-goto-camera {
+  display: inline-block;
+  margin-top: 4px;
+  color: #2f6690;
+  font-weight: 600;
+  font-size: 11px;
+  text-decoration: none;
+}
+.map-goto-camera:hover { text-decoration: underline; }
 </style>

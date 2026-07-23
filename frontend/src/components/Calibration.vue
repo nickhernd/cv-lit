@@ -109,7 +109,11 @@ onBeforeUnmount(() => {
 // Vista de mapa en el paso de Marcación: sitúa las varillas marcadas (UTM)
 // sobre un mapa real para comprobar de un vistazo que las coordenadas caen
 // donde tienen que caer, en vez de fiarse solo de la tabla de números.
-const mapView = ref(false)
+// 'both' muestra foto y mapa en paralelo (por defecto): la selección de una
+// varilla ya se sincroniza entre los dos (selectedGcpIdx), así que verlos a
+// la vez es estrictamente mejor que alternar — 'photo'/'map' quedan para
+// cuando se necesita el panel entero para un solo lado (pantallas estrechas).
+const viewMode = ref('both')
 const mapFitSignal = ref(0)
 const gcpGeoJson = computed(() => ({
   type: 'FeatureCollection',
@@ -125,7 +129,7 @@ const gcpGeoJson = computed(() => ({
       properties: { label: g.label, idx: origIdx }
     }))
 }))
-watch(mapView, (v) => { if (v) mapFitSignal.value++ })
+watch(viewMode, (v) => { if (v !== 'photo') mapFitSignal.value++ })
 
 const steps = [
   { id: 1, name: 'Vista general', desc: 'Perfiles de calibración' },
@@ -752,7 +756,7 @@ onMounted(() => {
                @dragleave.prevent="isDraggingOver = false"
                @drop.prevent="onDrop"
                :class="isDraggingOver ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white'"
-               class="p-4 border-2 border-dashed rounded-lg text-center transition-colors relative">
+               class="p-4 border-2 border-dashed rounded-md text-center transition-colors relative">
             <input type="file" multiple @change="handleFiles($event.target.files)" class="absolute inset-0 opacity-0 cursor-pointer">
             <svg class="w-8 h-8 mx-auto text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" stroke-width="2"/></svg>
             <p class="text-xs font-semibold text-slate-600 uppercase">Añadir Imágenes</p>
@@ -832,7 +836,7 @@ onMounted(() => {
              @dragleave.prevent="isDraggingRodsCsv = false"
              @drop.prevent="onDropRodsCsv"
              :class="isDraggingRodsCsv ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white'"
-             class="p-4 border-2 border-dashed rounded-lg text-center transition-colors relative">
+             class="p-4 border-2 border-dashed rounded-md text-center transition-colors relative">
           <input type="file" accept=".csv,.txt" @change="importRodsCsv" class="absolute inset-0 opacity-0 cursor-pointer" :disabled="importingRods">
           <svg class="w-8 h-8 mx-auto text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" stroke-width="2"/></svg>
           <p class="text-xs font-semibold text-slate-600 uppercase">{{ importingRods ? 'Importando…' : (importMode ? 'Reimportar CSV' : 'Importar CSV de Varillas') }}</p>
@@ -1060,13 +1064,25 @@ onMounted(() => {
 
     <!-- PASO 5: MARCACION (GCPs) -->
     <div v-if="currentStep === 5" class="grid grid-cols-1 lg:grid-cols-4 gap-4">
-       <div class="lg:col-span-3 card-standard overflow-hidden bg-slate-900 relative min-h-[600px]">
-          <div class="absolute top-4 right-4 z-20 flex bg-black/60 backdrop-blur border border-white/20 rounded-full overflow-hidden">
-            <button @click="mapView = false" :class="!mapView ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-white/10'" class="px-3 py-1.5 text-[9px] font-semibold uppercase transition-colors">Foto</button>
-            <button @click="mapView = true" :class="mapView ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-white/10'" class="px-3 py-1.5 text-[9px] font-semibold uppercase transition-colors">Mapa</button>
+       <div class="lg:col-span-3 flex flex-col gap-3">
+          <!-- Selector de imagen: cada imagen se marca por separado (las varillas
+               NO se comparten entre fotos), así que hace falta poder cambiar de
+               imagen sin salir del paso de Marcación para hacerlas seguidas. -->
+          <div class="card-standard p-2 flex items-center gap-2 overflow-x-auto shrink-0">
+            <button v-for="img in availableImages" :key="img.filename"
+                    @click="selectedImage = img.filename"
+                    :class="selectedImage === img.filename ? 'ring-2 ring-blue-600' : 'ring-1 ring-slate-200 hover:ring-slate-300'"
+                    class="relative shrink-0 w-16 h-11 rounded overflow-hidden transition-all">
+              <img :src="`http://localhost:8000/api/cameras/${selectedCamId}/image?file=${img.filename}&thumb=1`" class="w-full h-full object-cover">
+              <span v-if="img.calibrated" title="Calibrada" class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-1 ring-white"></span>
+              <span v-else-if="img.annotated" title="Varillas marcadas, sin calibrar" class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400 ring-1 ring-white"></span>
+            </button>
+            <span v-if="!availableImages.length" class="text-[10px] text-slate-400 uppercase px-2">Sin fotogramas — vuelve al paso Imágenes</span>
           </div>
 
-          <template v-if="!mapView">
+       <div class="relative flex gap-3 min-h-[600px]">
+          <!-- Panel foto: visible en modo 'photo' y 'both' -->
+          <div v-if="viewMode !== 'map'" class="card-standard overflow-hidden bg-slate-900 relative flex-1">
             <img ref="markImgRef" :src="imageUrl" @click="handleImageClick" @load="onMarkImageLoad" class="absolute inset-0 w-full h-full object-contain cursor-crosshair select-none">
 
             <div v-for="(gcp, idx) in currentProfile.gcps" :key="idx"
@@ -1079,9 +1095,10 @@ onMounted(() => {
               </div>
             </div>
             <div class="absolute bottom-4 left-4 bg-black/60 text-white text-[10px] px-3 py-1.5 rounded-full font-semibold uppercase tracking-wider backdrop-blur-sm border border-white/20">Modo Marcación: Varillas GCP</div>
-          </template>
+          </div>
 
-          <div v-else class="absolute inset-0">
+          <!-- Panel mapa: visible en modo 'map' y 'both' -->
+          <div v-if="viewMode !== 'photo'" class="card-standard overflow-hidden bg-slate-900 relative flex-1">
             <Map :geojsonData="gcpGeoJson" :fit-signal="mapFitSignal"
                  :selected-index="selectedGcpIdx" @select-feature="selectedGcpIdx = $event" />
             <div v-if="!gcpGeoJson.features.length" class="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -1089,6 +1106,14 @@ onMounted(() => {
             </div>
             <div class="absolute bottom-4 left-4 bg-black/60 text-white text-[10px] px-3 py-1.5 rounded-full font-semibold uppercase tracking-wider backdrop-blur-sm border border-white/20 z-[401]">Vista mapa: verificación UTM · clic en un punto para seleccionarlo</div>
           </div>
+
+          <!-- Selector de modo: flota sobre el panel foto (o el único panel visible) -->
+          <div class="absolute top-4 right-4 z-20 segmented-dark" :class="viewMode === 'both' ? 'lg:right-[calc(50%+0.875rem)]' : ''">
+            <button @click="viewMode = 'photo'" :class="{ active: viewMode === 'photo' }">Foto</button>
+            <button @click="viewMode = 'both'" :class="{ active: viewMode === 'both' }">Ambos</button>
+            <button @click="viewMode = 'map'" :class="{ active: viewMode === 'map' }">Mapa</button>
+          </div>
+       </div>
        </div>
 
        <aside class="space-y-4">
