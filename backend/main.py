@@ -208,6 +208,35 @@ def _annotations_path(cam_id: int, filename: str) -> str:
     base = _safe_filename(filename).rsplit(".", 1)[0] + ".json"
     return os.path.join(DATA_DIR, f"CAM_{cam_id}", "json", base)
 
+# Resuelve qué fichero de imagen usar para marcar/analizar una captura: la
+# versión alineada (calculada por el módulo de Alineación, batch_alignment.py,
+# y confirmada en /commit) si existe, o la captura original si no se ha
+# alineado nunca. Se usa en TODOS los sitios que leen la imagen para marcación
+# u homografía (get_camera_image, calculate_homography, analyze_roi) para que
+# la Marcación (dónde se hace click) y el Análisis (qué imagen se segmenta)
+# operen siempre sobre EXACTAMENTE la misma rejilla de píxeles.
+def _resolve_camera_image_path(cam_id: int, filename: str) -> str:
+    folder = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"])
+    aligned_path = os.path.join(folder, "aligned", filename)
+    if os.path.exists(aligned_path):
+        return aligned_path
+    return os.path.join(folder, filename)
+
+def _alignment_sidecar_path(cam_id: int, filename: str) -> str:
+    return os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"], "aligned", f"{filename}.align.json")
+
+def _load_alignment_info(cam_id: int, filename: str) -> Optional[dict]:
+    """Info de alineación de esta imagen (H respecto a su captura original,
+    inliers, etc.), o None si nunca se alineó (se usa tal cual se capturó)."""
+    path = _alignment_sidecar_path(cam_id, filename)
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+
 IMAGE_EXTS = (".jpg", ".jpeg", ".png")
 
 def _latest_image_filename(cam_id: int) -> Optional[str]:
@@ -578,6 +607,7 @@ def list_cameras():
             "rmse_px": profile.get("rmse_px"),
             "calibrated_image": profile.get("calibrated_image"),
             "gcps_count": profile.get("gcps_count"),
+            "inliers_count": profile.get("inliers_count"),
             "last_calibration_date": profile.get("date"),
             "images_count": images_count,
             "last_image_ts": last_modified,
@@ -615,9 +645,19 @@ def get_camera_image(cam_id: int, file: Optional[str] = None):
     info = CAMERAS[cam_id]
     target = _safe_filename(file) if file else _latest_image_filename(cam_id)
     if not target: raise HTTPException(status_code=404, detail="Esta cámara no tiene imágenes todavía")
-    img_path = os.path.join(DATA_DIR, info["folder"], target)
+    img_path = _resolve_camera_image_path(cam_id, target)
     if not os.path.exists(img_path): raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(img_path)
+
+# DEBUG: info de alineación de una imagen concreta (H respecto a su captura
+# original, inliers, referencia usada). Lo consume el frontend antes de
+# guardar puntos importados de un CSV de campo, para saber si hay que
+# transformar el píxel "crudo" del CSV al espacio de la imagen alineada.
+@app.get("/api/cameras/{cam_id}/images/{filename}/alignment")
+def get_image_alignment(cam_id: int, filename: str):
+    if cam_id not in CAMERAS: raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    info = _load_alignment_info(cam_id, _safe_filename(filename))
+    return info or {"aligned": False}
 
 # DEBUG: devuelve el perfil de calibración (GCPs, homografía, estado) de una
 # cámara desde calibration/cam_{id}_profile.json, o "uncalibrated" si no existe.
@@ -667,18 +707,34 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
         # Compatibilidad con perfiles antiguos que guardaban los GCPs a nivel de cámara
         points = [g for g in profile.get("gcps", []) if g.get("type") == "calib"]
 
-    excluded = set(payload.excluded)
+    # Varillas "pendientes de confirmar": llegaron de un CSV importado con un píxel
+    # aproximado (reproyectado, si la imagen está alineada) y todavía no las ha
+    # revisado el usuario con la lupa del paso 5. No entran en el ajuste de la
+    # homografía hasta que se confirman — así un punto mal ubicado no puede colar
+    # error silenciosamente en la calibración.
+    pending = {i for i, p in enumerate(points) if p.get("confirmed") is False}
+    user_excluded = set(payload.excluded)
+    excluded = user_excluded | pending
     included_idx = [i for i in range(len(points)) if i not in excluded]
     if len(included_idx) < 4:
-        raise HTTPException(status_code=400,
-                            detail=f"Se necesitan al menos 4 varillas activas (hay {len(included_idx)})")
+        faltan_confirmar = len(pending - user_excluded)
+        faltan_excluidas = len(user_excluded - pending)
+        detail = f"Se necesitan al menos 4 varillas activas y confirmadas (hay {len(included_idx)})"
+        motivos = []
+        if faltan_confirmar:
+            motivos.append(f"{faltan_confirmar} pendiente(s) de confirmar en Marcación")
+        if faltan_excluidas:
+            motivos.append(f"{faltan_excluidas} excluida(s) manualmente")
+        if motivos:
+            detail += " — " + ", ".join(motivos)
+        raise HTTPException(status_code=400, detail=detail)
 
     if APP_MODE == "demo":
         residuals = [{
             "idx": i, "label": p.get("label", f"P{i+1}"),
             "error_px": round(float(np.random.uniform(0.2, 1.4)), 3),
             "error_m": round(float(np.random.uniform(0.05, 0.4)), 3),
-            "inlier": True, "excluded": i in excluded, "above_threshold": False,
+            "inlier": True, "excluded": i in excluded, "pending": False, "above_threshold": False,
         } for i, p in enumerate(points)]
         add_log(f"Homografía Cam {cam_id} simulada (Demo)", "success")
         return {"status": "success", "image": image_name, "rmse_px": 0.62, "rmse_m": 0.12,
@@ -727,8 +783,10 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
         back_px = cv2.perspectiveTransform(utm.reshape(1, 1, 2), H_inv).reshape(2)
         err_m = float(np.linalg.norm(proj_utm - utm))
         err_px = float(np.linalg.norm(back_px - px))
-        is_excluded = i in excluded
-        if not is_excluded:
+        is_excluded_from_fit = i in excluded  # user_excluded ∪ pending
+        is_user_excluded = i in user_excluded
+        is_pending = i in pending
+        if not is_excluded_from_fit:
             err_px_included.append(err_px)
             err_m_included.append(err_m)
         residuals.append({
@@ -736,9 +794,10 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
             "label": p.get("label", f"P{i+1}"),
             "error_px": round(err_px, 3),
             "error_m": round(err_m, 4),
-            "inlier": inlier_by_idx.get(i, True) if not is_excluded else None,
-            "excluded": is_excluded,
-            "above_threshold": (not is_excluded) and err_px > payload.threshold_px,
+            "inlier": inlier_by_idx.get(i, True) if not is_excluded_from_fit else None,
+            "excluded": is_user_excluded,
+            "pending": is_pending,
+            "above_threshold": (not is_excluded_from_fit) and err_px > payload.threshold_px,
         })
 
     # DEBUG (RMSE): AQUÍ se calcula el RMSE de la calibración de esta imagen:
@@ -772,12 +831,14 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
         json.dump(ann_data, f, indent=2)
 
     # Actualizar el perfil de cámara con la última calibración válida
+    inliers_count = sum(1 for r in residuals if r["inlier"])
     profile.update({
         "cam_id": cam_id,
         "H": H.tolist(),
         "rmse_m": round(rmse_m, 4),
         "rmse_px": round(rmse_px, 4),
         "gcps_count": len(included_idx),
+        "inliers_count": inliers_count,
         "status": "calibrated",
         "date": now_iso,
         "calibrated_image": image_name,
@@ -796,7 +857,7 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
     # endpoint /rectified-preview nunca tiene el JPG que sirve y el panel se queda
     # permanentemente en "vista previa no disponible".
     try:
-        img_path = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"], image_name)
+        img_path = _resolve_camera_image_path(cam_id, image_name)
         img = cv2.imread(img_path)
         if img is not None:
             h_img, w_img = img.shape[:2]
@@ -858,7 +919,7 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
     target_file = _safe_filename(filename) if filename else _latest_image_filename(cam_id)
     if not target_file:
         raise HTTPException(status_code=404, detail="Esta cámara no tiene imágenes todavía")
-    img_path = os.path.join(DATA_DIR, info["folder"], target_file)
+    img_path = _resolve_camera_image_path(cam_id, target_file)
     img = cv2.imread(img_path)
     if img is None: raise HTTPException(status_code=404, detail="Image file not found")
     
@@ -1236,6 +1297,7 @@ def list_camera_images(cam_id: int):
                     calibrated = bool(ann.get("calibration"))
                 except (json.JSONDecodeError, OSError):
                     pass
+            align_info = _load_alignment_info(cam_id, f)
             images.append({
                 "filename": f,
                 "size": os.path.getsize(os.path.join(cam_folder, f)),
@@ -1243,6 +1305,8 @@ def list_camera_images(cam_id: int):
                 "captured_at": _parse_capture_ts(f),
                 "annotated": annotated,
                 "calibrated": calibrated,
+                "aligned": bool(align_info),
+                "align_inliers": align_info.get("inliers") if align_info else None,
             })
     return images
 

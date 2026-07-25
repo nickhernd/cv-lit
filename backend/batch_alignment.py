@@ -734,6 +734,59 @@ def toggle_approval(job_id: str, filename: str, approved: bool):
     return {"filename": filename, "approved": approved}
 
 
+IDENTITY_H = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+
+# DEBUG: reproyecta las varillas ya marcadas de una imagen cuando se confirma
+# una alineación NUEVA para ella (p.ej. se repite el lote con otra referencia).
+# Cada punto guarda en qué H estaba expresado su píxel ("aligned_H", identidad
+# si nunca se alineó); aquí se deshace esa H y se aplica la nueva, para que el
+# punto siga cayendo en la misma varilla física aunque la imagen de marcación
+# haya cambiado de geometría. Se marca confirmed=False para que el usuario lo
+# revise con la lupa del paso 5 antes de volver a fiarse de él en la homografía.
+def _reproject_annotations(cam_id: int, filename: str, new_H_flat: list, w: int, h: int, committed_at: str) -> int:
+    """Devuelve cuántos puntos se han reproyectado (0 si no había nada que tocar)."""
+    from config import DATA_DIR
+    stem = Path(filename).stem
+    ann_path = Path(DATA_DIR) / f"CAM_{cam_id}" / "json" / f"{stem}.json"
+    if not ann_path.exists():
+        return 0
+    try:
+        ann = json.loads(ann_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return 0
+    points = ann.get("points") or []
+    if not points:
+        return 0
+
+    H_new = np.array(new_H_flat, dtype=np.float64).reshape(3, 3)
+    changed = 0
+    for p in points:
+        if p.get("type") != "calib" or not p.get("pixel"):
+            continue
+        H_old = np.array(p.get("aligned_H") or IDENTITY_H, dtype=np.float64).reshape(3, 3)
+        if np.allclose(H_old, H_new, atol=1e-9):
+            continue  # misma geometría de siempre, no hace falta tocarlo
+        try:
+            H_old_inv = np.linalg.inv(H_old)
+        except np.linalg.LinAlgError:
+            continue
+        px = np.array([[p["pixel"]]], dtype=np.float64)
+        raw = cv2.perspectiveTransform(px, H_old_inv)
+        new_px = cv2.perspectiveTransform(raw, H_new).reshape(2)
+        p["pixel"] = new_px.tolist()
+        if w and h:
+            p["rel"] = [float(new_px[0]) / w * 100, float(new_px[1]) / h * 100]
+        p["aligned_H"] = new_H_flat
+        p["confirmed"] = False
+        p["reprojected_at"] = committed_at
+        changed += 1
+
+    if changed:
+        ann["points"] = points
+        ann_path.write_text(json.dumps(ann, indent=2), encoding="utf-8")
+    return changed
+
+
 # DEBUG: POST /api/batch/{job_id}/commit — segunda fase del two-phase commit; único
 # punto donde el batch escribe permanentemente fuera del staging temporal.
 @router.post("/{job_id}/commit")
@@ -758,6 +811,9 @@ def commit_batch(job_id: str):
 
     committed = []
     skipped   = []
+    committed_at = datetime.now().isoformat(timespec="seconds")
+    reprojected_points = 0
+    reprojected_images = 0
 
     for filename, result in job.results.items():
         if not result.approved:
@@ -765,16 +821,59 @@ def commit_batch(job_id: str):
             continue
         src = job.aligned_dir / filename
         dst = marking_dir / filename
-        if src.exists():
-            shutil.copy2(src, dst)
-            committed.append(filename)
+        if not src.exists():
+            continue
+        shutil.copy2(src, dst)
+        committed.append(filename)
+
+        # Persistir la H (captura original -> imagen alineada) junto a la copia
+        # confirmada: es lo que permite convertir el píxel "crudo" de un CSV de
+        # campo (o de una anotación ya guardada con una alineación anterior) al
+        # espacio de ESTA imagen.
+        H_flat = result.H if result.H else IDENTITY_H
+        sidecar = {
+            "aligned": True,
+            "H": H_flat,
+            "inliers": result.inliers,
+            "mean_shift_px": result.mean_shift_px,
+            "status": result.status,
+            "reference_image": job.base_filename,
+            "committed_at": committed_at,
+        }
+        (marking_dir / f"{filename}.align.json").write_text(
+            json.dumps(sidecar, indent=2), encoding="utf-8"
+        )
+
+        try:
+            committed_img = cv2.imread(str(dst))
+            h, w = committed_img.shape[:2] if committed_img is not None else (0, 0)
+            n = _reproject_annotations(job.cam_id, filename, H_flat, w, h, committed_at)
+            if n:
+                reprojected_points += n
+                reprojected_images += 1
+        except Exception:
+            pass  # la reproyección es best-effort: nunca debe romper el commit
 
     job.status = "committed"
+
+    # Aviso en la actividad reciente: si esta alineación ha movido varillas ya
+    # marcadas de una calibración anterior, hay que revisarlas — quedan como
+    # "reproyectadas" (confirmed=False) en vez de perderse silenciosamente.
+    if reprojected_points:
+        from main import add_log  # import diferido: rompe el ciclo con main.py, que ya está cargado en tiempo de request
+        add_log(
+            f"Cam {job.cam_id}: {reprojected_points} varilla(s) reproyectada(s) en {reprojected_images} imagen(es) "
+            f"tras la nueva alineación — revisar en Marcación",
+            "warning",
+        )
+
     return {
-        "job_id":    job_id,
-        "committed": len(committed),
-        "skipped":   len(skipped),
-        "dest_dir":  str(marking_dir),
+        "job_id":            job_id,
+        "committed":         len(committed),
+        "skipped":           len(skipped),
+        "dest_dir":          str(marking_dir),
+        "reprojected_points": reprojected_points,
+        "reprojected_images": reprojected_images,
     }
 
 

@@ -10,3 +10,4 @@ segment-anything
 requests
 matplotlib
 pytest
+httpx
