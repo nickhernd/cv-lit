@@ -19,6 +19,40 @@ Esto levantara:
 ### Calibracion Interactiva
 Desde la interfaz web, puedes seleccionar una camara, cargar su ultima imagen, marcar los puntos GCP con clicks y calcular la homografia instantaneamente.
 
+<!-- TODO (opcional): captura de pantalla del Dashboard o de la Calibracion aqui -->
+
+## Aplicacion de escritorio (Windows)
+
+Ademas de usarse como web (backend + frontend por separado), el sistema se puede empaquetar como una app de Windows normal: un `.exe` con icono, ventana propia y acceso directo, sin terminal ni navegador de por medio.
+
+<!-- TODO (opcional): captura de pantalla de la ventana de la app o del asistente de instalacion aqui -->
+
+### Como esta hecho
+- **`backend/desktop_launcher.py`**: arranca el backend (FastAPI/uvicorn) en segundo plano y abre una ventana nativa ([pywebview](https://pywebview.flowrl.com/)) apuntando a el. El backend sirve el frontend ya compilado desde el mismo proceso (`app.mount(...)` en `backend/main.py`), asi que todo va en una sola app, un solo puerto (8000).
+- **PyInstaller** (`backend/desktop_launcher.spec`) empaqueta ese lanzador junto con Python, PyTorch, OpenCV y el frontend compilado en una carpeta autocontenida — no hace falta tener Python instalado en el ordenador de destino.
+- El modelo de segmentacion por IA (**SAM**, checkpoint `sam_vit_h_4b8939.pth`, ~2.4 GB) se queda **fuera** del paquete a proposito: el sistema funciona sin el (cae a un metodo de segmentacion por color/Otsu, ver `get_segmenter()` en `backend/main.py`). Se descarga aparte con `backend/download_sam.py` / `download_sam.exe`, opcionalmente, para no obligar a nadie a bajarse 2.4 GB si no los necesita.
+- **Inno Setup** (`installer/cv-lit.iss`) genera el instalador final: crea accesos directos, y en la pantalla de tareas deja marcar (desmarcado por defecto) si se quiere descargar el modelo SAM justo despues de instalar.
+- Los datos del usuario (calibracion, imagenes, logs) se guardan en `%LOCALAPPDATA%\LineaDeCosta\`, nunca dentro de la carpeta de instalacion — asi funciona aunque se instale en Program Files, sin permisos de administrador.
+
+### Construir el instalador
+Requisitos: Node.js, el `venv` de Python con `backend/requirements.txt` instalado (incluye `pyinstaller` y `pywebview`), e [Inno Setup](https://jrsoftware.org/isinfo.php) (gratuito).
+
+```bash
+# 1. Compilar el frontend
+cd frontend && npm run build && cd ..
+
+# 2. Congelar el backend + lanzador de escritorio
+cd backend
+pyinstaller desktop_launcher.spec
+pyinstaller download_sam.spec
+cd ..
+
+# 3. Compilar el instalador (genera installer/output/LineaDeCosta-Setup.exe)
+"C:\Program Files\Inno Setup 7\ISCC.exe" installer\cv-lit.iss
+```
+
+El instalador resultante pesa ~185 MB. Si en algun momento quieres migrar una calibracion real ya hecha (la de `calibration/` y `proces_images/data/` de este repo) a una instalacion empaquetada, basta con copiar esas carpetas dentro de `%LOCALAPPDATA%\LineaDeCosta\calibration\` y `...\data\` tras instalar.
+
 ## Inicio Rapido (Scripts de Python)
 
 ### 1. Diagnostico Inicial

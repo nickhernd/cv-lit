@@ -89,6 +89,30 @@ def test_calculate_homography_excludes_pending_point():
     assert pending_residual["inlier"] is None      # fuera del ajuste RANSAC
 
 
+def test_calculate_homography_computes_mae_alongside_rmse():
+    # Puntos con un pequeño error variable para que MAE y RMSE difieran de
+    # verdad (con un ajuste perfecto ambos salen ~0 y no se distingue nada).
+    points = [
+        {"pixel": [0, 0], "utm": [700000, 4200000], "label": "P1", "type": "calib", "confirmed": True},
+        {"pixel": [100, 0], "utm": [700010.05, 4200000], "label": "P2", "type": "calib", "confirmed": True},
+        {"pixel": [100, 100], "utm": [700010, 4200010], "label": "P3", "type": "calib", "confirmed": True},
+        {"pixel": [0, 100], "utm": [700000, 4200010.3], "label": "P4", "type": "calib", "confirmed": True},
+    ]
+    _write_annotations("imgMAE.jpg", points)
+
+    resp = client.post(
+        f"/api/cameras/{CAM_ID}/calculate-homography",
+        json={"image_name": "imgMAE.jpg", "threshold_px": 50.0, "excluded": []},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["mae_px"] >= 0
+    assert data["mae_m"] >= 0
+    # Desigualdad RMS >= media (issue #71): el RMSE nunca puede ser menor que el MAE.
+    assert data["rmse_m"] >= data["mae_m"] - 1e-9
+    assert data["rmse_px"] >= data["mae_px"] - 1e-9
+
+
 def test_calculate_homography_blocks_and_explains_pending():
     points = _four_confirmed_points()[:2]  # solo 2 confirmadas
     points.append({"pixel": [10, 10], "utm": [700001, 4200001], "label": "PEND1", "type": "calib", "confirmed": False})

@@ -248,6 +248,11 @@ const avgRmse = computed(() => {
   if (!vals.length) return '—'
   return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2) + ' m'
 })
+const avgMae = computed(() => {
+  const vals = cameras.value.filter(c => c.mae_m != null).map(c => c.mae_m)
+  if (!vals.length) return '—'
+  return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2) + ' m'
+})
 const totalGcps = computed(() => cameras.value.reduce((a, c) => a + (c.gcps_count || 0), 0))
 
 async function fetchImages() {
@@ -870,7 +875,7 @@ onMounted(() => {
 
     <!-- PASO 1: VISTA GENERAL -->
     <div v-if="currentStep === 1" class="space-y-4">
-      <div class="grid grid-cols-3 gap-4">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div class="card-standard p-4">
           <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Cámaras calibradas</p>
           <p class="text-xl font-mono font-medium text-slate-900 tabular-nums">{{ calibratedCount }} / {{ cameras.length }}</p>
@@ -880,13 +885,20 @@ onMounted(() => {
           <p class="text-xl font-mono font-medium text-slate-900 tabular-nums">{{ avgRmse }}</p>
         </div>
         <div class="card-standard p-4">
+          <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">MAE medio</p>
+          <p class="text-xl font-mono font-medium text-slate-900 tabular-nums">{{ avgMae }}</p>
+        </div>
+        <div class="card-standard p-4">
           <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">GCPs registrados</p>
           <p class="text-xl font-mono font-medium text-slate-900 tabular-nums">{{ totalGcps }}</p>
         </div>
       </div>
 
       <div class="card-standard overflow-hidden">
-        <div class="card-header uppercase tracking-wider text-[10px]">Perfiles de calibración</div>
+        <div class="card-header uppercase tracking-wider text-[10px] flex justify-between items-center">
+          <span>Perfiles de calibración</span>
+          <button @click="fetchCameras" class="text-blue-600 hover:underline normal-case">↻ Recargar</button>
+        </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm">
             <thead class="text-slate-500 font-semibold border-b border-slate-200">
@@ -895,6 +907,7 @@ onMounted(() => {
                 <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">Estado</th>
                 <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">Última calibración</th>
                 <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">RMSE</th>
+                <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">MAE</th>
                 <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">GCPs</th>
                 <th class="px-3.5 py-2 uppercase tracking-wider text-[10px]">Inliers</th>
                 <th class="px-3.5 py-2 text-right uppercase tracking-wider text-[10px]">Acciones</th>
@@ -916,6 +929,12 @@ onMounted(() => {
                 <td class="px-3.5 py-2.5 text-[10px] font-mono" :class="cam.rmse_m > 2 ? 'text-amber-600' : 'text-slate-600'">
                   <template v-if="cam.rmse_m != null">
                     {{ cam.rmse_m.toFixed(2) }} m<span v-if="cam.rmse_px != null" class="text-slate-400"> · {{ cam.rmse_px.toFixed(2) }} px</span>
+                  </template>
+                  <template v-else>—</template>
+                </td>
+                <td class="px-3.5 py-2.5 text-[10px] font-mono text-slate-500">
+                  <template v-if="cam.mae_m != null">
+                    {{ cam.mae_m.toFixed(2) }} m<span v-if="cam.mae_px != null" class="text-slate-400"> · {{ cam.mae_px.toFixed(2) }} px</span>
                   </template>
                   <template v-else>—</template>
                 </td>
@@ -1435,7 +1454,7 @@ onMounted(() => {
           <p class="text-[10px] text-slate-400 font-mono">{{ calibResult.image }} · {{ formatTs(calibResult.date) }}</p>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
           <div class="card-standard p-4">
             <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">RMSE reproyección</p>
             <p class="text-xl font-semibold font-mono" :class="calibOk ? 'text-slate-900' : 'text-red-600'">{{ calibResult.rmse_px?.toFixed(2) }} px</p>
@@ -1443,6 +1462,14 @@ onMounted(() => {
           <div class="card-standard p-4">
             <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">RMSE terreno</p>
             <p class="text-xl font-semibold text-slate-900 font-mono">{{ calibResult.rmse_m?.toFixed(3) }} m</p>
+          </div>
+          <div class="card-standard p-4">
+            <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">MAE reproyección</p>
+            <p class="text-xl font-semibold text-slate-900 font-mono">{{ calibResult.mae_px?.toFixed(2) }} px</p>
+          </div>
+          <div class="card-standard p-4">
+            <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">MAE terreno</p>
+            <p class="text-xl font-semibold text-slate-900 font-mono">{{ calibResult.mae_m?.toFixed(3) }} m</p>
           </div>
           <div class="card-standard p-4">
             <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Varillas usadas</p>

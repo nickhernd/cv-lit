@@ -9,6 +9,8 @@
 /backend/node_modules
 /frontend/dist
 /backend/dist
+/backend/build
+/installer/output
 /venv/
 .env
 

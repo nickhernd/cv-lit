@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import os
 import io
@@ -20,8 +21,15 @@ import datetime
 from config import CAMERAS, DATA_DIR, CALIBRATION_DIR
 from batch_alignment import router as batch_router
 
-# Configurar path para modulos de procesamiento
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Configurar path para modulos de procesamiento. Congelada (PyInstaller,
+# onedir), "la ubicación de este archivo" no es una ruta real en disco —
+# BASE_DIR pasa a ser la carpeta de instalación (sys._MEIPASS), que es donde
+# viven el frontend construido y el checkpoint SAM opcional (ver más abajo).
+FROZEN = getattr(sys, "frozen", False)
+if FROZEN:
+    BASE_DIR = sys._MEIPASS
+else:
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROCES_DIR = os.path.join(BASE_DIR, "proces_images")
 if PROCES_DIR not in sys.path:
     sys.path.append(PROCES_DIR)
@@ -605,6 +613,8 @@ def list_cameras():
             "calibrated": bool(profile.get("H")),
             "rmse_m": profile.get("rmse_m"),
             "rmse_px": profile.get("rmse_px"),
+            "mae_m": profile.get("mae_m"),
+            "mae_px": profile.get("mae_px"),
             "calibrated_image": profile.get("calibrated_image"),
             "gcps_count": profile.get("gcps_count"),
             "inliers_count": profile.get("inliers_count"),
@@ -738,6 +748,7 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
         } for i, p in enumerate(points)]
         add_log(f"Homografía Cam {cam_id} simulada (Demo)", "success")
         return {"status": "success", "image": image_name, "rmse_px": 0.62, "rmse_m": 0.12,
+                "mae_px": 0.45, "mae_m": 0.09,
                 "threshold_px": payload.threshold_px, "gcps_used": len(included_idx),
                 "excluded": sorted(excluded), "residuals": residuals}
 
@@ -800,14 +811,20 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
             "above_threshold": (not is_excluded_from_fit) and err_px > payload.threshold_px,
         })
 
-    # DEBUG (RMSE): AQUÍ se calcula el RMSE de la calibración de esta imagen:
-    # raíz de la media de los residuos al cuadrado, SOLO de las varillas activas
-    # (las excluidas por el usuario no cuentan). rmse_px viene de los error_px y
-    # rmse_m de los error_m calculados arriba. Se persiste en: el JSON de la
-    # imagen (calibration.rmse_*), el perfil de cámara (cam_{id}_profile.json,
-    # que muestra la tabla del paso 1) y la respuesta de este endpoint.
+    # DEBUG (RMSE/MAE): AQUÍ se calculan las métricas de la calibración de esta
+    # imagen, SOLO sobre las varillas activas (las excluidas por el usuario no
+    # cuentan). RMSE penaliza más los errores grandes (útil para detectar
+    # varillas mal marcadas); MAE es la distancia media sin elevar al
+    # cuadrado (issue #71 — ver docs/chapters/cap10_validacion.tex, que da
+    # esta misma fórmula: MAE = (1/N) Σ dᵢ). Como err_px/err_m ya son normas
+    # euclídeas (siempre ≥ 0), MAE es directamente su media, sin abs().
+    # Se persisten en: el JSON de la imagen (calibration.rmse_*/mae_*), el
+    # perfil de cámara (cam_{id}_profile.json, que muestra la tabla del paso 1)
+    # y la respuesta de este endpoint.
     rmse_px = float(np.sqrt(np.mean(np.square(err_px_included))))
     rmse_m = float(np.sqrt(np.mean(np.square(err_m_included))))
+    mae_px = float(np.mean(err_px_included))
+    mae_m = float(np.mean(err_m_included))
     now_iso = datetime.datetime.now().isoformat(timespec="seconds")
 
     calibration = {
@@ -815,6 +832,8 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
         "image": image_name,
         "rmse_px": round(rmse_px, 4),
         "rmse_m": round(rmse_m, 4),
+        "mae_px": round(mae_px, 4),
+        "mae_m": round(mae_m, 4),
         "threshold_px": payload.threshold_px,
         "gcps_used": len(included_idx),
         "excluded": sorted(excluded),
@@ -837,6 +856,8 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
         "H": H.tolist(),
         "rmse_m": round(rmse_m, 4),
         "rmse_px": round(rmse_px, 4),
+        "mae_m": round(mae_m, 4),
+        "mae_px": round(mae_px, 4),
         "gcps_count": len(included_idx),
         "inliers_count": inliers_count,
         "status": "calibrated",
@@ -1561,3 +1582,19 @@ def update_rods(cam_id: int, payload: RodsUpdatePayload):
 
     add_log(f"Catálogo de varillas corregido manualmente para Cam {cam_id} ({len(payload.rods)} varillas)", "success")
     return {"status": "success", "count": len(payload.rods), "rods": out["rods"]}
+
+# ── Frontend estático (app de escritorio) ─────────────────────────────────────
+# Sirve frontend/dist/ (generado con `npm run build`) desde el propio backend,
+# para que la app empaquetada sea UN solo proceso en vez de necesitar el dev
+# server de Vite aparte. Registrado el ÚLTIMO a propósito: un mount en "/" con
+# html=True es un catch-all, y si se registrara antes taparía las rutas /api/*
+# de arriba. En modo desarrollo normal (sin build), FRONTEND_DIST no existe y
+# el mount simplemente no se registra — la API sigue funcionando igual que
+# siempre, servida aparte por el dev server de Vite.
+if FROZEN:
+    FRONTEND_DIST = os.path.join(BASE_DIR, "frontend_dist")
+else:
+    FRONTEND_DIST = os.path.join(BASE_DIR, "frontend", "dist")
+
+if os.path.isdir(FRONTEND_DIST):
+    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")

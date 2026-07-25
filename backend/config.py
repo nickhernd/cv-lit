@@ -1,16 +1,31 @@
 import os
+import sys
 
 # DEBUG (INIT): config.py se importa al arrancar main.py y batch_alignment.py.
 # Calcula las rutas base del proyecto a partir de la ubicación de este archivo
-# (backend/config.py -> sube dos niveles -> raíz del proyecto).
+# (backend/config.py -> sube dos niveles -> raíz del proyecto). Solo aplica
+# fuera de la app empaquetada: congelada, "la ubicación de este archivo" no es
+# una ruta real en disco (vive dentro del bundle de PyInstaller).
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROCES_IMAGES_DIR = os.path.join(BASE_DIR, "proces_images")
 
 # Los directorios de trabajo se pueden redirigir por variables de entorno para
 # aislar entornos (start_dev.ps1 -> workspace vacío, start_demo.ps1 -> workspace
-# demo sembrado). Sin variables se usan los directorios reales de siempre.
-DATA_DIR = os.environ.get("CVLIT_DATA_DIR") or os.path.join(PROCES_IMAGES_DIR, "data")
-CALIBRATION_DIR = os.environ.get("CVLIT_CALIBRATION_DIR") or os.path.join(BASE_DIR, "calibration")
+# demo sembrado). Sin variables se usan los directorios reales de siempre —
+# EXCEPTO en la app empaquetada, donde el valor por defecto no puede ser
+# "junto al ejecutable": si se instaló en Program Files, un usuario normal no
+# tiene permiso de escritura ahí. Ahí los datos van a la carpeta de perfil del
+# usuario (%LOCALAPPDATA%), como cualquier app de escritorio de Windows.
+if getattr(sys, "frozen", False):
+    _APPDATA = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    _DEFAULT_DATA_DIR = os.path.join(_APPDATA, "LineaDeCosta", "data")
+    _DEFAULT_CALIBRATION_DIR = os.path.join(_APPDATA, "LineaDeCosta", "calibration")
+else:
+    _DEFAULT_DATA_DIR = os.path.join(PROCES_IMAGES_DIR, "data")
+    _DEFAULT_CALIBRATION_DIR = os.path.join(BASE_DIR, "calibration")
+
+DATA_DIR = os.environ.get("CVLIT_DATA_DIR") or _DEFAULT_DATA_DIR
+CALIBRATION_DIR = os.environ.get("CVLIT_CALIBRATION_DIR") or _DEFAULT_CALIBRATION_DIR
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(CALIBRATION_DIR, exist_ok=True)
 
