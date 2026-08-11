@@ -25,23 +25,25 @@ Node.js & 18+ (para frontend) \\
 
 \begin{codebox}[]
 \begin{minted}{bash}
-conda create -n cv-lit python=3.11
+# venv (recomendado — el mismo que usa start_dev.ps1/start_dev.sh)
+python -m venv venv
+venv\Scripts\activate        # Windows
+source venv/bin/activate     # Linux/macOS
+
+pip install -r backend/requirements.txt
+
+# Alternativa: Conda (ver environment.yml en la raíz del repositorio)
+conda env create -f environment.yml
 conda activate cv-lit
-
-# Visión + álgebra
-pip install opencv-python numpy scipy pandas
-
-# Backend API
-pip install fastapi uvicorn python-multipart
-
-# Segmentación SAM
-pip install torch torchvision
-pip install git+https://github.com/facebookresearch/segment-anything.git
-
-# Geo
-pip install gdal pyproj shapely
 \end{minted}
 \end{codebox}
+
+\texttt{backend/requirements.txt} instala todo lo necesario (FastAPI, OpenCV, PyTorch,
+\texttt{segment-anything}, \texttt{fpdf2} para los informes PDF de calibración, etc.) — no hace
+falta instalar paquetes sueltos a mano. El checkpoint de SAM ($\sim$2,4~GB) no está en
+requirements.txt: se descarga aparte (\texttt{backend/download\_sam.py}, o
+\texttt{download\_sam.exe} en la app empaquetada) porque la app
+funciona sin él, con segmentación por color/Otsu de respaldo (capítulo~\ref{ch:segmentation}).
 
 \section{Instalación del frontend}
 
@@ -56,7 +58,22 @@ npm run build     # build de producción (dist/)
 
 \section{Configuración de la API Obscape}
 
-Las credenciales de acceso a la API se configuran en \texttt{acces\_api/obscape\_api.py}:
+\begin{warnbox}[Las credenciales ya NO se hardcodean en el código]
+Versiones anteriores de este módulo tenían el usuario y la clave de API escritos directamente
+en \texttt{acces\_api/obscape\_api.py} — se corrigió durante el endurecimiento de seguridad de
+esta ronda: ahora \texttt{obscape\_api.py} las lee de las variables de entorno
+\texttt{OBSCAPE\_USERNAME} y \texttt{OBSCAPE\_API\_KEY}, opcionalmente desde un fichero
+\texttt{.env} en la raíz del repositorio (\texttt{.env} está en \texttt{.gitignore} — nunca se
+commitea). Si faltan, \texttt{ObscapeClient()} lanza un error explícito en vez de fallar en
+silencio con credenciales vacías.
+\end{warnbox}
+
+\begin{codebox}[.env en la raíz del repositorio]
+\begin{minted}{text}
+OBSCAPE_USERNAME=<usuario del portal Obscape>
+OBSCAPE_API_KEY=<clave de API>
+\end{minted}
+\end{codebox}
 
 \begin{table}[H]
 \centering
@@ -66,8 +83,7 @@ Las credenciales de acceso a la API se configuran en \texttt{acces\_api/obscape\
 \textbf{Parámetro} & \textbf{Valor} \\
 \midrule
 Base URL   & \texttt{https://obscape.com/portal/api/v3/api} \\
-Username   & \texttt{fuster} \\
-Portal     & \texttt{https://obscape.com/portal} \\
+Username / API key & configurados por entorno, ver arriba (no se documentan aquí) \\
 \bottomrule
 \end{tabular}
 \end{table}

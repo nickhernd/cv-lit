@@ -17,6 +17,16 @@
   \item[Inliers] Correspondencias que se ajustan al modelo estimado por RANSAC.
   \item[Two-phase commit] Patrón de escritura en dos fases: staging temporal → confirmación permanente.
   \item[Drift] Desplazamiento residual de píxeles tras la corrección de homografía.
+  \item[Auto Mode] Módulo que automatiza, para un rango de fechas elegido, la secuencia
+        descarga → alineación → análisis sobre una cámara ya calibrada
+        (capítulo~\ref{ch:automode}).
+  \item[Aviso de geometría inestable] (\texttt{geometry\_warning}) Mensaje que advierte de que
+        RANSAC no encontró un subconjunto mutuamente consistente de varillas suficientemente
+        grande al calcular la homografía — el RMSE resultante puede no reflejar la calidad real
+        de la calibración (capítulo~\ref{ch:calibration}).
+  \item[Varillas usadas] Número de GCPs que entran en el ajuste de la homografía (confirmadas y
+        no excluidas) — \textbf{no} es lo mismo que \textit{inliers}, que es cuántas de esas
+        RANSAC clasifica como mutuamente consistentes (capítulo~\ref{ch:calibration}).
 \end{description}
 
 % ==============================================================

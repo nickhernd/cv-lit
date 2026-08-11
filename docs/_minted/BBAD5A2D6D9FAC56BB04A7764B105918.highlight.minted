@@ -1,0 +1,12 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{c+c1}{\PYGZsh{} venv (recomendado — el mismo que usa start\PYGZus{}dev.ps1/start\PYGZus{}dev.sh)}
+python\PYG{+w}{ }\PYGZhy{}m\PYG{+w}{ }venv\PYG{+w}{ }venv
+venv\PYG{l+s+se}{\PYGZbs{}S}cripts\PYG{l+s+se}{\PYGZbs{}a}ctivate\PYG{+w}{        }\PYG{c+c1}{\PYGZsh{} Windows}
+\PYG{n+nb}{source}\PYG{+w}{ }venv/bin/activate\PYG{+w}{     }\PYG{c+c1}{\PYGZsh{} Linux/macOS}
+
+pip\PYG{+w}{ }install\PYG{+w}{ }\PYGZhy{}r\PYG{+w}{ }backend/requirements.txt
+
+\PYG{c+c1}{\PYGZsh{} Alternativa: Conda (ver environment.yml en la raíz del repositorio)}
+conda\PYG{+w}{ }env\PYG{+w}{ }create\PYG{+w}{ }\PYGZhy{}f\PYG{+w}{ }environment.yml
+conda\PYG{+w}{ }activate\PYG{+w}{ }cv\PYGZhy{}lit
+\end{MintedVerbatim}

@@ -105,7 +105,14 @@ que corresponden a este capítulo son \emph{Marcación}, \emph{Cálculo} y \emph
   \item \textbf{Cálculo}: al pulsar \emph{Calcular homografía} se ejecuta el ajuste
         (\S\ref{sec:ransac}) y aparece una tabla de error de reproyección por varilla — se puede
         excluir una varilla concreta y recalcular sin ella, de forma iterativa, antes de pasar a
-        Validación.
+        Validación. Como la calibración es por imagen (\S\ref{sec:flujo-web}), este paso incluye
+        también un selector para pinchar entre las distintas fotos de la cámara y comparar el
+        resultado de cada una sin volver a Marcación; la última que se calcule es la que queda
+        activa para la cámara. Cada fila de la tabla muestra, además del error, el
+        \textbf{píxel y la coordenada UTM tal y como se marcaron} — para poder verificar cada
+        varilla contra el CSV/Excel de origen si un valor no encaja como se esperaba — y, al
+        pasar el ratón sobre el error, el valor \emph{predicho} por la homografía en ese mismo
+        punto, para ver exactamente qué discrepancia produce el error.
   \item \textbf{Validación}: resumen final de la calidad de la calibración de esta imagen —
         RMSE en metros frente al umbral objetivo, y estado \emph{Óptimo}/\emph{Revisar}.
 \end{enumerate}

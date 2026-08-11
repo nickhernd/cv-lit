@@ -101,7 +101,7 @@ async function fetchAlignmentInfo() {
 // Lupa de precisión (paso 5): recorte ampliado alrededor del cursor para poder
 // fijar el píxel exacto de una varilla en fotos de varios miles de píxeles,
 // donde acertar a ojo sobre la imagen a escala reducida es imposible.
-const ZOOM_FACTOR = 6
+const zoomFactor = ref(6)
 const LOUPE_SIZE = 220
 const loupeCanvasRef = ref(null)
 const loupeVisible = ref(false)
@@ -113,7 +113,7 @@ function drawLoupe() {
   const img = markImgRef.value
   if (!canvas || !img || !imgNatural.value.width) return
   const ctx = canvas.getContext('2d')
-  const cropSize = LOUPE_SIZE / ZOOM_FACTOR
+  const cropSize = LOUPE_SIZE / zoomFactor.value
   const sx = Math.min(Math.max(loupeNaturalPos.x - cropSize / 2, 0), Math.max(imgNatural.value.width - cropSize, 0))
   const sy = Math.min(Math.max(loupeNaturalPos.y - cropSize / 2, 0), Math.max(imgNatural.value.height - cropSize, 0))
   ctx.clearRect(0, 0, LOUPE_SIZE, LOUPE_SIZE)
@@ -136,8 +136,8 @@ function drawLoupe() {
   // el cursor, nunca la posición ya fijada del marcador.
   const gcp = selectedGcpIdx.value !== null ? currentProfile.value.gcps[selectedGcpIdx.value] : null
   if (gcp) {
-    const gx = (gcp.pixel[0] - sx) * ZOOM_FACTOR
-    const gy = (gcp.pixel[1] - sy) * ZOOM_FACTOR
+    const gx = (gcp.pixel[0] - sx) * zoomFactor.value
+    const gy = (gcp.pixel[1] - sy) * zoomFactor.value
     if (gx >= 0 && gx <= LOUPE_SIZE && gy >= 0 && gy <= LOUPE_SIZE) {
       const armLen = 9
       ctx.strokeStyle = 'rgba(16, 185, 129, 0.95)'
@@ -563,6 +563,7 @@ function assignRod(rodIdx) {
   const gcp = currentProfile.value.gcps[selectedGcpIdx.value]
   gcp.label = rod.label
   gcp.utm = [...rod.utm]
+  gcp.z = rod.z ?? null
   saveAnnotations()
 }
 
@@ -655,6 +656,98 @@ const flaggedCount = computed(() => (calibResult.value?.residuals || []).filter(
 const calibOk = computed(() =>
   !!calibResult.value && calibResult.value.rmse_m <= (calibResult.value.rmse_good_m ?? 1.5)
 )
+
+// ── Validación: histograma de residuos + mapa de cobertura/reproyección ─────
+// Dimensiones naturales de la imagen mostrada en el mapa de cobertura — propio
+// de Validación (no comparte imgNatural con la lupa de Marcación, que solo se
+// rellena si se ha visitado ese paso en esta sesión).
+const coverageImgNatural = ref({ width: 0, height: 0 })
+function onCoverageImgLoad(e) {
+  coverageImgNatural.value = { width: e.target.naturalWidth, height: e.target.naturalHeight }
+}
+
+function residualColor(r) {
+  if (r.excluded || r.pending) return '#94a3b8'   // slate-400
+  if (r.above_threshold) return '#d97706'         // amber-600
+  return '#059669'                                // emerald-600
+}
+
+// Barras del histograma de residuos (m), en coordenadas de un viewBox fijo —
+// altura proporcional al error máximo del lote para que las barras siempre
+// aprovechen el alto disponible.
+const HIST_W = 600, HIST_H = 140, HIST_PAD = 24
+const residualBars = computed(() => {
+  const items = calibResult.value?.residuals || []
+  if (!items.length) return []
+  const maxErr = Math.max(...items.map(r => r.error_m), 0.001)
+  const n = items.length
+  const barGap = 6
+  const barW = Math.max(4, (HIST_W - HIST_PAD * 2 - barGap * (n - 1)) / n)
+  const usableH = HIST_H - HIST_PAD * 2
+  return items.map((r, i) => {
+    const h = Math.max(2, (r.error_m / maxErr) * usableH)
+    return {
+      x: HIST_PAD + i * (barW + barGap),
+      y: HIST_H - HIST_PAD - h,
+      width: barW,
+      height: h,
+      color: residualColor(r),
+      label: r.label,
+      error_m: r.error_m,
+    }
+  })
+})
+
+// ── Validación: metadatos de perfil + exportables (JSON / PDF) ──────────────
+const profileMeta = ref({ profile_name: '', operator: '', notes: '' })
+const savingMeta = ref(false)
+watch(currentProfile, (p) => {
+  profileMeta.value = {
+    profile_name: p?.profile_name || '',
+    operator: p?.operator || '',
+    notes: p?.notes || '',
+  }
+}, { immediate: true })
+
+async function saveProfileMetadata() {
+  if (!selectedCamId.value) return
+  savingMeta.value = true
+  try {
+    const res = await fetch(`${API}/api/cameras/${selectedCamId.value}/profile-metadata`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profileMeta.value),
+    })
+    if (!res.ok) throw new Error()
+    Object.assign(currentProfile.value, profileMeta.value)
+    emit('notify', 'Metadatos de perfil guardados', 'success')
+  } catch (err) {
+    emit('notify', 'Error al guardar los metadatos del perfil', 'error')
+  } finally { savingMeta.value = false }
+}
+
+function downloadCalibrationJson() {
+  if (!calibResult.value) return
+  const camInfo = cameras.value.find(c => c.idx === selectedCamId.value)
+  const payload = {
+    camera: { id: selectedCamId.value, name: camInfo?.name, serial: camInfo?.serial },
+    profile: profileMeta.value,
+    calibration: calibResult.value,
+    exported_at: new Date().toISOString(),
+  }
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `cv-lit_cam${selectedCamId.value}_calibracion.json`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function downloadCalibrationPdf() {
+  if (!selectedCamId.value) return
+  window.open(`${API}/api/cameras/${selectedCamId.value}/calibration-report.pdf`, '_blank')
+}
 
 async function fetchImageAnnotations() {
   if (!selectedCamId.value || !selectedImage.value) return
@@ -851,6 +944,7 @@ function handleImageClick(event) {
     const newGcp = {
       pixel: [p.pixelX, p.pixelY],
       utm: [0, 0],
+      z: null,
       label: `VARILLA_${currentProfile.value.gcps.length + 1}`,
       type: 'calib',
       rel: [p.relX, p.relY],
@@ -879,6 +973,7 @@ const confirmedGcpsCount = computed(() =>
 function stepNeedsAttention(stepId) {
   if (stepId === 4) return rodsHasIssues.value
   if (stepId === 5) return pendingGcps.value.length > 0 || (confirmedGcpsCount.value > 0 && confirmedGcpsCount.value < 4)
+  if (stepId === 6 || stepId === 7) return !!calibResult.value?.geometry_warning
   return false
 }
 
@@ -1376,6 +1471,27 @@ onMounted(() => {
             <span v-if="!availableImages.length" class="text-[10px] text-slate-400 uppercase px-2">Sin fotogramas — vuelve al paso Imágenes</span>
           </div>
 
+          <!-- Progreso de varillas confirmadas en esta imagen + zoom de la lupa -->
+          <div class="card-standard p-2.5 flex items-center gap-4 shrink-0">
+            <div class="flex-1 min-w-[140px]">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Progreso de marcación</span>
+                <span class="text-[9px] font-semibold text-slate-500 font-mono">{{ confirmedGcpsCount }} / {{ currentProfile.gcps.length }}</span>
+              </div>
+              <div class="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                <div class="h-full rounded-full transition-all"
+                     :class="confirmedGcpsCount >= 4 ? 'bg-emerald-500' : 'bg-amber-400'"
+                     :style="{ width: (currentProfile.gcps.length ? (confirmedGcpsCount / currentProfile.gcps.length) * 100 : 0) + '%' }"></div>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Zoom lupa</span>
+              <button @click="zoomFactor = Math.max(2, zoomFactor - 1)" class="w-5 h-5 flex items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-50 text-xs leading-none">−</button>
+              <span class="text-[10px] font-mono text-slate-600 w-6 text-center">×{{ zoomFactor }}</span>
+              <button @click="zoomFactor = Math.min(15, zoomFactor + 1)" class="w-5 h-5 flex items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-50 text-xs leading-none">+</button>
+            </div>
+          </div>
+
        <div class="relative flex gap-3 min-h-[600px]">
           <!-- Panel foto: visible en modo 'photo' y 'both' -->
           <div v-if="viewMode !== 'map'" class="card-standard overflow-hidden bg-slate-900 relative flex-1"
@@ -1401,7 +1517,7 @@ onMounted(() => {
             <div v-show="loupeVisible" class="absolute z-30 rounded-md overflow-hidden border-2 border-white/80 shadow-xl pointer-events-none"
                  :style="{ left: loupeScreenPos.left + 'px', top: loupeScreenPos.top + 'px', width: LOUPE_SIZE + 'px', height: LOUPE_SIZE + 'px' }">
               <canvas ref="loupeCanvasRef" :width="LOUPE_SIZE" :height="LOUPE_SIZE" class="block bg-black"></canvas>
-              <div class="absolute top-1 left-1 bg-black/70 text-white text-[8px] font-semibold px-1.5 py-0.5 rounded uppercase">×{{ ZOOM_FACTOR }}</div>
+              <div class="absolute top-1 left-1 bg-black/70 text-white text-[8px] font-semibold px-1.5 py-0.5 rounded uppercase">×{{ zoomFactor }}</div>
               <div v-if="selectedGcpIdx !== null" class="absolute bottom-1 left-1 right-1 bg-black/70 text-white text-[7px] font-semibold px-1.5 py-0.5 rounded uppercase flex items-center gap-2">
                 <span class="flex items-center gap-1"><span class="w-2 h-px bg-red-500"></span>Cursor</span>
                 <span class="flex items-center gap-1"><span class="w-2 h-px bg-emerald-500"></span>Punto actual</span>
@@ -1497,6 +1613,10 @@ onMounted(() => {
                   <label class="text-[10px] font-semibold text-slate-500 uppercase">UTM Y</label>
                   <input type="number" v-model.number="currentProfile.gcps[selectedGcpIdx].utm[1]" class="w-full input-standard font-mono text-xs">
                 </div>
+              </div>
+              <div class="space-y-1">
+                <label class="text-[10px] font-semibold text-slate-500 uppercase" title="Cota de la varilla — no interviene en el cálculo de la homografía (2D), es solo referencia de campo.">Z (cota, opcional)</label>
+                <input type="number" step="any" v-model.number="currentProfile.gcps[selectedGcpIdx].z" placeholder="—" class="w-full input-standard font-mono text-xs">
               </div>
               <button @click="currentProfile.gcps.splice(selectedGcpIdx, 1); selectedGcpIdx = null; saveAnnotations()" class="w-full bg-red-50 text-red-600 text-[10px] font-semibold py-2 rounded uppercase border border-red-100 hover:bg-red-100 transition-colors">Eliminar Punto</button>
             </div>
@@ -1597,9 +1717,15 @@ onMounted(() => {
         </div>
 
         <div class="flex items-center justify-between flex-wrap gap-2">
-          <p class="text-xs text-slate-500">
-            RMSE reproyección <strong class="text-slate-800 font-mono">{{ calibResult.rmse_px?.toFixed(2) }} px</strong>
-            · RMSE terreno <strong class="font-mono" :class="calibOk ? 'text-slate-800' : 'text-red-600'">{{ calibResult.rmse_m?.toFixed(3) }} m</strong>
+          <p class="text-xs text-slate-500 flex items-center gap-3 flex-wrap">
+            <span>RMSE reproyección <strong class="text-slate-800 font-mono">{{ calibResult.rmse_px?.toFixed(2) }} px</strong></span>
+            <span>· RMSE terreno <strong class="font-mono" :class="calibOk ? 'text-slate-800' : 'text-red-600'">{{ calibResult.rmse_m?.toFixed(3) }} m</strong></span>
+            <span title="Varillas usadas = las que entraron en el ajuste (confirmadas, no excluidas). Inliers RANSAC = de esas, cuántas aceptó RANSAC como mutuamente consistentes — no son lo mismo: pocos inliers sobre muchas varillas usadas es la señal de geometría inestable.">
+              · Inliers RANSAC
+              <strong class="font-mono" :class="calibResult.inliers_count < calibResult.gcps_used * 0.6 ? 'text-red-600' : 'text-slate-800'">
+                {{ calibResult.inliers_count }} / {{ calibResult.gcps_used }}
+              </strong>
+            </span>
           </p>
           <p class="text-[10px] text-slate-400 font-mono">{{ calibResult.image }} · {{ formatTs(calibResult.date) }}</p>
         </div>
@@ -1633,9 +1759,10 @@ onMounted(() => {
                 <tr>
                   <th class="px-4 py-3 uppercase tracking-wider text-[10px]">#</th>
                   <th class="px-4 py-3 uppercase tracking-wider text-[10px]">Varilla</th>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px]" title="El píxel donde se marcó/importó esta varilla — compáralo con tu CSV/Excel de origen si algo no cuadra.">Píxel marcado (u, v)</th>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px]" title="La coordenada UTM asignada a esta varilla — compáralo con tu CSV/Excel de origen si algo no cuadra.">UTM marcado (X, Y)</th>
                   <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-right">Error (px)</th>
                   <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-right">Error (m)</th>
-                  <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-center">Inlier RANSAC</th>
                   <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-center">Estado</th>
                   <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-center">Excluir</th>
                 </tr>
@@ -1646,15 +1773,20 @@ onMounted(() => {
                     class="transition-colors text-slate-700">
                   <td class="px-4 py-3 text-[10px] font-semibold text-slate-400">{{ r.idx + 1 }}</td>
                   <td class="px-4 py-3 text-[11px] font-semibold uppercase">{{ r.label }}</td>
+                  <td class="px-4 py-3 font-mono text-[11px] text-slate-600 whitespace-nowrap">
+                    {{ r.pixel ? `${r.pixel[0]}, ${r.pixel[1]}` : '—' }}
+                  </td>
+                  <td class="px-4 py-3 font-mono text-[11px] text-slate-600 whitespace-nowrap">
+                    {{ r.utm ? `${r.utm[0]}, ${r.utm[1]}` : '—' }}
+                  </td>
                   <td class="px-4 py-3 text-right font-mono text-[11px]"
-                      :class="r.above_threshold ? 'text-amber-700 font-semibold' : 'text-slate-600'">
+                      :class="r.above_threshold ? 'text-amber-700 font-semibold' : 'text-slate-600'"
+                      :title="r.pixel_predicted ? `Homografía predice: ${r.pixel_predicted[0]}, ${r.pixel_predicted[1]}` : ''">
                     {{ r.error_px.toFixed(2) }}
                   </td>
-                  <td class="px-4 py-3 text-right font-mono text-[11px] text-slate-500">{{ r.error_m.toFixed(3) }}</td>
-                  <td class="px-4 py-3 text-center">
-                    <span v-if="r.inlier === true" class="text-emerald-600 font-semibold" title="Inlier del ajuste RANSAC">✓</span>
-                    <span v-else-if="r.inlier === false" class="text-red-600 font-semibold" title="Outlier descartado por RANSAC">✗</span>
-                    <span v-else class="text-slate-300">—</span>
+                  <td class="px-4 py-3 text-right font-mono text-[11px] text-slate-500"
+                      :title="r.utm_predicted ? `Homografía predice: ${r.utm_predicted[0]}, ${r.utm_predicted[1]}` : ''">
+                    {{ r.error_m.toFixed(3) }}
                   </td>
                   <td class="px-4 py-3 text-center">
                     <span v-if="r.pending" class="px-2 py-0.5 rounded text-[9px] font-semibold uppercase bg-amber-100 text-amber-700 border border-amber-200">Pendiente</span>
@@ -1748,7 +1880,77 @@ onMounted(() => {
           </div>
         </div>
 
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <!-- Histograma de residuos: una barra por varilla, altura ∝ error en
+               metros, mismo color que su estado en la tabla de Cálculo. -->
+          <div class="card-standard p-4">
+            <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3">Distribución de residuos (m)</div>
+            <svg :viewBox="`0 0 ${HIST_W} ${HIST_H}`" class="w-full h-32">
+              <line :x1="HIST_PAD" :y1="HIST_H - HIST_PAD" :x2="HIST_W - HIST_PAD" :y2="HIST_H - HIST_PAD" stroke="#e2e8f0" stroke-width="1"/>
+              <g v-for="(b, i) in residualBars" :key="i">
+                <rect :x="b.x" :y="b.y" :width="b.width" :height="b.height" :fill="b.color" rx="2">
+                  <title>{{ b.label }}: {{ b.error_m.toFixed(3) }} m</title>
+                </rect>
+              </g>
+            </svg>
+            <p v-if="!residualBars.length" class="text-[10px] text-slate-400 text-center py-8">Sin residuos que mostrar</p>
+          </div>
+
+          <!-- Mapa de cobertura + reproyección: dónde caen las varillas sobre
+               la foto (revela geometría casi colineal de un vistazo) y, con
+               una línea corta, el vector de error hacia lo que predice la
+               homografía en ese mismo punto (pixel_predicted). -->
+          <div class="lg:col-span-2 card-standard overflow-hidden">
+            <div class="card-header uppercase tracking-wider text-[10px]">Cobertura de varillas y reproyección</div>
+            <div class="relative bg-slate-100">
+              <img :src="imageUrl" @load="onCoverageImgLoad" class="w-full h-auto block" alt="Imagen calibrada">
+              <svg v-if="coverageImgNatural.width" class="absolute inset-0 w-full h-full"
+                   :viewBox="`0 0 ${coverageImgNatural.width} ${coverageImgNatural.height}`" preserveAspectRatio="none">
+                <g v-for="r in calibResult.residuals" :key="r.idx">
+                  <line v-if="r.pixel && r.pixel_predicted"
+                        :x1="r.pixel[0]" :y1="r.pixel[1]" :x2="r.pixel_predicted[0]" :y2="r.pixel_predicted[1]"
+                        :stroke="residualColor(r)" :stroke-width="coverageImgNatural.width / 500" opacity="0.85"/>
+                  <circle v-if="r.pixel" :cx="r.pixel[0]" :cy="r.pixel[1]" :r="coverageImgNatural.width / 220"
+                          :fill="residualColor(r)" stroke="white" :stroke-width="coverageImgNatural.width / 1500">
+                    <title>{{ r.label }}: {{ r.error_m.toFixed(3) }} m</title>
+                  </circle>
+                </g>
+              </svg>
+            </div>
+            <p class="px-4 py-2 text-[10px] text-slate-400 border-t border-slate-100">
+              Punto = varilla marcada · línea = distancia hasta la posición que predice la homografía.
+              Si los puntos quedan casi todos en fila, esa es la causa típica de un RMSE poco fiable
+              (§ aviso de geometría inestable).
+            </p>
+          </div>
+        </div>
+
+        <div class="card-standard p-4">
+          <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3">Metadatos del perfil</div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Nombre de perfil</label>
+              <input v-model="profileMeta.profile_name" class="w-full input-standard text-xs" placeholder="ej. Campaña verano 2026">
+            </div>
+            <div>
+              <label class="block text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Operador</label>
+              <input v-model="profileMeta.operator" class="w-full input-standard text-xs" placeholder="ej. J. Pérez">
+            </div>
+            <div>
+              <label class="block text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Notas</label>
+              <input v-model="profileMeta.notes" class="w-full input-standard text-xs" placeholder="observaciones opcionales">
+            </div>
+          </div>
+          <div class="flex justify-end mt-3">
+            <button @click="saveProfileMetadata" :disabled="savingMeta" class="btn-secondary text-xs uppercase disabled:opacity-40">
+              {{ savingMeta ? 'Guardando…' : 'Guardar metadatos' }}
+            </button>
+          </div>
+        </div>
+
         <div class="card-standard p-4 flex flex-wrap gap-3 justify-end">
+          <button @click="downloadCalibrationJson" class="btn-secondary text-xs uppercase">Descargar JSON</button>
+          <button @click="downloadCalibrationPdf" class="btn-secondary text-xs uppercase">Descargar informe PDF</button>
           <button @click="currentStep = 6" class="btn-secondary text-xs uppercase">← Volver a Cálculo</button>
           <button @click="currentStep = 5" class="btn-secondary text-xs uppercase">Reajustar Puntos</button>
           <button @click="currentStep = 1; fetchCameras()" class="btn-standard text-xs uppercase">Finalizar Proceso</button>

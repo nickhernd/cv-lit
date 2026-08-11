@@ -1,9 +1,0 @@
-\begin{MintedVerbatim}[commandchars=\\\{\}]
-\PYG{c+c1}{\PYGZsh{} 1. Activar entorno Conda}
-conda\PYG{+w}{ }activate\PYG{+w}{ }cv\PYGZhy{}lit
-
-\PYG{c+c1}{\PYGZsh{} 2. Iniciar backend + frontend en paralelo}
-./start\PYGZus{}dev.sh
-\PYG{c+c1}{\PYGZsh{} Backend:  http://localhost:8000 (FastAPI + docs en /docs)}
-\PYG{c+c1}{\PYGZsh{} Frontend: http://localhost:5173 (Vue 3 + Vite)}
-\end{MintedVerbatim}

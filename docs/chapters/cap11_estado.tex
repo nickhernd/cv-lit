@@ -2,7 +2,12 @@
 \label{ch:roadmap}
 % ==============================================================
 
-\section{Estado actual (junio 2026)}
+\section{Estado actual (agosto 2026)}
+
+El proyecto se planteó originalmente con una duración de 6 meses (enero--junio 2026,
+capítulo~\ref{ch:overview}); en la práctica el desarrollo se extendió hasta agosto de 2026 para
+completar Auto Mode, el instalador de escritorio y una ronda de pulido orientada a producción
+que no estaba en el alcance original.
 
 \begin{table}[H]
 \centering
@@ -16,8 +21,8 @@
 2 & Calibración geométrica                & \textcolor{OliveGreen}{Hecho} & 6 perfiles generados \\
 3 & Segmentación (prototipo)              & \textcolor{OliveGreen}{Hecho} & SAM funcional \\
 4 & Extracción línea + georreferenciación & \textcolor{OliveGreen}{Hecho} & GeoJSON en EPSG:25830 \\
-5 & Validación y robustez                 & \textcolor{Goldenrod}{Parcial} & CAM 4 y 6 pendientes \\
-6 & Integración y entrega                 & \textcolor{gray}{Pendiente}   & Próximo hito \\
+5 & Validación y robustez                 & \textcolor{OliveGreen}{Hecho} & Las 6 cámaras calibradas y validadas \\
+6 & Integración y entrega                 & \textcolor{OliveGreen}{Hecho} & Instalador de escritorio generado y probado \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -38,21 +43,58 @@
   \item[$\bullet$] Documentación completa (esta memoria)
 \end{itemize}
 
-\section{Fase 3 — Automatización y robustez (mes 5)}
+\section{Fase 3 — Automatización y robustez (completada)}
 
 \begin{enumerate}[leftmargin=1.5em]
-  \item \textbf{Procesamiento por lotes}: integrar backend para procesar todas las imágenes de 12:00h.
-  \item \textbf{Filtros de calidad}: rechazo automático de imágenes con niebla o baja confianza de SAM.
-  \item \textbf{Persistencia GeoJSON}: guardar histórico de líneas de costa en base de datos/sistema de ficheros.
-  \item \textbf{Recalibración CAM~4 y CAM~6}: reducir RMSE por debajo de 1.5~m.
+  \item \textbf{Procesamiento por lotes}: resuelto por \textbf{Auto Mode}
+        (\texttt{backend/auto\_mode.py}, capítulo~\ref{ch:automode}) — descarga, alinea y analiza
+        un rango de fechas completo de una cámara de punta a punta, bajo demanda.
+  \item \textbf{Filtros de calidad}: \texttt{analyze\_roi()} rechaza automáticamente imágenes con
+        confianza de SAM por debajo del umbral configurado (\texttt{conf\_min}), registrando el
+        motivo en el log de actividad.
+  \item \textbf{Persistencia GeoJSON}: \texttt{\_append\_history()} acumula cada análisis en
+        \texttt{coastline\_history\_cam\{id\}.json}, consumido por el gráfico "Tendencia
+        Histórica" del Dashboard (\texttt{GET /api/historical-data}).
+  \item \textbf{Recalibración de las 6 cámaras}: completada — todas por debajo del objetivo de
+        RMSE~$<$~2~m (\texttt{RMSE\_GOOD\_M}, capítulo~\ref{ch:calibration}).
 \end{enumerate}
 
-\section{Fase 4 — Entrega e integración (mes 6)}
+\section{Fase 4 — Entrega e integración (completada)}
 
 \begin{enumerate}[leftmargin=1.5em]
-  \item Dashboard de histórico: gráficas de evolución del área seca.
-  \item Exportación masiva: informes mensuales de variación de línea de costa.
-  \item Manual de usuario: documentación final para el personal del Ayuntamiento.
+  \item Dashboard de histórico: gráfica de evolución del área seca ya en producción
+        (\texttt{Dashboard.vue} + \texttt{GET /api/historical-data}).
+  \item Exportación de informes: \texttt{GET /api/report} (CSV/JSON) desde el Dashboard, más un
+        informe PDF individual por cámara con el resumen de su calibración
+        (\texttt{GET /api/cameras/\{id\}/calibration-report.pdf}, capítulo~\ref{ch:calibration}).
+  \item Manual de usuario: \texttt{docs/user\_manual.md}, con la guía paso a paso del asistente
+        de calibración de 7 pasos y de Auto Mode.
+  \item Instalador de escritorio para Windows: \texttt{installer/cv-lit.iss} +
+        \texttt{backend/desktop\_launcher.spec}, compilado y probado
+        (\texttt{installer/output/LineaDeCosta-Setup.exe}) — ver capítulo~\ref{ch:setup}.
 \end{enumerate}
+
+\section{Ronda de pulido para producción (julio--agosto 2026)}
+
+Tras cerrar las Fases 3 y 4, una auditoría completa del proyecto orientada a llevarlo a
+producción añadió, sin estar en el roadmap original:
+
+\begin{itemize}[leftmargin=1.5em]
+  \item Endurecimiento de seguridad: \texttt{CORS allow\_credentials=False}, validación de
+        \texttt{PUT} en varios endpoints, sanitización de nombres de fichero
+        (\texttt{\_safe\_filename()}), límite mínimo de subida (\texttt{MIN\_UPLOAD}), y
+        eliminación de credenciales de Obscape hardcodeadas (ahora por variables de entorno,
+        \texttt{acces\_api/obscape\_api.py}).
+  \item Eliminación de código y scripts no usados (rutas de alineación duplicadas, herramientas
+        de calibración de un solo uso, la vista "rectificada UTM" nunca terminada).
+  \item Aviso de geometría inestable en el cálculo de homografía (\texttt{geometry\_warning},
+        capítulo~\ref{ch:calibration}) y su indicador correspondiente en el stepper del
+        asistente.
+  \item Suite de tests ampliada: \texttt{tests/test\_auto\_mode.py} y
+        \texttt{tests/test\_geometry\_warning.py}, cubriendo Auto Mode y el aviso de geometría
+        sin depender de la red real de Obscape.
+  \item Esta memoria: reescrita y ampliada de forma sustancial (capítulos~\ref{ch:calibration},
+        \ref{ch:batch}, \ref{ch:automode} y auditoría de coherencia del resto de capítulos).
+\end{itemize}
 
 % ==============================================================

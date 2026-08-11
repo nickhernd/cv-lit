@@ -45,10 +45,12 @@ obligatorios por cada detección:
 \toprule
 \textbf{Campo} & \textbf{Tipo} & \textbf{Descripción} \\
 \midrule
-\texttt{ID\_Camara}    & Integer (1--6) & Identificador de cámara origen \\
+\texttt{ID\_Camara}    & String (\texttt{"CAM\_1"}..\texttt{"CAM\_6"}) & Identificador de cámara origen \\
 \texttt{Timestamp}     & ISO 8601 UTC   & Fecha y hora de captura \\
 \texttt{Confianza\_IA} & Float (0--1)   & Score de confianza del modelo SAM \\
 \texttt{Area\_Seca\_m2}& Float          & Superficie de playa seca (m²) \\
+\texttt{RMSE\_m}       & Float          & RMSE de la calibración activa en el momento del análisis \\
+\texttt{n\_puntos}     & Integer        & Número de puntos de la polilínea de costa \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -60,16 +62,18 @@ obligatorios por cada detección:
   \item Fase horaria prioritaria: \textbf{12:00h solar local}.
   \item Modelo de segmentación: \textbf{SAM} (Segment Anything Model, Meta AI).
   \item Cada cámara tiene su propio perfil de calibración \textit{independiente}.
-  \item Criterio de aceptación de precisión: \textbf{RMSE~$<$~1,5~m} en condiciones estándar.
+  \item Criterio de aceptación de precisión: \textbf{RMSE~$<$~2~m} en condiciones estándar (ver \texttt{RMSE\_GOOD\_M}, capítulo~\ref{ch:calibration}).
 \end{itemize}
 
 \section{Entregables}
 
 \begin{enumerate}[leftmargin=1.5em]
-  \item Aplicación ejecutable configurada y documentada (esta memoria).
+  \item Instalador de escritorio para Windows (\texttt{LineaDeCosta-Setup.exe}), configurado y
+        documentado (esta memoria) — ver capítulo~\ref{ch:setup}.
   \item Perfiles de calibración por cámara (6~ficheros \texttt{.npy} / \texttt{.json}).
-  \item Interfaz web de operación y validación por lotes.
-  \item Informe de validación con métricas RMSE y MAE.
+  \item Interfaz web de operación y validación por lotes (la misma interfaz sirve tanto en modo
+        navegador como empaquetada dentro de la aplicación de escritorio).
+  \item Informe de validación con métricas RMSE y MAE, exportable en PDF por cámara.
 \end{enumerate}
 
 % ==============================================================

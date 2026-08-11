@@ -12,7 +12,11 @@ Para iniciar el entorno de desarrollo:
 
 \begin{codebox}[]
 \begin{minted}{bash}
-./start_dev.sh
+# Windows (PowerShell) — workspace de desarrollo vacío en workspace/dev/
+.\start_dev.ps1
+# Linux/macOS
+./scripts/start_dev.sh
+
 # Backend:  http://localhost:8000
 # Frontend: http://localhost:5173
 \end{minted}
@@ -31,7 +35,7 @@ const phase    = ref('idle')   // idle|configuring|processing|reviewing|committe
 const jobId    = ref(null)     // UUID del job backend activo
 const results  = ref([])       // Array de AlignmentResult del lote
 const selected = ref(null)     // filename seleccionado en filmstrip
-const viewMode = ref('diff')   // 'diff' | 'blend' | 'aligned'
+const viewMode = ref('diff')   // 'original' | 'aligned' | 'diff' | 'blend'
 \end{minted}
 \end{codebox}
 
@@ -129,8 +133,9 @@ function _poll() {
   \item Revisar filmstrip: verde = OK, rojo = error.
   \item Para cada imagen roja o amarilla: inspeccionar mapa de delta / blend.
   \item Desaprobar imágenes concretas (opcional) con toggle en el visor.
-  \item Pulsar ``Confirmar lote'' → imágenes aprobadas a \texttt{data/CAM\_X/aligned/}.
-  \item Las imágenes originales en \texttt{data/CAM\_X/images/} quedan \textbf{intactas}.
+  \item Pulsar ``Confirmar lote'' → imágenes aprobadas a \texttt{data/\{carpeta\_cámara\}/aligned/}.
+  \item Las imágenes originales en \texttt{data/\{carpeta\_cámara\}/} (p.\,ej. \texttt{camera1/})
+        quedan \textbf{intactas} — \texttt{aligned/} es una carpeta hermana, no las sustituye.
 \end{enumerate}
 
 % ==============================================================

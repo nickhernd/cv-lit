@@ -20,6 +20,20 @@ Jun 2026 & Frontend & \texttt{BatchAlignment.vue}: máquina de estados 5 fases \
 Jun 2026 & Máscaras SIFT & \texttt{alignment\_masks.json}: zonas estables por cámara \\
 Jun 2026 & CAM~1 & Corrección máscara: excluir cielo con gaviotas (y=0.24→0.31) \\
 Jun 2026 & Documentación & Esta memoria técnica en \LaTeX{} \\
+Jul 2026 & Backend & \texttt{auto\_mode.py}: pipeline automático descarga+alineación+análisis \\
+Jul 2026 & Frontend & \texttt{AutoMode.vue}: asistente de cámara + rango de fechas \\
+Jul--Ago 2026 & Seguridad & CORS restringido, validación de \texttt{PUT}, credenciales de
+  Obscape movidas a variables de entorno, eliminación de scripts sin mantenimiento
+  (\texttt{calibration\_tool.py}, \texttt{recalibrate.py} y otros) \\
+Ago 2026 & Calibración & Aviso de geometría inestable (\texttt{geometry\_warning}), inliers
+  agregados, histograma de residuos y mapa de cobertura en Validación \\
+Ago 2026 & Calibración & Metadatos de perfil + exportación de informe JSON/PDF por cámara \\
+Ago 2026 & Marcación & Cota Z opcional, zoom ajustable de la lupa, barra de progreso \\
+Ago 2026 & Auto Mode & Exportación automática de GeoJSON, panel de estado por cámara, log
+  filtrado en tiempo real \\
+Ago 2026 & Empaquetado & Instalador de escritorio para Windows
+  (\texttt{LineaDeCosta-Setup.exe}, PyInstaller + Inno Setup) \\
+Ago 2026 & Tests & \texttt{test\_auto\_mode.py}, \texttt{test\_geometry\_warning.py} \\
 \bottomrule
 \end{tabular}
 \end{table}

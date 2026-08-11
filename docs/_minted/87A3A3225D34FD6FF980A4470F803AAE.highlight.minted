@@ -1,0 +1,4 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+OBSCAPE\PYGZus{}USERNAME=\PYGZlt{}usuario del portal Obscape\PYGZgt{}
+OBSCAPE\PYGZus{}API\PYGZus{}KEY=\PYGZlt{}clave de API\PYGZgt{}
+\end{MintedVerbatim}

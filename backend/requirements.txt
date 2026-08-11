@@ -9,5 +9,6 @@ torchvision
 segment-anything
 requests
 matplotlib
+fpdf2
 pytest
 httpx

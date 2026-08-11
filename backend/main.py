@@ -669,6 +669,30 @@ def get_camera_profile(cam_id: int):
     with open(profile_path, "r") as f:
         return json.load(f)
 
+class ProfileMetadata(BaseModel):
+    profile_name: Optional[str] = None
+    operator: Optional[str] = None
+    notes: Optional[str] = None
+
+# DEBUG: metadatos de registro del perfil (nombre, operador, notas) — se
+# actualizan por separado del cálculo de homografía, para poder anotar quién
+# calibró y por qué sin necesidad de recalcular nada. Merge sobre el perfil
+# existente, igual patrón que save_image_annotations.
+@app.put("/api/cameras/{cam_id}/profile-metadata")
+def update_profile_metadata(cam_id: int, meta: ProfileMetadata):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_profile.json")
+    profile = {"cam_id": cam_id, "gcps": []}
+    if os.path.exists(profile_path):
+        with open(profile_path, "r") as f:
+            profile = json.load(f)
+    update = {k: v for k, v in meta.model_dump().items() if v is not None}
+    profile.update(update)
+    with open(profile_path, "w") as f:
+        json.dump(profile, f, indent=2)
+    return {"status": "success", **update}
+
 # Calcula la homografía píxel->UTM DE UNA IMAGEN a partir de las varillas marcadas
 # en sus anotaciones (la calibración es por imagen, no por cámara). Devuelve el
 # residuo de reproyección por varilla (px y m) para que la UI pueda marcar las que
@@ -735,11 +759,17 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
             "error_px": round(float(np.random.uniform(0.2, 1.4)), 3),
             "error_m": round(float(np.random.uniform(0.05, 0.4)), 3),
             "inlier": True, "excluded": i in excluded, "pending": False, "above_threshold": False,
+            # pixel/utm son los valores reales marcados — solo el error/RMSE de
+            # este bloque demo es simulado; no hay H real en modo demo para
+            # calcular una predicción, así que esos dos quedan sin valor.
+            "pixel": p.get("pixel"), "utm": p.get("utm"),
+            "pixel_predicted": None, "utm_predicted": None,
         } for i, p in enumerate(points)]
         add_log(f"Homografía Cam {cam_id} simulada (Demo)", "success")
         return {"status": "success", "image": image_name, "rmse_px": 0.62, "rmse_m": 0.12,
                 "mae_px": 0.45, "mae_m": 0.09, "rmse_good_m": RMSE_GOOD_M, "geometry_warning": None,
                 "threshold_px": payload.threshold_px, "gcps_used": len(included_idx),
+                "inliers_count": len(included_idx),
                 "excluded": sorted(excluded), "residuals": residuals}
 
     pts_px = np.array([points[i]["pixel"] for i in included_idx], dtype=np.float32)
@@ -794,7 +824,7 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
     #  - error_px: distancia entre el píxel marcado y la retro-proyección con H⁻¹
     #              del UTM medido
     # Estos valores llenan la tabla del paso Cálculo y deciden qué filas
-    # se marcan en rojo (error_px > threshold_px). El error POR IMAGEN es el RMSE
+    # se marcan en ámbar (error_px > threshold_px). El error POR IMAGEN es el RMSE
     # de estos residuos, que se guarda en el JSON de anotaciones de la imagen.
     residuals = []
     err_px_included, err_m_included = [], []
@@ -820,6 +850,15 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
             "excluded": is_user_excluded,
             "pending": is_pending,
             "above_threshold": (not is_excluded_from_fit) and err_px > payload.threshold_px,
+            # Valores medidos (lo que el usuario marcó/importó) y predichos
+            # (lo que da la homografía) en ambos dominios — para poder
+            # verificar cada varilla contra el CSV/Excel de origen y ver
+            # exactamente qué discrepancia produce el error, no solo la
+            # distancia escalar.
+            "pixel": [round(float(px[0]), 2), round(float(px[1]), 2)],
+            "utm": [round(float(utm[0]), 3), round(float(utm[1]), 3)],
+            "pixel_predicted": [round(float(back_px[0]), 2), round(float(back_px[1]), 2)],
+            "utm_predicted": [round(float(proj_utm[0]), 3), round(float(proj_utm[1]), 3)],
         })
 
     # DEBUG (RMSE/MAE): AQUÍ se calculan las métricas de la calibración de esta
@@ -856,6 +895,11 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
         "geometry_warning": geometry_warning,
         "threshold_px": payload.threshold_px,
         "gcps_used": len(included_idx),
+        # inliers_count vs. gcps_used: gcps_used es cuántas varillas ENTRARON en el
+        # ajuste (confirmadas y no excluidas); inliers_count es, de esas, cuántas
+        # RANSAC aceptó como mutuamente consistentes — no son lo mismo, ver el
+        # tooltip del paso Cálculo en el frontend.
+        "inliers_count": inlier_count,
         "excluded": sorted(excluded),
         "residuals": residuals,
         "date": now_iso,
@@ -900,6 +944,171 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
         msg += " — ⚠ geometría de varillas inestable, ver detalle en Validación"
     add_log(msg, "success" if not flagged and not geometry_warning else "warning")
     return {"status": "success", **calibration}
+
+# DEBUG: informe de calibración de una cámara en PDF — cabecera (cámara, fecha,
+# operador, nombre de perfil), resumen (RMSE px/m, inliers/varillas usadas,
+# EPSG, tamaño de imagen), tabla de residuos por varilla, y un mapa de
+# cobertura/reproyección (dónde caen las varillas y su vector de error).
+# Usa la ÚLTIMA calibración calculada de la cámara (perfil activo), igual que
+# analyze-roi — no la de una imagen concreta si no es la activa.
+@app.get("/api/cameras/{cam_id}/calibration-report.pdf")
+def get_calibration_report(cam_id: int):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_profile.json")
+    if not os.path.exists(profile_path):
+        raise HTTPException(status_code=404, detail="Esta cámara todavía no tiene una calibración calculada")
+    with open(profile_path, "r") as f:
+        profile = json.load(f)
+
+    image_name = profile.get("calibrated_image")
+    calibration = {}
+    if image_name:
+        ann_path = _annotations_path(cam_id, image_name)
+        if os.path.exists(ann_path):
+            with open(ann_path, "r") as f:
+                calibration = json.load(f).get("calibration") or {}
+
+    img_w = img_h = None
+    if image_name:
+        img_path = _resolve_camera_image_path(cam_id, image_name)
+        img = cv2.imread(img_path)
+        if img is not None:
+            img_h, img_w = img.shape[:2]
+
+    pdf_bytes = _build_calibration_report_pdf(cam_id, profile, calibration, img_w, img_h)
+    filename = f"cv-lit_cam{cam_id}_calibracion.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+def _coverage_chart_png(residuals: list, img_w: Optional[int], img_h: Optional[int]) -> Optional[bytes]:
+    """Genera el mapa de cobertura/reproyección (scatter + vectores de error)
+    como PNG en memoria, para embeber en el PDF. None si no hay datos suficientes."""
+    if not residuals or not img_w or not img_h:
+        return None
+    import matplotlib
+    matplotlib.use("Agg")  # backend sin GUI, seguro en un proceso de servidor
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(6, 6 * img_h / img_w))
+    for r in residuals:
+        px = r.get("pixel")
+        pred = r.get("pixel_predicted")
+        if not px:
+            continue
+        color = "#94a3b8" if (r.get("excluded") or r.get("pending")) else (
+            "#d97706" if r.get("above_threshold") else "#059669")
+        ax.scatter([px[0]], [px[1]], c=color, s=40, zorder=3, edgecolors="white", linewidths=0.5)
+        ax.annotate(r.get("label", ""), (px[0], px[1]), fontsize=6, xytext=(4, 4), textcoords="offset points")
+        if pred:
+            ax.plot([px[0], pred[0]], [px[1], pred[1]], color=color, linewidth=1, zorder=2)
+    ax.set_xlim(0, img_w)
+    ax.set_ylim(img_h, 0)  # invertido: el origen de píxel está arriba-izquierda
+    ax.set_facecolor("#f8fafc")
+    ax.tick_params(labelsize=6)
+    ax.set_title("Cobertura de varillas y reproyección", fontsize=9)
+    fig.tight_layout()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150)
+    plt.close(fig)
+    buf.seek(0)
+    return buf.read()
+
+def _pdf_safe(text) -> str:
+    """Las fuentes 'core' de fpdf2 (Helvetica) solo soportan Latin-1 — un
+    operador/nota con un carácter fuera de ese rango (emoji, guion largo
+    tipográfico, etc.) tumbaría la generación entera del PDF. Sustituye
+    cualquier carácter no representable por '?' en vez de fallar."""
+    if text is None:
+        return ""
+    return str(text).encode("latin-1", errors="replace").decode("latin-1")
+
+def _build_calibration_report_pdf(cam_id: int, profile: dict, calibration: dict, img_w: Optional[int], img_h: Optional[int]) -> bytes:
+    from fpdf import FPDF
+
+    cam_info = CAMERAS[cam_id]
+    residuals = calibration.get("residuals", [])
+    rmse_m = calibration.get("rmse_m", profile.get("rmse_m"))
+    rmse_px = calibration.get("rmse_px", profile.get("rmse_px"))
+    inliers_count = calibration.get("inliers_count", profile.get("inliers_count"))
+    gcps_used = calibration.get("gcps_used", profile.get("gcps_count"))
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, _pdf_safe("Informe de Calibración - cv-lit"), ln=True)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(0, 6, f"Generado {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=True)
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(4)
+
+    def kv_table(rows):
+        pdf.set_font("Helvetica", "", 10)
+        for label, value in rows:
+            pdf.set_font("Helvetica", "B", 10)
+            pdf.cell(55, 7, _pdf_safe(label), border=0)
+            pdf.set_font("Helvetica", "", 10)
+            pdf.cell(0, 7, _pdf_safe(value) if value is not None else "-", border=0, ln=True)
+
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, _pdf_safe(f"{cam_info['name']} (serie {cam_info['serial']})"), ln=True)
+    kv_table([
+        ("Nombre de perfil", profile.get("profile_name")),
+        ("Operador", profile.get("operator")),
+        ("Notas", profile.get("notes")),
+        ("Imagen calibrada", profile.get("calibrated_image")),
+        ("Fecha de cálculo", profile.get("date")),
+    ])
+    pdf.ln(2)
+
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "Resumen", ln=True)
+    kv_table([
+        ("RMSE reproyección", f"{rmse_px:.2f} px" if rmse_px is not None else None),
+        ("RMSE terreno", f"{rmse_m:.3f} m" if rmse_m is not None else None),
+        ("Inliers RANSAC / varillas usadas", f"{inliers_count} / {gcps_used}" if inliers_count is not None else None),
+        ("Sistema de referencia", "EPSG:25830 (ETRS89 / UTM huso 30N)"),
+        ("Tamaño de imagen", f"{img_w} x {img_h} px" if img_w else None),
+    ])
+    pdf.ln(4)
+
+    chart_png = _coverage_chart_png(residuals, img_w, img_h)
+    if chart_png:
+        pdf.image(io.BytesIO(chart_png), w=170)
+        pdf.ln(2)
+
+    if residuals:
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.cell(0, 8, "Error de reproyección por varilla", ln=True)
+        pdf.set_font("Helvetica", "B", 8)
+        headers = ["#", "Varilla", "Pixel (u,v)", "UTM (X,Y)", "Error (px)", "Error (m)", "Estado"]
+        widths = [8, 22, 32, 42, 22, 22, 30]
+        for h, w in zip(headers, widths):
+            pdf.cell(w, 6, _pdf_safe(h), border=1)
+        pdf.ln()
+        pdf.set_font("Helvetica", "", 8)
+        for i, r in enumerate(residuals):
+            estado = "Pendiente" if r.get("pending") else ("Excluida" if r.get("excluded") else (
+                "Sobre umbral" if r.get("above_threshold") else "OK"))
+            px = r.get("pixel") or ["-", "-"]
+            utm = r.get("utm") or ["-", "-"]
+            row = [
+                str(i + 1), _pdf_safe(r.get("label", "")),
+                f"{px[0]}, {px[1]}", f"{utm[0]}, {utm[1]}",
+                f"{r.get('error_px', 0):.2f}", f"{r.get('error_m', 0):.3f}", estado,
+            ]
+            for val, w in zip(row, widths):
+                pdf.cell(w, 6, val, border=1)
+            pdf.ln()
+
+    return bytes(pdf.output())
 
 # DEBUG: endpoint núcleo del pipeline de análisis. Carga imagen + homografía,
 # segmenta arena seca (SAM -> color_fallback -> Otsu, en cascada), valida la

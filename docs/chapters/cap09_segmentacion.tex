@@ -5,28 +5,40 @@
 \section{Segmentación semántica con SAM}
 
 Se utiliza \textbf{Segment Anything Model (SAM)} de Meta AI en modo \textit{zero-shot}:
-sin datos de entrenamiento específicos de Guardamar.
+sin datos de entrenamiento específicos de Guardamar. A diferencia del modo "automático" de
+SAM (que segmenta todo lo que encuentra en la imagen sin guía), \texttt{SAMSegmenter} usa
+\textbf{\texttt{SamPredictor} con prompts de punto}: uno o varios puntos semilla por cámara
+(\texttt{CAM\_PROMPTS}, coordenadas fraccionarias sobre la ROI) le dicen a SAM qué región debe
+segmentar como arena seca, y se toma la máscara con mayor \texttt{score} de entre las
+\texttt{multimask\_output=True} que devuelve.
 
-\begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Modo de uso}: prompt basado en puntos semilla o bounding boxes de la ROI.
-  \item \textbf{Salida}: mapa probabilístico arena seca / arena húmeda / agua.
-  \item \textbf{Post-SAM}: umbral adaptativo + filtrado morfológico → máscara binaria.
-\end{itemize}
-
-\begin{codebox}[Segmentación (extracto segmentation\_sam.py)]
+\begin{codebox}[Segmentación --- extracto real de SAMSegmenter en segmentation\_sam.py]
 \begin{minted}{python}
-from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+from segment_anything import sam_model_registry, SamPredictor
 
-sam = sam_model_registry["vit_h"](checkpoint=SAM_CHECKPOINT)
-mask_generator = SamAutomaticMaskGenerator(
-    sam,
-    points_per_side=32,
-    pred_iou_thresh=0.86,
-    stability_score_thresh=0.92
+sam = sam_model_registry["vit_h"](checkpoint=checkpoint_path)
+predictor = SamPredictor(sam)
+predictor.set_image(roi_img_rgb)
+
+# input_point/input_label vienen de CAM_PROMPTS (puntos semilla por cámara)
+masks, scores, logits = predictor.predict(
+    point_coords=input_point,
+    point_labels=input_label,
+    multimask_output=True,
 )
-masks = mask_generator.generate(roi_img)
+mask = masks[np.argmax(scores)]  # la máscara con mayor score de las candidatas
 \end{minted}
 \end{codebox}
+
+\begin{infobox}[¿Qué pasa si SAM no está disponible o falla?]
+\texttt{analyze\_roi()} (backend/main.py) prueba una cascada de 3 niveles antes de rendirse:
+\textbf{Nivel 1} SAM (si el checkpoint está instalado y no lanza excepción) →
+\textbf{Nivel 2} \texttt{color\_fallback\_segmentation()} (heurística HSV, siempre disponible,
+no depende de PyTorch ni de descargar el checkpoint de $\sim$2,4~GB) →
+\textbf{Nivel 3} umbral de Otsu sobre el canal V, como último recurso si el color-fallback
+también devuelve una máscara vacía. Cada nivel usado queda registrado en el log de actividad
+(\texttt{GET /api/logs}) para poder auditar con qué método se generó cada resultado.
+\end{infobox}
 
 \section{Extracción de línea de costa}
 
@@ -42,25 +54,32 @@ masks = mask_generator.generate(roi_img)
 Aplicación de la homografía~\eqref{eq:homography} para transformar cada punto $(u,v)$
 de la polilínea a coordenadas métricas:
 
-\begin{codebox}[]
+\begin{codebox}[pixels\_to\_utm() — proces\_images/georef\_export.py]
 \begin{minted}{python}
-def pixel_to_utm(H, pts_px):
-    """pts_px: Nx2 array de (u,v). Retorna Nx2 en UTM EPSG:25830."""
-    pts_h = np.hstack([pts_px, np.ones((len(pts_px), 1))])
-    result = (H @ pts_h.T).T
-    return result[:, :2] / result[:, 2:3]   # normalización homogénea
+def pixels_to_utm(points_px: list | np.ndarray, H: np.ndarray) -> np.ndarray:
+    """points_px: (N,2) pares (col, row). Retorna (N,2) pares (Easting, Northing) en metros."""
+    pts = np.asarray(points_px, dtype=np.float64).reshape(-1, 2)
+    ones = np.ones((len(pts), 1), dtype=np.float64)
+    hom = np.hstack([pts, ones])            # (N, 3)
+    proj = (H @ hom.T).T                     # [X, Y, W]
+    return proj[:, :2] / proj[:, 2:3]        # normalización homogénea
 \end{minted}
 \end{codebox}
 
 \section{Exportación GeoJSON}
 
-\begin{codebox}[Estructura del GeoJSON de salida]
+\begin{codebox}[Estructura real del GeoJSON de salida --- export\_geojson() en georef\_export.py]
 \begin{minted}{json}
 {
   "type": "FeatureCollection",
   "crs": {
     "type": "name",
-    "properties": { "name": "EPSG:25830" }
+    "properties": { "name": "urn:ogc:def:crs:EPSG::25830" }
+  },
+  "properties": {
+    "project": "CV-LIT Guardamar",
+    "created": "2026-08-11T17:00:00+00:00",
+    "n_features": 1
   },
   "features": [{
     "type": "Feature",
@@ -69,14 +88,25 @@ def pixel_to_utm(H, pts_px):
       "coordinates": [[711234.5, 4209876.3], ["..."]]
     },
     "properties": {
-      "ID_Camara":     1,
+      "ID_Camara":     "CAM_1",
       "Timestamp":     "2026-04-30T12:00:00Z",
       "Confianza_IA":  0.93,
-      "Area_Seca_m2":  14250.7
+      "Area_Seca_m2":  14250.7,
+      "RMSE_m":        0.351,
+      "n_puntos":      842,
+      "crs":           "EPSG:25830"
     }
   }]
 }
 \end{minted}
 \end{codebox}
+
+\begin{infobox}[¿Por qué el CRS aparece dos veces en formatos distintos?]
+El bloque \texttt{crs} de nivel superior (formato URN, el estándar GeoJSON histórico de
+QGIS/OGC) identifica el sistema de referencia de la colección completa. El campo
+\texttt{"crs": "EPSG:25830"} dentro de \texttt{properties} de cada feature es una copia en
+formato corto pensada para lectura rápida (p.\,ej. en la tabla de \texttt{Resultados} del
+frontend) sin tener que parsear el URN — ambos apuntan al mismo sistema, EPSG:25830.
+\end{infobox}
 
 % ==============================================================

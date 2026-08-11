@@ -15,30 +15,36 @@ cada cámara tiene una ROI que excluye:
 
 \section{Coordenadas por cámara}
 
-Las ROIs se almacenan en \texttt{calibration/roi\_config.json}:
+Las ROIs se almacenan en \texttt{calibration/roi\_config.json} como un diccionario por
+cámara con claves \texttt{x\_min}, \texttt{y\_min}, \texttt{x\_max}, \texttt{y\_max} (píxeles,
+sobre la resolución nativa de captura de cada cámara — \textbf{4608$\times$2682}, no
+1920$\times$1080). La tabla~\ref{tab:roi} recoge los valores de producción actualmente
+configurados.
 
 \begin{table}[H]
 \centering
-\caption{ROIs preliminares por cámara (a ajustar con imágenes de producción)}
+\caption{ROIs de producción por cámara (calibration/roi\_config.json)}
 \label{tab:roi}
 \begin{tabular}{C{2cm} C{4.5cm} L{6cm}}
 \toprule
-\textbf{Cámara} & \textbf{ROI $(x_0, y_0, x_1, y_1)$ px} & \textbf{Justificación} \\
+\textbf{Cámara} & \textbf{ROI $(x_{min}, y_{min}, x_{max}, y_{max})$ px} & \textbf{Justificación} \\
 \midrule
-CAM~1 & [0, 400, 1920, 1080]  & Recorte superior (horizonte $\approx y=400$) \\
-CAM~2 & [0, 350, 1920, 1080]  & Horizonte más bajo \\
-CAM~3 & [0, 450, 1920, 1080]  & Ángulo con más cielo visible \\
-CAM~4 & [0, 400, 1920, 1080]  & \\
-CAM~5 & [0, 380, 1920, 1080]  & \\
-CAM~6 & [0, 420, 1920, 1080]  & \\
+CAM~1 & [0, 993, 4608, 2682]  & Excluye horizonte y cielo \\
+CAM~2 & [0, 869, 4608, 2682]  & Horizonte más bajo \\
+CAM~3 & [0, 1118, 4608, 2682] & Ángulo con más cielo visible \\
+CAM~4 & [0, 993, 4608, 2682]  & Excluye horizonte y cielo \\
+CAM~5 & [0, 944, 4608, 2682]  & Excluye horizonte y cielo \\
+CAM~6 & [0, 1043, 4608, 2682] & Excluye horizonte y cielo \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\begin{warnbox}[Nota de actualización]
-Estos valores son preliminares y se ajustarán tras la primera recepción de imágenes de
-producción de todas las cámaras de Guardamar. Verificar superposición ROI sobre imagen
-real para confirmar que no se pierde zona de intermarea.
-\end{warnbox}
+\begin{infobox}[¿De dónde sale un valor por defecto si falta la ROI de una cámara?]
+Si \texttt{roi\_config.json} no tiene entrada para una cámara, \texttt{analyze\_roi()} calcula
+una por defecto recortando el \textbf{40\% superior} de la imagen (\texttt{y\_min = 0.4 ×
+alto}) — una aproximación razonable al horizonte mientras no se afine a mano, no un valor
+definitivo. Los seis valores de la tabla ya están afinados individualmente y sustituyen a
+ese valor por defecto.
+\end{infobox}
 
 % ==============================================================

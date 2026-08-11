@@ -164,10 +164,10 @@ const CAMS = [1, 2, 3, 4, 5, 6]
         </div>
 
         <template v-else>
-          <!-- Confianza IA con barra -->
+          <!-- Confianza con barra -->
           <div>
             <div class="flex justify-between text-xs mb-1">
-              <span class="text-slate-500 font-medium">Confianza IA</span>
+              <span class="text-slate-500 font-medium">Confianza</span>
               <span class="font-mono font-semibold" :class="result.confidence >= 0.7 ? 'text-emerald-600' : result.confidence >= 0.5 ? 'text-amber-500' : 'text-red-500'">
                 {{ confidencePct }}%
               </span>

@@ -1,0 +1,7 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{\PYGZus{}is\PYGZus{}calibrated}\PYG{p}{(}\PYG{n}{cam\PYGZus{}id}\PYG{p}{:} \PYG{n+nb}{int}\PYG{p}{)} \PYG{o}{\PYGZhy{}\PYGZgt{}} \PYG{n+nb}{bool}\PYG{p}{:}
+    \PYG{k}{if} \PYG{n}{os}\PYG{o}{.}\PYG{n}{path}\PYG{o}{.}\PYG{n}{exists}\PYG{p}{(}\PYG{l+s+sa}{f}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+si}{\PYGZob{}}\PYG{n}{CALIBRATION\PYGZus{}DIR}\PYG{l+s+si}{\PYGZcb{}}\PYG{l+s+s2}{/cam\PYGZus{}}\PYG{l+s+si}{\PYGZob{}}\PYG{n}{cam\PYGZus{}id}\PYG{l+s+si}{\PYGZcb{}}\PYG{l+s+s2}{\PYGZus{}H.npy\PYGZdq{}}\PYG{p}{):}
+        \PYG{k}{return} \PYG{k+kc}{True}
+    \PYG{n}{profile} \PYG{o}{=} \PYG{n}{load\PYGZus{}json}\PYG{p}{(}\PYG{l+s+sa}{f}\PYG{l+s+s2}{\PYGZdq{}}\PYG{l+s+si}{\PYGZob{}}\PYG{n}{CALIBRATION\PYGZus{}DIR}\PYG{l+s+si}{\PYGZcb{}}\PYG{l+s+s2}{/cam\PYGZus{}}\PYG{l+s+si}{\PYGZob{}}\PYG{n}{cam\PYGZus{}id}\PYG{l+s+si}{\PYGZcb{}}\PYG{l+s+s2}{\PYGZus{}profile.json\PYGZdq{}}\PYG{p}{)}
+    \PYG{k}{return} \PYG{n+nb}{bool}\PYG{p}{(}\PYG{n}{profile} \PYG{o+ow}{and} \PYG{n}{profile}\PYG{o}{.}\PYG{n}{get}\PYG{p}{(}\PYG{l+s+s2}{\PYGZdq{}H\PYGZdq{}}\PYG{p}{))}
+\end{MintedVerbatim}

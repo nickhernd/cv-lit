@@ -1,0 +1,55 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+cv\PYGZhy{}lit/
++\PYGZhy{}\PYGZhy{} acces\PYGZus{}api/              \PYGZsh{} Módulo Obscape API
+|   +\PYGZhy{}\PYGZhy{} obscape\PYGZus{}api.py      \PYGZsh{} Cliente REST
+|   +\PYGZhy{}\PYGZhy{} scheduled\PYGZus{}download.py
++\PYGZhy{}\PYGZhy{} backend/                \PYGZsh{} Servidor FastAPI
+|   +\PYGZhy{}\PYGZhy{} main.py             \PYGZsh{} App principal + endpoints de cámaras/calibración
+|   +\PYGZhy{}\PYGZhy{} batch\PYGZus{}alignment.py  \PYGZsh{} Pipeline de alineación masiva
+|   +\PYGZhy{}\PYGZhy{} auto\PYGZus{}mode.py        \PYGZsh{} Auto Mode: descarga + alineación + análisis
+|   +\PYGZhy{}\PYGZhy{} config.py           \PYGZsh{} Constantes globales + CAMERAS
+|   +\PYGZhy{}\PYGZhy{} desktop\PYGZus{}launcher.py \PYGZsh{} Punto de entrada de la app de escritorio (pywebview)
+|   +\PYGZhy{}\PYGZhy{} desktop\PYGZus{}launcher.spec \PYGZsh{} Spec de PyInstaller para el .exe principal
+|   +\PYGZhy{}\PYGZhy{} download\PYGZus{}sam.py     \PYGZsh{} Descargador aparte del checkpoint SAM (opcional)
+|   +\PYGZhy{}\PYGZhy{} download\PYGZus{}sam.spec   \PYGZsh{} Spec de PyInstaller para download\PYGZus{}sam.exe
++\PYGZhy{}\PYGZhy{} installer/               \PYGZsh{} Instalador de escritorio para Windows
+|   +\PYGZhy{}\PYGZhy{} cv\PYGZhy{}lit.iss          \PYGZsh{} Script de Inno Setup
+|   +\PYGZhy{}\PYGZhy{} output/             \PYGZsh{} LineaDeCosta\PYGZhy{}Setup.exe (generado, excl. Git)
++\PYGZhy{}\PYGZhy{} calibration/            \PYGZsh{} Perfiles y máscaras por cámara
+|   +\PYGZhy{}\PYGZhy{} cam\PYGZus{}N\PYGZus{}H.npy         \PYGZsh{} Matriz H 3×3 en float64
+|   +\PYGZhy{}\PYGZhy{} cam\PYGZus{}N\PYGZus{}profile.json  \PYGZsh{} Metadatos, RMSE, nombre de perfil, operador, notas
+|   +\PYGZhy{}\PYGZhy{} roi\PYGZus{}config.json     \PYGZsh{} ROIs por cámara
+|   +\PYGZhy{}\PYGZhy{} alignment\PYGZus{}masks.json\PYGZsh{} Zonas SIFT estables
++\PYGZhy{}\PYGZhy{} data/                   \PYGZsh{} Imágenes y resultados (excl. Git) — CVLIT\PYGZus{}DATA\PYGZus{}DIR
+|   +\PYGZhy{}\PYGZhy{} camera1/ ... camera6/  \PYGZsh{} una carpeta por cámara (ver CAMERAS[i][\PYGZdq{}folder\PYGZdq{}])
+|   |   +\PYGZhy{}\PYGZhy{} *.jpg           \PYGZsh{} capturas originales, nombradas \PYGZlt{}epoch\PYGZgt{}\PYGZus{}\PYGZlt{}AAAAMMDD\PYGZgt{}\PYGZus{}\PYGZlt{}HHMMSS\PYGZgt{}\PYGZus{}\PYGZlt{}serie\PYGZgt{}.jpg
+|   |   +\PYGZhy{}\PYGZhy{} aligned/        \PYGZsh{} salida del commit de alineación masiva (batch\PYGZus{}alignment.py)
+|   +\PYGZhy{}\PYGZhy{} CAM\PYGZus{}1/ ... CAM\PYGZus{}6/
+|   |   +\PYGZhy{}\PYGZhy{} json/           \PYGZsh{} anotaciones de varillas (una por imagen marcada)
+|   +\PYGZhy{}\PYGZhy{} system\PYGZus{}logs.jsonl   \PYGZsh{} buffer de actividad que sirve GET /api/logs
++\PYGZhy{}\PYGZhy{} docs/                   \PYGZsh{} Documentación técnica
+|   +\PYGZhy{}\PYGZhy{} memoria.tex         \PYGZsh{} Esta memoria  [NUEVO]
+|   +\PYGZhy{}\PYGZhy{} reports/
++\PYGZhy{}\PYGZhy{} frontend/               \PYGZsh{} Interfaz Vue 3
+|   +\PYGZhy{}\PYGZhy{} src/
+|       +\PYGZhy{}\PYGZhy{} App.vue         \PYGZsh{} Layout raíz + navegación
+|       +\PYGZhy{}\PYGZhy{} api.js          \PYGZsh{} API\PYGZus{}BASE (VITE\PYGZus{}API\PYGZus{}URL) usado por todos los componentes
+|       +\PYGZhy{}\PYGZhy{} components/
+|           +\PYGZhy{}\PYGZhy{} Dashboard.vue        \PYGZsh{} Vista general del sistema
+|           +\PYGZhy{}\PYGZhy{} ImageIngest.vue      \PYGZsh{} Carga de imágenes
+|           +\PYGZhy{}\PYGZhy{} Calibration.vue      \PYGZsh{} Wizard de calibración (7 pasos)
+|           +\PYGZhy{}\PYGZhy{} BatchAlignment.vue   \PYGZsh{} Alineación masiva
+|           +\PYGZhy{}\PYGZhy{} AutoMode.vue         \PYGZsh{} Auto Mode
+|           +\PYGZhy{}\PYGZhy{} CoastlineAnalysis.vue\PYGZsh{} Resultados de análisis
+|           +\PYGZhy{}\PYGZhy{} GeoJSONMap.vue       \PYGZsh{} Mapa GeoJSON exportado
+|           +\PYGZhy{}\PYGZhy{} Map.vue              \PYGZsh{} Mapa base reutilizable
+|           +\PYGZhy{}\PYGZhy{} Cameras.vue          \PYGZsh{} Gestión de cámaras
++\PYGZhy{}\PYGZhy{} homography/
+|   +\PYGZhy{}\PYGZhy{} align\PYGZus{}images.py     \PYGZsh{} CLI standalone de alineación
++\PYGZhy{}\PYGZhy{} proces\PYGZus{}images/          \PYGZsh{} Algoritmos de procesamiento
+|   +\PYGZhy{}\PYGZhy{} extract\PYGZus{}coastline.py
+|   +\PYGZhy{}\PYGZhy{} segmentation\PYGZus{}sam.py
+|   +\PYGZhy{}\PYGZhy{} georef\PYGZus{}export.py
++\PYGZhy{}\PYGZhy{} scripts/                \PYGZsh{} Herramientas de operación
++\PYGZhy{}\PYGZhy{} tests/
+\end{MintedVerbatim}

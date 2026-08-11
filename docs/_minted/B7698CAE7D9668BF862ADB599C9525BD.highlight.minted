@@ -1,7 +1,0 @@
-\begin{MintedVerbatim}[commandchars=\\\{\}]
-\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{pixel\PYGZus{}to\PYGZus{}utm}\PYG{p}{(}\PYG{n}{H}\PYG{p}{,} \PYG{n}{pts\PYGZus{}px}\PYG{p}{):}
-\PYG{+w}{    }\PYG{l+s+sd}{\PYGZdq{}\PYGZdq{}\PYGZdq{}pts\PYGZus{}px: Nx2 array de (u,v). Retorna Nx2 en UTM EPSG:25830.\PYGZdq{}\PYGZdq{}\PYGZdq{}}
-    \PYG{n}{pts\PYGZus{}h} \PYG{o}{=} \PYG{n}{np}\PYG{o}{.}\PYG{n}{hstack}\PYG{p}{([}\PYG{n}{pts\PYGZus{}px}\PYG{p}{,} \PYG{n}{np}\PYG{o}{.}\PYG{n}{ones}\PYG{p}{((}\PYG{n+nb}{len}\PYG{p}{(}\PYG{n}{pts\PYGZus{}px}\PYG{p}{),} \PYG{l+m+mi}{1}\PYG{p}{))])}
-    \PYG{n}{result} \PYG{o}{=} \PYG{p}{(}\PYG{n}{H} \PYG{o}{@} \PYG{n}{pts\PYGZus{}h}\PYG{o}{.}\PYG{n}{T}\PYG{p}{)}\PYG{o}{.}\PYG{n}{T}
-    \PYG{k}{return} \PYG{n}{result}\PYG{p}{[:,} \PYG{p}{:}\PYG{l+m+mi}{2}\PYG{p}{]} \PYG{o}{/} \PYG{n}{result}\PYG{p}{[:,} \PYG{l+m+mi}{2}\PYG{p}{:}\PYG{l+m+mi}{3}\PYG{p}{]}   \PYG{c+c1}{\PYGZsh{} normalización homogénea}
-\end{MintedVerbatim}

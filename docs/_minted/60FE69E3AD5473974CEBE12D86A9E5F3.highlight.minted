@@ -1,0 +1,9 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{pixels\PYGZus{}to\PYGZus{}utm}\PYG{p}{(}\PYG{n}{points\PYGZus{}px}\PYG{p}{:} \PYG{n+nb}{list} \PYG{o}{|} \PYG{n}{np}\PYG{o}{.}\PYG{n}{ndarray}\PYG{p}{,} \PYG{n}{H}\PYG{p}{:} \PYG{n}{np}\PYG{o}{.}\PYG{n}{ndarray}\PYG{p}{)} \PYG{o}{\PYGZhy{}\PYGZgt{}} \PYG{n}{np}\PYG{o}{.}\PYG{n}{ndarray}\PYG{p}{:}
+\PYG{+w}{    }\PYG{l+s+sd}{\PYGZdq{}\PYGZdq{}\PYGZdq{}points\PYGZus{}px: (N,2) pares (col, row). Retorna (N,2) pares (Easting, Northing) en metros.\PYGZdq{}\PYGZdq{}\PYGZdq{}}
+    \PYG{n}{pts} \PYG{o}{=} \PYG{n}{np}\PYG{o}{.}\PYG{n}{asarray}\PYG{p}{(}\PYG{n}{points\PYGZus{}px}\PYG{p}{,} \PYG{n}{dtype}\PYG{o}{=}\PYG{n}{np}\PYG{o}{.}\PYG{n}{float64}\PYG{p}{)}\PYG{o}{.}\PYG{n}{reshape}\PYG{p}{(}\PYG{o}{\PYGZhy{}}\PYG{l+m+mi}{1}\PYG{p}{,} \PYG{l+m+mi}{2}\PYG{p}{)}
+    \PYG{n}{ones} \PYG{o}{=} \PYG{n}{np}\PYG{o}{.}\PYG{n}{ones}\PYG{p}{((}\PYG{n+nb}{len}\PYG{p}{(}\PYG{n}{pts}\PYG{p}{),} \PYG{l+m+mi}{1}\PYG{p}{),} \PYG{n}{dtype}\PYG{o}{=}\PYG{n}{np}\PYG{o}{.}\PYG{n}{float64}\PYG{p}{)}
+    \PYG{n}{hom} \PYG{o}{=} \PYG{n}{np}\PYG{o}{.}\PYG{n}{hstack}\PYG{p}{([}\PYG{n}{pts}\PYG{p}{,} \PYG{n}{ones}\PYG{p}{])}            \PYG{c+c1}{\PYGZsh{} (N, 3)}
+    \PYG{n}{proj} \PYG{o}{=} \PYG{p}{(}\PYG{n}{H} \PYG{o}{@} \PYG{n}{hom}\PYG{o}{.}\PYG{n}{T}\PYG{p}{)}\PYG{o}{.}\PYG{n}{T}                     \PYG{c+c1}{\PYGZsh{} [X, Y, W]}
+    \PYG{k}{return} \PYG{n}{proj}\PYG{p}{[:,} \PYG{p}{:}\PYG{l+m+mi}{2}\PYG{p}{]} \PYG{o}{/} \PYG{n}{proj}\PYG{p}{[:,} \PYG{l+m+mi}{2}\PYG{p}{:}\PYG{l+m+mi}{3}\PYG{p}{]}        \PYG{c+c1}{\PYGZsh{} normalización homogénea}
+\end{MintedVerbatim}

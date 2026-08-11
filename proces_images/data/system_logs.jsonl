@@ -8,3 +8,273 @@
 {"time": "22:14:28", "date": "2026-07-23", "msg": "SAM Segmenter cargado con \u00e9xito", "type": "success"}
 {"time": "22:14:28", "date": "2026-07-23", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
 {"time": "22:14:36", "date": "2026-07-23", "msg": "Cam 1: rechazada por baja confianza (0.40 < 0.45)", "type": "error"}
+{"time": "21:33:35", "date": "2026-08-11", "msg": "Auto Mode Cam 1: descargando 2026-08-04 \u2192 2026-08-11", "type": "info"}
+{"time": "21:33:52", "date": "2026-08-11", "msg": "Auto Mode Cam 1: alineando 88 im\u00e1genes (base: 1785826800_20260804_070000_PTM61471.jpg)", "type": "info"}
+{"time": "21:38:53", "date": "2026-08-11", "msg": "Auto Mode Cam 1: alineaci\u00f3n comiteada (88 ok, 0 descartadas)", "type": "info"}
+{"time": "21:38:53", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:38:53", "date": "2026-08-11", "msg": "Cargando segmentador SAM desde sam_vit_h_4b8939.pth", "type": "info"}
+{"time": "21:38:56", "date": "2026-08-11", "msg": "SAM Segmenter cargado con \u00e9xito", "type": "success"}
+{"time": "21:38:56", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:39:04", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.45 < 0.45)", "type": "error"}
+{"time": "21:39:04", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:39:04", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:39:11", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.44 < 0.45)", "type": "error"}
+{"time": "21:39:11", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:39:11", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:39:18", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:39:18", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:39:18", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:39:26", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.41 < 0.45)", "type": "error"}
+{"time": "21:39:26", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:39:26", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:39:33", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.41 < 0.45)", "type": "error"}
+{"time": "21:39:33", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:39:33", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:39:40", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:39:40", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:39:40", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:39:47", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:39:47", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:39:47", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:39:55", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 83 puntos UTM. Conf=0.46", "type": "success"}
+{"time": "21:39:55", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:39:55", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:40:02", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 67 puntos UTM. Conf=0.46", "type": "success"}
+{"time": "21:40:02", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:40:02", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:40:09", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 87 puntos UTM. Conf=0.46", "type": "success"}
+{"time": "21:40:09", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:40:09", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:40:17", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 15 puntos UTM. Conf=0.49", "type": "success"}
+{"time": "21:40:17", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:40:17", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:40:24", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 8 puntos UTM. Conf=0.47", "type": "success"}
+{"time": "21:40:24", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:40:24", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:40:31", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.44 < 0.45)", "type": "error"}
+{"time": "21:40:31", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:40:31", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:40:38", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.44 < 0.45)", "type": "error"}
+{"time": "21:40:38", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:40:38", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:40:46", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.42 < 0.45)", "type": "error"}
+{"time": "21:40:46", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:40:46", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:40:53", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.42 < 0.45)", "type": "error"}
+{"time": "21:40:53", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:40:53", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:41:01", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:41:01", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:41:01", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:41:08", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:41:08", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:41:08", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:41:16", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.45 < 0.45)", "type": "error"}
+{"time": "21:41:16", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:41:16", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:41:23", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 63 puntos UTM. Conf=0.45", "type": "success"}
+{"time": "21:41:23", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:41:23", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:41:31", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 18 puntos UTM. Conf=0.50", "type": "success"}
+{"time": "21:41:31", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:41:31", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:41:38", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 20 puntos UTM. Conf=0.49", "type": "success"}
+{"time": "21:41:38", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:41:38", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:41:46", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 12 puntos UTM. Conf=0.49", "type": "success"}
+{"time": "21:41:46", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:41:46", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:41:53", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 13 puntos UTM. Conf=0.48", "type": "success"}
+{"time": "21:41:53", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:41:53", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:42:00", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.44 < 0.45)", "type": "error"}
+{"time": "21:42:00", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:42:00", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:42:07", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:42:07", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:42:07", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:42:14", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.42 < 0.45)", "type": "error"}
+{"time": "21:42:14", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:42:14", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:42:21", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.44 < 0.45)", "type": "error"}
+{"time": "21:42:21", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:42:21", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:42:28", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.45 < 0.45)", "type": "error"}
+{"time": "21:42:28", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:42:28", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:42:36", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.45 < 0.45)", "type": "error"}
+{"time": "21:42:36", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:42:36", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:42:44", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 76 puntos UTM. Conf=0.46", "type": "success"}
+{"time": "21:42:44", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:42:44", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:42:51", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 95 puntos UTM. Conf=0.45", "type": "success"}
+{"time": "21:42:51", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:42:51", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:42:59", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 11 puntos UTM. Conf=0.50", "type": "success"}
+{"time": "21:42:59", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:42:59", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:43:06", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 8 puntos UTM. Conf=0.49", "type": "success"}
+{"time": "21:43:06", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:43:06", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:43:14", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.45 < 0.45)", "type": "error"}
+{"time": "21:43:14", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:43:14", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:43:21", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 75 puntos UTM. Conf=0.46", "type": "success"}
+{"time": "21:43:21", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:43:21", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:43:28", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:43:28", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:43:28", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:43:36", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:43:36", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:43:36", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:43:43", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.44 < 0.45)", "type": "error"}
+{"time": "21:43:43", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:43:43", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:43:51", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:43:51", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:43:51", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:43:58", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:43:58", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:43:58", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:44:05", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:44:05", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:44:05", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:44:13", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.42 < 0.45)", "type": "error"}
+{"time": "21:44:13", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:44:13", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:44:21", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 63 puntos UTM. Conf=0.47", "type": "success"}
+{"time": "21:44:21", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:44:21", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:44:28", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 9 puntos UTM. Conf=0.48", "type": "success"}
+{"time": "21:44:28", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:44:28", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:44:36", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.45 < 0.45)", "type": "error"}
+{"time": "21:44:36", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:44:36", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:44:43", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.44 < 0.45)", "type": "error"}
+{"time": "21:44:43", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:44:43", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:44:50", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:44:50", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:44:50", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:44:57", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.42 < 0.45)", "type": "error"}
+{"time": "21:44:57", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:44:57", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:45:05", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:45:05", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:45:05", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:45:12", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:45:12", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:45:12", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:45:20", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.44 < 0.45)", "type": "error"}
+{"time": "21:45:20", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:45:20", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:45:27", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:45:27", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:45:27", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:45:34", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:45:34", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:45:35", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:45:42", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:45:42", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:45:42", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:45:49", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 7 puntos UTM. Conf=0.48", "type": "success"}
+{"time": "21:45:49", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:45:49", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:45:57", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.44 < 0.45)", "type": "error"}
+{"time": "21:45:57", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:45:57", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:46:05", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.44 < 0.45)", "type": "error"}
+{"time": "21:46:05", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:46:05", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:46:13", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.42 < 0.45)", "type": "error"}
+{"time": "21:46:13", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:46:13", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:46:20", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.40 < 0.45)", "type": "error"}
+{"time": "21:46:20", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:46:20", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:46:27", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.40 < 0.45)", "type": "error"}
+{"time": "21:46:27", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:46:27", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:46:34", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:46:34", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:46:34", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:46:42", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 66 puntos UTM. Conf=0.47", "type": "success"}
+{"time": "21:46:42", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:46:42", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:46:49", "date": "2026-08-11", "msg": "Cam 1: m\u00e1scara inv\u00e1lida \u2014 mascara_vacia:ratio=0.001<0.05", "type": "error"}
+{"time": "21:46:49", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:46:49", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:46:56", "date": "2026-08-11", "msg": "Cam 1: m\u00e1scara inv\u00e1lida \u2014 mascara_vacia:ratio=0.002<0.05", "type": "error"}
+{"time": "21:46:56", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:46:56", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:47:03", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.36 < 0.45)", "type": "error"}
+{"time": "21:47:03", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:47:03", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:47:11", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 8 puntos UTM. Conf=0.48", "type": "success"}
+{"time": "21:47:11", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:47:11", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:47:18", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 8 puntos UTM. Conf=0.48", "type": "success"}
+{"time": "21:47:18", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:47:18", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:47:25", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.44 < 0.45)", "type": "error"}
+{"time": "21:47:25", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:47:25", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:47:33", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.42 < 0.45)", "type": "error"}
+{"time": "21:47:33", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:47:33", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:47:41", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.41 < 0.45)", "type": "error"}
+{"time": "21:47:41", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:47:41", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:47:48", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.42 < 0.45)", "type": "error"}
+{"time": "21:47:48", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:47:48", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:47:56", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.44 < 0.45)", "type": "error"}
+{"time": "21:47:56", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:47:56", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:48:03", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.44 < 0.45)", "type": "error"}
+{"time": "21:48:03", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:48:03", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:48:10", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.35 < 0.45)", "type": "error"}
+{"time": "21:48:10", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:48:11", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:48:18", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 9 puntos UTM. Conf=0.49", "type": "success"}
+{"time": "21:48:18", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:48:18", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:48:25", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 10 puntos UTM. Conf=0.49", "type": "success"}
+{"time": "21:48:25", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:48:25", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:48:33", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 14 puntos UTM. Conf=0.49", "type": "success"}
+{"time": "21:48:33", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:48:33", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:48:40", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 9 puntos UTM. Conf=0.48", "type": "success"}
+{"time": "21:48:40", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:48:40", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:48:48", "date": "2026-08-11", "msg": "An\u00e1lisis finalizado Cam 1. 15 puntos UTM. Conf=0.49", "type": "success"}
+{"time": "21:48:48", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:48:48", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:48:55", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:48:55", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:48:55", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:49:03", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:49:03", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:49:03", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:49:10", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.42 < 0.45)", "type": "error"}
+{"time": "21:49:10", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:49:10", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:49:17", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.42 < 0.45)", "type": "error"}
+{"time": "21:49:17", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:49:17", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:49:25", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:49:25", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:49:25", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:49:33", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.43 < 0.45)", "type": "error"}
+{"time": "21:49:33", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:49:33", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:49:40", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.41 < 0.45)", "type": "error"}
+{"time": "21:49:40", "date": "2026-08-11", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "21:49:40", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "21:49:47", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.44 < 0.45)", "type": "error"}
+{"time": "21:49:47", "date": "2026-08-11", "msg": "Auto Mode Cam 1: Completado: 26/88 im\u00e1genes analizadas correctamente", "type": "success"}

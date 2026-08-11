@@ -6,11 +6,14 @@
 
 \begin{codebox}[Arrancar el sistema completo]
 \begin{minted}{bash}
-# 1. Activar entorno Conda
-conda activate cv-lit
+# Windows (PowerShell) — activa venv/ y levanta backend+frontend con un
+# workspace de desarrollo vacío en workspace/dev/ (no toca datos reales)
+.\start_dev.ps1
 
-# 2. Iniciar backend + frontend en paralelo
-./start_dev.sh
+# Linux/macOS (o si se prefiere Conda: ver environment.yml)
+source venv/bin/activate   # o: conda activate cv-lit
+./scripts/start_dev.sh
+
 # Backend:  http://localhost:8000 (FastAPI + docs en /docs)
 # Frontend: http://localhost:5173 (Vue 3 + Vite)
 \end{minted}
@@ -30,21 +33,16 @@ python3 scripts/verify_setup.py
 
 \section{Calibración}
 
-\begin{codebox}[]
-\begin{minted}{bash}
-# Herramienta completa de calibración
-python3 proces_images/calibration_tool.py --cam 1 --image /ruta/foto.jpg
-
-# Lanzador visual rápido (CAM 1, imagen más reciente)
-python3 scripts/visualizar_calibracion.py
-
-# Recalibración rápida (cámara movida levemente)
-python3 proces_images/recalibrate.py --cam 1 --image /ruta/nueva_foto.jpg
-
-# Verificar motor matemático
-python3 proces_images/test_calibration_logic.py
-\end{minted}
-\end{codebox}
+\begin{warnbox}[Ya no hay herramienta de calibración por línea de comandos]
+Las herramientas CLI que existían anteriormente (\texttt{calibration\_tool.py},
+\texttt{visualizar\_calibracion.py}, \texttt{recalibrate.py}) se eliminaron durante el
+endurecimiento del proyecto para producción: quedaban duplicadas con el asistente web y sin
+mantenimiento. La calibración se hace exclusivamente desde la interfaz web, pestaña
+\textit{Calibración} — asistente de 7 pasos (Vista general → Imágenes → Alineación → Catálogo
+→ Marcación → Cálculo → Validación), detallado en el capítulo~\ref{ch:calibration}. Verificar el
+motor matemático de la homografía se hace ahora con
+\texttt{python -m pytest tests/test\_homography\_math.py tests/test\_geometry\_warning.py}.
+\end{warnbox}
 
 \section{Alineación masiva (CLI)}
 
@@ -82,5 +80,31 @@ Salidas:
 python3 proces_images/test_mes3_pipeline.py --cam 1
 \end{minted}
 \end{codebox}
+
+\section{Operación del día a día: Auto Mode}
+
+Para el uso operativo normal (procesar imágenes nuevas de una cámara ya calibrada) no hace
+falta ninguno de los pasos anteriores: pestaña \textit{Modo automático} de la interfaz web,
+elegir cámara + rango de fechas y pulsar \textit{Iniciar procesamiento automático}. El sistema
+descarga, alinea y analiza todo el lote sin intervención manual (capítulo~\ref{ch:automode}
+explica el pipeline interno). Requisito: la cámara debe tener ya al menos una calibración
+calculada — si no, el botón queda deshabilitado con el aviso correspondiente.
+
+\begin{itemize}[leftmargin=1.5em]
+  \item El panel \textit{Estado por cámara} de esa misma pestaña resume de un vistazo qué
+        cámaras están calibradas y con qué RMSE.
+  \item El panel \textit{Actividad de Auto Mode} muestra en tiempo real el log filtrado a solo
+        los mensajes de este módulo (\texttt{GET /api/logs}, prefijo \texttt{"Auto Mode"}).
+  \item Marcar \textit{Exportar GeoJSON automáticamente al terminar} descarga el GeoJSON de la
+        cámara en cuanto el job pasa a \texttt{done}, sin tener que volver a la pantalla.
+\end{itemize}
+
+\section{Aplicación de escritorio (sin entorno de desarrollo)}
+
+Para un operador que no necesita tocar código, el instalador de Windows
+(\texttt{installer/output/LineaDeCosta-Setup.exe}, capítulo~\ref{ch:setup}) monta la misma
+interfaz dentro de una ventana nativa (pywebview) sin necesitar terminal, Python instalado ni
+levantar servidores a mano — el ejecutable arranca el backend en segundo plano y abre la
+ventana automáticamente.
 
 % ==============================================================

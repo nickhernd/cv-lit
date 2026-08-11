@@ -24,6 +24,32 @@ const jobSummary = reactive({
 const results = ref([])
 let pollTimer = null
 
+// Exportar GeoJSON automáticamente en cuanto el job termina en 'done' — evita
+// tener que volver a esta pantalla solo para pulsar el botón manual de siempre.
+const autoExportGeojson = ref(false)
+
+// Log de actividad en tiempo real, acotado a Auto Mode: reutiliza GET /api/logs
+// (el mismo buffer que ya consume App.vue) filtrando por el prefijo real que
+// usa add_log() en auto_mode.py, en vez de duplicar el mecanismo de logging.
+const allLogs = ref([])
+let logsTimer = null
+const autoModeLogs = computed(() =>
+  allLogs.value.filter(l => l.msg?.startsWith('Auto Mode')).slice(-30).reverse()
+)
+async function _pollLogs() {
+  try {
+    const res = await fetch(`${API}/api/logs`)
+    if (!res.ok) return
+    allLogs.value = await res.json()
+  } catch (e) { /* red intermitente: se reintenta en el siguiente tick */ }
+}
+function logColor(type) {
+  if (type === 'error') return 'text-red-600'
+  if (type === 'warning') return 'text-amber-600'
+  if (type === 'success') return 'text-emerald-600'
+  return 'text-slate-500'
+}
+
 const STEP_LABELS = {
   pending: 'En cola',
   downloading: 'Descargando imágenes de Obscape',
@@ -107,7 +133,10 @@ async function _poll() {
 
     if (data.status === 'done' || data.status === 'error') {
       clearInterval(pollTimer)
-      if (data.status === 'done') await _loadResults()
+      if (data.status === 'done') {
+        await _loadResults()
+        if (autoExportGeojson.value) exportGeoJson()
+      }
       phase.value = 'done'
     }
   } catch (e) {
@@ -144,12 +173,20 @@ function rowStatus(r) {
   return { label: 'OK', color: 'bg-emerald-500' }
 }
 
-onMounted(fetchCameras)
-onUnmounted(() => clearInterval(pollTimer))
+onMounted(() => {
+  fetchCameras()
+  _pollLogs()
+  logsTimer = setInterval(_pollLogs, 3000)
+})
+onUnmounted(() => {
+  clearInterval(pollTimer)
+  clearInterval(logsTimer)
+})
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
+  <div class="xl:col-span-2 space-y-4">
     <!-- ════════════════════════════════════════════════════════════
          IDLE — formulario: cámara + rango de fechas
     ════════════════════════════════════════════════════════════ -->
@@ -186,6 +223,11 @@ onUnmounted(() => clearInterval(pollTimer))
             <input type="date" v-model="toDate" :min="fromDate" :max="today" class="w-full input-standard text-xs">
           </div>
         </div>
+
+        <label class="flex items-center gap-2 text-xs text-slate-500 cursor-pointer">
+          <input type="checkbox" v-model="autoExportGeojson" class="rounded border-slate-300">
+          Exportar GeoJSON automáticamente al terminar
+        </label>
 
         <button @click="start"
                 :disabled="!selectedCamera?.calibrated"
@@ -286,5 +328,37 @@ onUnmounted(() => clearInterval(pollTimer))
 
       <button @click="reset" class="btn-secondary">Nuevo procesamiento</button>
     </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════
+       SIDEBAR — estado por cámara + log de actividad de Auto Mode
+  ════════════════════════════════════════════════════════════ -->
+  <div class="space-y-4">
+    <div class="card-standard overflow-hidden">
+      <div class="card-header uppercase tracking-wider text-[10px]">Estado por cámara</div>
+      <div class="divide-y divide-slate-50 max-h-64 overflow-y-auto">
+        <div v-for="cam in cameras" :key="cam.idx"
+             class="px-4 py-2 flex items-center justify-between text-xs">
+          <span class="text-slate-600 truncate">{{ cam.name }}</span>
+          <span class="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase shrink-0 ml-2">
+            <span class="w-1.5 h-1.5 rounded-full" :class="cam.calibrated ? 'bg-emerald-500' : 'bg-slate-300'"></span>
+            {{ cam.calibrated ? `RMSE ${cam.rmse_m?.toFixed(2) ?? '—'} m` : 'Sin calibrar' }}
+          </span>
+        </div>
+        <p v-if="!cameras.length" class="px-4 py-3 text-[10px] text-slate-400 italic">Cargando cámaras…</p>
+      </div>
+    </div>
+
+    <div class="card-standard overflow-hidden">
+      <div class="card-header uppercase tracking-wider text-[10px]">Actividad de Auto Mode</div>
+      <div class="divide-y divide-slate-50 max-h-80 overflow-y-auto font-mono">
+        <div v-for="(l, i) in autoModeLogs" :key="i" class="px-3 py-1.5 text-[10px] leading-tight">
+          <span class="text-slate-300">{{ l.time }}</span>
+          <span :class="logColor(l.type)">{{ l.msg }}</span>
+        </div>
+        <p v-if="!autoModeLogs.length" class="px-3 py-3 text-[10px] text-slate-400 italic">Sin actividad de Auto Mode todavía.</p>
+      </div>
+    </div>
+  </div>
   </div>
 </template>

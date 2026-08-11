@@ -18,12 +18,23 @@ OpenCV        & 4.x          & Procesamiento de imagen \\
 NumPy/SciPy   & --           & Álgebra matricial \\
 SAM (Meta AI) & --           & Segmentación semántica \\
 PyTorch       & $\geq$ 2.0   & Backend SAM \\
-GDAL/pyproj   & --           & Transformaciones EPSG \\
 Vue 3 + Vite  & --           & Interfaz web \\
 Tailwind CSS  & 3.x          & Estilos \\
+fpdf2         & --           & Generación de informes PDF de calibración \\
+PyInstaller + Inno Setup & -- & Empaquetado del instalador de escritorio \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{infobox}[¿Por qué no hay GDAL ni pyproj en la lista?]
+El sistema no reproyecta entre sistemas de referencia distintos en tiempo de ejecución: las
+coordenadas UTM de las varillas de calibración ya vienen dadas en EPSG:25830 (capítulo~\ref{ch:calibration}),
+así que la homografía píxel→UTM que calcula \texttt{calculate\_homography()} proyecta
+directamente a ese sistema — \texttt{"EPSG:25830"} se escribe como metadato fijo en el GeoJSON
+de salida (\texttt{georef\_export.py}), no se calcula con una librería de transformación de CRS.
+Si en el futuro hiciera falta soportar más de un huso UTM o reproyectar a otro sistema, ahí sí
+haría falta pyproj.
+\end{infobox}
 
 \newpage
 \section{Estructura de directorios}
@@ -35,37 +46,52 @@ cv-lit/
 |   +-- obscape_api.py      # Cliente REST
 |   +-- scheduled_download.py
 +-- backend/                # Servidor FastAPI
-|   +-- main.py             # App principal + routers
-|   +-- batch_alignment.py  # Pipeline de alineación masiva  [NUEVO]
-|   +-- config.py           # Constantes globales
-|   +-- routers/
-|       +-- alignment.py    # Endpoints unitarios de alineación
+|   +-- main.py             # App principal + endpoints de cámaras/calibración
+|   +-- batch_alignment.py  # Pipeline de alineación masiva
+|   +-- auto_mode.py        # Auto Mode: descarga + alineación + análisis
+|   +-- config.py           # Constantes globales + CAMERAS
+|   +-- desktop_launcher.py # Punto de entrada de la app de escritorio (pywebview)
+|   +-- desktop_launcher.spec # Spec de PyInstaller para el .exe principal
+|   +-- download_sam.py     # Descargador aparte del checkpoint SAM (opcional)
+|   +-- download_sam.spec   # Spec de PyInstaller para download_sam.exe
++-- installer/               # Instalador de escritorio para Windows
+|   +-- cv-lit.iss          # Script de Inno Setup
+|   +-- output/             # LineaDeCosta-Setup.exe (generado, excl. Git)
 +-- calibration/            # Perfiles y máscaras por cámara
 |   +-- cam_N_H.npy         # Matriz H 3×3 en float64
-|   +-- cam_N_profile.json  # Metadatos, RMSE, fecha
+|   +-- cam_N_profile.json  # Metadatos, RMSE, nombre de perfil, operador, notas
 |   +-- roi_config.json     # ROIs por cámara
-|   +-- alignment_masks.json# Zonas SIFT estables  [NUEVO]
-|   +-- diagnostics/        # Imágenes de diagnóstico
-+-- data/                   # Imágenes y resultados (excl. Git)
-|   +-- CAM_N/
-|   |   +-- images/         # Originales
-|   |   +-- aligned/        # Salida del commit de batch
-|   +-- logs/
+|   +-- alignment_masks.json# Zonas SIFT estables
++-- data/                   # Imágenes y resultados (excl. Git) — CVLIT_DATA_DIR
+|   +-- camera1/ ... camera6/  # una carpeta por cámara (ver CAMERAS[i]["folder"])
+|   |   +-- *.jpg           # capturas originales, nombradas <epoch>_<AAAAMMDD>_<HHMMSS>_<serie>.jpg
+|   |   +-- aligned/        # salida del commit de alineación masiva (batch_alignment.py)
+|   +-- CAM_1/ ... CAM_6/
+|   |   +-- json/           # anotaciones de varillas (una por imagen marcada)
+|   +-- system_logs.jsonl   # buffer de actividad que sirve GET /api/logs
 +-- docs/                   # Documentación técnica
 |   +-- memoria.tex         # Esta memoria  [NUEVO]
 |   +-- reports/
 +-- frontend/               # Interfaz Vue 3
-|   +-- src/components/
-|       +-- App.vue
-|       +-- Calibration.vue
-|       +-- BatchAlignment.vue  [NUEVO]
+|   +-- src/
+|       +-- App.vue         # Layout raíz + navegación
+|       +-- api.js          # API_BASE (VITE_API_URL) usado por todos los componentes
+|       +-- components/
+|           +-- Dashboard.vue        # Vista general del sistema
+|           +-- ImageIngest.vue      # Carga de imágenes
+|           +-- Calibration.vue      # Wizard de calibración (7 pasos)
+|           +-- BatchAlignment.vue   # Alineación masiva
+|           +-- AutoMode.vue         # Auto Mode
+|           +-- CoastlineAnalysis.vue# Resultados de análisis
+|           +-- GeoJSONMap.vue       # Mapa GeoJSON exportado
+|           +-- Map.vue              # Mapa base reutilizable
+|           +-- Cameras.vue          # Gestión de cámaras
 +-- homography/
 |   +-- align_images.py     # CLI standalone de alineación
 +-- proces_images/          # Algoritmos de procesamiento
-|   +-- calibration_tool.py
 |   +-- extract_coastline.py
 |   +-- segmentation_sam.py
-|   +-- recalibrate.py
+|   +-- georef_export.py
 +-- scripts/                # Herramientas de operación
 +-- tests/
 \end{minted}

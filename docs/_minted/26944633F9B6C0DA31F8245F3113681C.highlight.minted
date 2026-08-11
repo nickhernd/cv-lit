@@ -1,0 +1,15 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{k+kn}{from}\PYG{+w}{ }\PYG{n+nn}{segment\PYGZus{}anything}\PYG{+w}{ }\PYG{k+kn}{import} \PYG{n}{sam\PYGZus{}model\PYGZus{}registry}\PYG{p}{,} \PYG{n}{SamPredictor}
+
+\PYG{n}{sam} \PYG{o}{=} \PYG{n}{sam\PYGZus{}model\PYGZus{}registry}\PYG{p}{[}\PYG{l+s+s2}{\PYGZdq{}vit\PYGZus{}h\PYGZdq{}}\PYG{p}{](}\PYG{n}{checkpoint}\PYG{o}{=}\PYG{n}{checkpoint\PYGZus{}path}\PYG{p}{)}
+\PYG{n}{predictor} \PYG{o}{=} \PYG{n}{SamPredictor}\PYG{p}{(}\PYG{n}{sam}\PYG{p}{)}
+\PYG{n}{predictor}\PYG{o}{.}\PYG{n}{set\PYGZus{}image}\PYG{p}{(}\PYG{n}{roi\PYGZus{}img\PYGZus{}rgb}\PYG{p}{)}
+
+\PYG{c+c1}{\PYGZsh{} input\PYGZus{}point/input\PYGZus{}label vienen de CAM\PYGZus{}PROMPTS (puntos semilla por cámara)}
+\PYG{n}{masks}\PYG{p}{,} \PYG{n}{scores}\PYG{p}{,} \PYG{n}{logits} \PYG{o}{=} \PYG{n}{predictor}\PYG{o}{.}\PYG{n}{predict}\PYG{p}{(}
+    \PYG{n}{point\PYGZus{}coords}\PYG{o}{=}\PYG{n}{input\PYGZus{}point}\PYG{p}{,}
+    \PYG{n}{point\PYGZus{}labels}\PYG{o}{=}\PYG{n}{input\PYGZus{}label}\PYG{p}{,}
+    \PYG{n}{multimask\PYGZus{}output}\PYG{o}{=}\PYG{k+kc}{True}\PYG{p}{,}
+\PYG{p}{)}
+\PYG{n}{mask} \PYG{o}{=} \PYG{n}{masks}\PYG{p}{[}\PYG{n}{np}\PYG{o}{.}\PYG{n}{argmax}\PYG{p}{(}\PYG{n}{scores}\PYG{p}{)]}  \PYG{c+c1}{\PYGZsh{} la máscara con mayor score de las candidatas}
+\end{MintedVerbatim}
