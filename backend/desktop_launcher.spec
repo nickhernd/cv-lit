@@ -18,6 +18,7 @@ import os
 BACKEND_DIR = os.path.abspath(SPECPATH)  # SPECPATH ya es la carpeta que contiene el .spec
 PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
 PROCES_DIR = os.path.join(PROJECT_ROOT, "proces_images")
+ACCES_API_DIR = os.path.join(PROJECT_ROOT, "acces_api")
 FRONTEND_DIST = os.path.join(PROJECT_ROOT, "frontend", "dist")
 
 if not os.path.isdir(FRONTEND_DIST):
@@ -27,7 +28,7 @@ if not os.path.isdir(FRONTEND_DIST):
 
 a = Analysis(
     [os.path.join(BACKEND_DIR, "desktop_launcher.py")],
-    pathex=[BACKEND_DIR, PROCES_DIR],
+    pathex=[BACKEND_DIR, PROCES_DIR, ACCES_API_DIR],
     binaries=[],
     datas=[
         (FRONTEND_DIST, "frontend_dist"),
@@ -40,6 +41,12 @@ a = Analysis(
         "test_mes3_pipeline",
         "cam_thresholds",
         "georef_export",
+        # Importado en tiempo de ejecución (dentro de una función, no como
+        # import de módulo) por backend/auto_mode.py para descargar
+        # imágenes de Obscape — el análisis estático de PyInstaller no lo
+        # ve, así que hay que declararlo a mano o Auto Mode falla al
+        # empaquetar (ModuleNotFoundError en el .exe, aunque funcione en dev).
+        "obscape_api",
     ],
     hookspath=[],
     hooksconfig={},

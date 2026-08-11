@@ -1,0 +1,32 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{n+nd}{@dataclass}
+\PYG{k}{class}\PYG{+w}{ }\PYG{n+nc}{AlignmentResult}\PYG{p}{:}
+    \PYG{n}{filename}\PYG{p}{:}        \PYG{n+nb}{str}
+    \PYG{n}{status}\PYG{p}{:}          \PYG{n+nb}{str}     \PYG{c+c1}{\PYGZsh{} \PYGZdq{}ok\PYGZdq{} | \PYGZdq{}failed\PYGZdq{} | \PYGZdq{}reference\PYGZdq{}}
+    \PYG{n}{inliers}\PYG{p}{:}         \PYG{n+nb}{int} \PYG{o}{=} \PYG{l+m+mi}{0} \PYG{c+c1}{\PYGZsh{} matches que sobrevivieron a RANSAC}
+    \PYG{n}{n\PYGZus{}good\PYGZus{}matches}\PYG{p}{:}  \PYG{n+nb}{int} \PYG{o}{=} \PYG{l+m+mi}{0} \PYG{c+c1}{\PYGZsh{} matches FLANN antes de RANSAC (inliers es un subconjunto)}
+    \PYG{n}{mean\PYGZus{}shift\PYGZus{}px}\PYG{p}{:}   \PYG{n+nb}{float} \PYG{o}{=} \PYG{l+m+mf}{0.0}   \PYG{c+c1}{\PYGZsh{} delta — ver §\PYGZbs{}ref\PYGZob{}sec:delta\PYGZcb{}}
+    \PYG{n}{H}\PYG{p}{:}               \PYG{n}{Optional}\PYG{p}{[}\PYG{n}{List}\PYG{p}{]} \PYG{o}{=} \PYG{k+kc}{None}  \PYG{c+c1}{\PYGZsh{} homografía 3×3 como lista plana}
+    \PYG{n}{approved}\PYG{p}{:}        \PYG{n+nb}{bool} \PYG{o}{=} \PYG{k+kc}{True}   \PYG{c+c1}{\PYGZsh{} override de aprobación por imagen}
+    \PYG{n}{fail\PYGZus{}reason}\PYG{p}{:}     \PYG{n+nb}{str} \PYG{o}{=} \PYG{l+s+s2}{\PYGZdq{}\PYGZdq{}}      \PYG{c+c1}{\PYGZsh{} no\PYGZus{}features|low\PYGZus{}matches|ransac\PYGZus{}failed|bad\PYGZus{}lighting:*}
+    \PYG{n}{used\PYGZus{}mask}\PYG{p}{:}       \PYG{n+nb}{bool} \PYG{o}{=} \PYG{k+kc}{False}  \PYG{c+c1}{\PYGZsh{} True = pasada con máscara de zonas estables}
+    \PYG{n}{lighting\PYGZus{}issue}\PYG{p}{:}  \PYG{n+nb}{str} \PYG{o}{=} \PYG{l+s+s2}{\PYGZdq{}\PYGZdq{}}      \PYG{c+c1}{\PYGZsh{} overexposed|underexposed|low\PYGZus{}contrast|\PYGZdq{}\PYGZdq{}}
+
+    \PYG{k}{def}\PYG{+w}{ }\PYG{n+nf}{\PYGZus{}\PYGZus{}post\PYGZus{}init\PYGZus{}\PYGZus{}}\PYG{p}{(}\PYG{n+nb+bp}{self}\PYG{p}{):}
+        \PYG{c+c1}{\PYGZsh{} Una alineación \PYGZdq{}failed\PYGZdq{} cae al frame ORIGINAL sin transformar — nunca}
+        \PYG{c+c1}{\PYGZsh{} debe quedar aprobada por defecto, o el commit la copiaría al}
+        \PYG{c+c1}{\PYGZsh{} directorio final sin que nadie la haya revisado.}
+        \PYG{k}{if} \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{status} \PYG{o}{==} \PYG{l+s+s2}{\PYGZdq{}failed\PYGZdq{}}\PYG{p}{:}
+            \PYG{n+nb+bp}{self}\PYG{o}{.}\PYG{n}{approved} \PYG{o}{=} \PYG{k+kc}{False}
+
+\PYG{n+nd}{@dataclass}
+\PYG{k}{class}\PYG{+w}{ }\PYG{n+nc}{BatchJob}\PYG{p}{:}
+    \PYG{n}{job\PYGZus{}id}\PYG{p}{:}           \PYG{n+nb}{str}
+    \PYG{n}{cam\PYGZus{}id}\PYG{p}{:}           \PYG{n+nb}{int}
+    \PYG{n}{base\PYGZus{}filename}\PYG{p}{:}    \PYG{n+nb}{str}
+    \PYG{n}{image\PYGZus{}filenames}\PYG{p}{:}  \PYG{n}{List}\PYG{p}{[}\PYG{n+nb}{str}\PYG{p}{]}
+    \PYG{n}{status}\PYG{p}{:}           \PYG{n+nb}{str} \PYG{o}{=} \PYG{l+s+s2}{\PYGZdq{}pending\PYGZdq{}}  \PYG{c+c1}{\PYGZsh{} pending|processing|ready|committed|failed|discarded}
+    \PYG{n}{results}\PYG{p}{:}          \PYG{n}{Dict}\PYG{p}{[}\PYG{n+nb}{str}\PYG{p}{,} \PYG{n}{AlignmentResult}\PYG{p}{]} \PYG{o}{=} \PYG{n}{field}\PYG{p}{(}\PYG{n}{default\PYGZus{}factory}\PYG{o}{=}\PYG{n+nb}{dict}\PYG{p}{)}
+    \PYG{n}{progress\PYGZus{}current}\PYG{p}{:} \PYG{n+nb}{int} \PYG{o}{=} \PYG{l+m+mi}{0}
+    \PYG{n}{progress\PYGZus{}total}\PYG{p}{:}   \PYG{n+nb}{int} \PYG{o}{=} \PYG{l+m+mi}{0}
+\end{MintedVerbatim}

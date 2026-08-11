@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
+import { API_BASE } from '../api.js'
 import BatchAlignment from './BatchAlignment.vue'
 import Map from './Map.vue'
 
@@ -8,6 +9,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['notify'])
+const API = API_BASE
 
 const currentStep = ref(1)
 const selectedCamId = ref(props.initialCamId)
@@ -18,13 +20,16 @@ const currentProfile = ref({ gcps: [], reference_image: null })
 const loading = ref(false)
 const saving = ref(false)
 const calculating = ref(false)
-const rmse = ref(null)
 
 // Calibración por imagen: resultado del último cálculo (residuos por varilla)
 const calibResult = ref(null)
 const excludedIdx = ref([])
-const threshold = ref(1.0)
-const rectifiedFailed = ref(false)
+// Umbral por varilla individual (px) — solo una ayuda para detectar de un
+// vistazo qué punto concreto podría estar mal marcado. Con fotos de varios
+// miles de píxeles de ancho, exigir <1px por varilla marcada a mano es
+// prácticamente inalcanzable aunque la calibración sea buena — el criterio
+// real de aceptación es el RMSE en metros (ver calibOk más abajo).
+const threshold = ref(5.0)
 
 // Catálogo de varillas topografiadas (UTM) a nivel de cámara — solo aplica
 // al CSV genérico (sin columna FILE), donde las varillas son fijas y valen
@@ -46,6 +51,23 @@ const unmatchedGroups = ref([])       // [{ file_tag, points, assignedFilename, 
 const selectedGcpIdx = ref(null)
 const isDraggingOver = ref(false)
 const isDraggingRodsCsv = ref(false)
+// Densidad visual del paso Marcación: la dropzone de importación y el panel de
+// sesiones importadas ocupan mucho espacio permanentemente aunque no haya nada
+// pendiente que hacer con ellos. showImportDropzone empieza oculto (se revela
+// con un botón compacto); importGroupsExpanded se auto-fuerza a true mientras
+// quede trabajo real por revisar (vía importGroupsNeedAttention más abajo).
+const showImportDropzone = ref(false)
+const importGroupsExpanded = ref(false)
+// "Importadas" (guardadas como anotación) no es lo mismo que "confirmadas"
+// (píxel exacto fijado por el usuario) — un grupo con savedAt puede seguir
+// teniendo varillas pendientes en pendingGcps hasta que se confirman una a
+// una con la lupa. Sin este chequeo, el resumen colapsado podía decir
+// "confirmadas" mientras todavía quedaban varillas en ámbar por revisar.
+const importGroupsNeedAttention = computed(() =>
+  unmatchedGroups.value.length > 0 ||
+  imageGroups.value.some(g => !g.savedAt || groupHasIssues(g.points)) ||
+  pendingGcps.value.length > 0
+)
 
 // Paso 5 (Marcación): la imagen se pinta con object-contain, así que si su
 // proporción no coincide con la del panel quedan bandas (letterbox) a los
@@ -70,7 +92,7 @@ async function fetchAlignmentInfo() {
   currentAlignInfo.value = null
   if (!selectedCamId.value || !selectedImage.value) return
   try {
-    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/images/${selectedImage.value}/alignment`)
+    const res = await fetch(`${API}/api/cameras/${selectedCamId.value}/images/${selectedImage.value}/alignment`)
     const data = await res.json()
     currentAlignInfo.value = data.aligned ? data : null
   } catch (err) { console.error(err) }
@@ -97,12 +119,35 @@ function drawLoupe() {
   ctx.clearRect(0, 0, LOUPE_SIZE, LOUPE_SIZE)
   ctx.imageSmoothingEnabled = false
   ctx.drawImage(img, sx, sy, cropSize, cropSize, 0, 0, LOUPE_SIZE, LOUPE_SIZE)
+
+  // Cruz roja = posición del CURSOR ahora mismo (siempre en el centro, el
+  // recorte está centrado en él).
   ctx.strokeStyle = 'rgba(239, 68, 68, 0.9)'
   ctx.lineWidth = 1
   ctx.beginPath()
   ctx.moveTo(LOUPE_SIZE / 2, 0); ctx.lineTo(LOUPE_SIZE / 2, LOUPE_SIZE)
   ctx.moveTo(0, LOUPE_SIZE / 2); ctx.lineTo(LOUPE_SIZE, LOUPE_SIZE / 2)
   ctx.stroke()
+
+  // Cruz verde = posición EXACTA donde está fijado el marcador de la varilla
+  // seleccionada (si cae dentro de lo que se ve ahora en la lupa). Deja
+  // comparar de un vistazo, ya con el zoom aplicado, dónde está el cursor
+  // frente a dónde quedó puesto el punto realmente — sin esto solo se veía
+  // el cursor, nunca la posición ya fijada del marcador.
+  const gcp = selectedGcpIdx.value !== null ? currentProfile.value.gcps[selectedGcpIdx.value] : null
+  if (gcp) {
+    const gx = (gcp.pixel[0] - sx) * ZOOM_FACTOR
+    const gy = (gcp.pixel[1] - sy) * ZOOM_FACTOR
+    if (gx >= 0 && gx <= LOUPE_SIZE && gy >= 0 && gy <= LOUPE_SIZE) {
+      const armLen = 9
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.95)'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(gx - armLen, gy); ctx.lineTo(gx + armLen, gy)
+      ctx.moveTo(gx, gy - armLen); ctx.lineTo(gx, gy + armLen)
+      ctx.stroke()
+    }
+  }
 }
 
 // Convierte un evento de ratón sobre la foto en (a) coordenadas de píxel
@@ -221,13 +266,15 @@ const steps = [
   { id: 3, name: 'Alineación', desc: 'Configurar Referencia' },
   { id: 4, name: 'Catálogo', desc: 'Importar y Corregir Varillas' },
   { id: 5, name: 'Marcación', desc: 'Etiquetado Varillas' },
-  { id: 6, name: 'Validación', desc: 'Perfil Final' }
+  { id: 6, name: 'Cálculo', desc: 'Homografía y Residuos' },
+  { id: 7, name: 'Validación', desc: 'Perfil Final' },
 ]
 
 // API Helpers
 async function fetchCameras() {
   try {
-    const res = await fetch('http://localhost:8000/api/cameras')
+    const res = await fetch(`${API}/api/cameras`)
+    if (!res.ok) throw new Error('HTTP ' + res.status)
     cameras.value = await res.json()
   } catch (err) { emit('notify', 'Error al cargar estaciones', 'error') }
 }
@@ -239,7 +286,7 @@ function editCamera(idx) {
 
 function viewCamera(idx) {
   selectedCamId.value = idx
-  currentStep.value = 6
+  currentStep.value = 7
 }
 
 const calibratedCount = computed(() => cameras.value.filter(c => c.calibrated).length)
@@ -263,58 +310,23 @@ async function fetchImages() {
   selectedImage.value   = ''
   const camSnapshot = selectedCamId.value
   try {
-    const res = await fetch(`http://localhost:8000/api/cameras/${camSnapshot}/images`)
+    const res = await fetch(`${API}/api/cameras/${camSnapshot}/images`)
+    if (!res.ok) throw new Error('HTTP ' + res.status)
     const imgs = await res.json()
     // Descartar la respuesta si el usuario ya cambió de cámara mientras esperábamos
     if (camSnapshot !== selectedCamId.value) return
     availableImages.value = imgs
     if (imgs.length > 0) selectedImage.value = imgs[0].filename
-  } catch (err) { console.error(err) }
-}
-
-async function runAlignment() {
-  alignState.value = 'loading'
-  blendUrl.value   = ''
-  alignError.value = ''
-
-  try {
-    // Obtener la imagen target como Blob desde su URL del backend
-    const tgtResp = await fetch(imageUrl.value)  // URL de la imagen seleccionada en paso 2
-    if (!tgtResp.ok) throw new Error('No se pudo cargar la imagen target')
-    const tgtBlob = await tgtResp.blob()
-
-    const form = new FormData()
-    form.append('target', tgtBlob, 'target.jpg')
-    // No enviamos 'reference' → el backend la lee del perfil JSON automáticamente
-
-    const resp = await fetch(
-      `http://localhost:8000/api/cameras/${selectedCamId.value}/align-preview`,
-      { method: 'POST', body: form }
-    )
-
-    if (!resp.ok) {
-      const err = await resp.json()
-      throw new Error(err.detail ?? 'Error desconocido')
-    }
-
-    if (blendUrl.value) URL.revokeObjectURL(blendUrl.value) // limpiar anterior
-    blendUrl.value   = URL.createObjectURL(await resp.blob())
-    alignState.value = 'done'
-
-  } catch (e) {
-    alignError.value = e.message
-    alignState.value = 'error'
-  }
+  } catch (err) { emit('notify', 'Error al cargar imágenes de la cámara', 'error') }
 }
 
 async function fetchProfile() {
   if (!selectedCamId.value) return
   loading.value = true
   try {
-    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/profile`)
+    const res = await fetch(`${API}/api/cameras/${selectedCamId.value}/profile`)
     currentProfile.value = await res.json()
     if (!currentProfile.value.gcps) currentProfile.value.gcps = []
-    rmse.value = currentProfile.value.rmse_m || null
   } catch (err) { console.error(err) }
   finally { loading.value = false }
 }
@@ -322,7 +334,7 @@ async function fetchProfile() {
 async function fetchRods() {
   if (!selectedCamId.value) return
   try {
-    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/rods`)
+    const res = await fetch(`${API}/api/cameras/${selectedCamId.value}/rods`)
     const data = await res.json()
     rods.value = data.rods || []
     rodsMeta.value = { source_file: data.source_file, imported_at: data.imported_at, edited_at: data.edited_at }
@@ -336,7 +348,7 @@ async function importRodsCsvFile(file) {
   const form = new FormData()
   form.append('file', file)
   try {
-    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/import-rods`, {
+    const res = await fetch(`${API}/api/cameras/${selectedCamId.value}/import-rods`, {
       method: 'POST', body: form
     })
     const data = await res.json()
@@ -413,7 +425,7 @@ function loadImageSize(filename) {
     const img = new Image()
     img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight })
     img.onerror = () => reject(new Error('No se pudo cargar la imagen para calcular su tamaño'))
-    img.src = `http://localhost:8000/api/cameras/${selectedCamId.value}/image?file=${filename}`
+    img.src = `${API}/api/cameras/${selectedCamId.value}/image?file=${filename}`
   })
 }
 
@@ -430,7 +442,7 @@ function applyHomography(H, [x, y]) {
 
 async function fetchAlignmentFor(filename) {
   try {
-    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/images/${filename}/alignment`)
+    const res = await fetch(`${API}/api/cameras/${selectedCamId.value}/images/${filename}/alignment`)
     const data = await res.json()
     return data.aligned ? data.H : null
   } catch (err) { return null }
@@ -464,7 +476,7 @@ async function saveImageGroup(group, filename) {
         ...(p.notes ? { notes: p.notes } : {})
       }
     })
-    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/images/${filename}/annotations`, {
+    const res = await fetch(`${API}/api/cameras/${selectedCamId.value}/images/${filename}/annotations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ points })
@@ -525,7 +537,7 @@ async function saveRodsCatalog() {
   if (!selectedCamId.value || rodsHasIssues.value) return
   savingRods.value = true
   try {
-    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/rods`, {
+    const res = await fetch(`${API}/api/cameras/${selectedCamId.value}/rods`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rods: rods.value.map(r => ({
@@ -560,7 +572,7 @@ async function calculateHomography(excluded = []) {
   if (!selectedCamId.value || !selectedImage.value) return
   calculating.value = true
   try {
-    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/calculate-homography`, {
+    const res = await fetch(`${API}/api/cameras/${selectedCamId.value}/calculate-homography`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -573,13 +585,17 @@ async function calculateHomography(excluded = []) {
     if (!res.ok) throw new Error(data.detail || 'Error en el cálculo')
     calibResult.value = data
     excludedIdx.value = [...(data.excluded || [])]
-    rmse.value = data.rmse_m
-    rectifiedFailed.value = false
-    const flagged = (data.residuals || []).filter(r => r.above_threshold).length
-    if (flagged > 0) {
-      emit('notify', `Homografía calculada: ${flagged} varilla(s) superan el umbral de ${threshold.value} px`, 'error')
+    // El aviso usa el mismo criterio que calibOk (RMSE terreno vs. objetivo),
+    // no el recuento de varillas "sobre umbral" en píxeles — ese umbral es
+    // solo una ayuda de diagnóstico por varilla (ver nota en la tabla de
+    // Cálculo) y no debería disparar un toast de error por sí solo.
+    const rmseOk = data.rmse_m <= (data.rmse_good_m ?? 1.5)
+    if (!rmseOk) {
+      emit('notify', `Homografía calculada. RMSE terreno ${data.rmse_m?.toFixed(2)} m — por encima del objetivo`, 'error')
+    } else if (data.geometry_warning) {
+      emit('notify', 'Homografía calculada, pero la geometría de las varillas es inestable — revisa el aviso en Cálculo', 'error')
     } else {
-      emit('notify', `Homografía calculada. RMSE ${data.rmse_px?.toFixed(2)} px`, 'success')
+      emit('notify', `Homografía calculada. RMSE terreno ${data.rmse_m?.toFixed(2)} m`, 'success')
     }
     currentStep.value = 6
     fetchImages()
@@ -607,17 +623,16 @@ function excludeFlagged() {
 async function loadSavedCalibration() {
   if (calibResult.value || !selectedCamId.value) return
   try {
-    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/profile`)
+    const res = await fetch(`${API}/api/cameras/${selectedCamId.value}/profile`)
     const profile = await res.json()
     const img = profile.calibrated_image || profile.reference_image
     if (!img || !profile.H) return
-    const annRes = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/images/${img}/annotations`)
+    const annRes = await fetch(`${API}/api/cameras/${selectedCamId.value}/images/${img}/annotations`)
     const ann = await annRes.json()
     if (ann.calibration) {
       calibResult.value = ann.calibration
       excludedIdx.value = [...(ann.calibration.excluded || [])]
       threshold.value = ann.calibration.threshold_px ?? threshold.value
-      rmse.value = ann.calibration.rmse_m
       selectedImage.value = img
     }
   } catch (err) { console.error(err) }
@@ -631,14 +646,33 @@ function formatTs(iso) {
 }
 
 const flaggedCount = computed(() => (calibResult.value?.residuals || []).filter(r => r.above_threshold).length)
-const calibOk = computed(() => calibResult.value && flaggedCount.value === 0)
+// El criterio real de aceptación es el RMSE en metros frente al umbral que
+// ya usa el resto del sistema (rmse_good_m, ver calculate_homography en el
+// backend) — NO que todas las varillas individuales bajen de threshold_px.
+// Ese umbral por varilla es un puntero para localizar posibles misclicks,
+// pero exigir que TODAS lo cumplan hacía que casi cualquier calibración
+// razonable apareciera como "Revisar" solo por una varilla límite.
+const calibOk = computed(() =>
+  !!calibResult.value && calibResult.value.rmse_m <= (calibResult.value.rmse_good_m ?? 1.5)
+)
 
 async function fetchImageAnnotations() {
   if (!selectedCamId.value || !selectedImage.value) return
   try {
-    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/images/${selectedImage.value}/annotations`)
+    const res = await fetch(`${API}/api/cameras/${selectedCamId.value}/images/${selectedImage.value}/annotations`)
     const data = await res.json()
     currentProfile.value.gcps = data.points || []
+    // La calibración es por imagen (§ memoria cap. 4) — mantener calibResult
+    // sincronizado con selectedImage permite pinchar entre imágenes en el
+    // paso Cálculo y ver el resultado de cada una sin volver a Marcación.
+    // null si esta imagen concreta aún no tiene homografía calculada.
+    calibResult.value = data.calibration || null
+    if (data.calibration) {
+      excludedIdx.value = [...(data.calibration.excluded || [])]
+      threshold.value = data.calibration.threshold_px ?? threshold.value
+    } else {
+      excludedIdx.value = []
+    }
   } catch (err) { console.error(err) }
 }
 
@@ -646,7 +680,7 @@ async function saveAnnotations() {
   if (!selectedCamId.value || !selectedImage.value) return
   saving.value = true
   try {
-    await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/images/${selectedImage.value}/annotations`, {
+    await fetch(`${API}/api/cameras/${selectedCamId.value}/images/${selectedImage.value}/annotations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ points: currentProfile.value.gcps })
@@ -658,7 +692,7 @@ async function saveAnnotations() {
 
 async function setAsReference(filename) {
   try {
-    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/set-reference?filename=${filename}`, {
+    const res = await fetch(`${API}/api/cameras/${selectedCamId.value}/set-reference?filename=${filename}`, {
       method: 'POST'
     })
     if (res.ok) {
@@ -671,7 +705,7 @@ async function setAsReference(filename) {
 async function deleteImage(filename) {
   if (!confirm(`¿Seguro que quieres eliminar ${filename}?`)) return
   try {
-    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/images/${filename}`, {
+    const res = await fetch(`${API}/api/cameras/${selectedCamId.value}/images/${filename}`, {
       method: 'DELETE'
     })
     if (res.ok) {
@@ -686,7 +720,7 @@ async function handleFiles(files) {
   const formData = new FormData()
   for (let f of files) formData.append('files', f)
   try {
-    const res = await fetch(`http://localhost:8000/api/cameras/${selectedCamId.value}/upload-images`, {
+    const res = await fetch(`${API}/api/cameras/${selectedCamId.value}/upload-images`, {
       method: 'POST', body: formData
     })
     const data = await res.json()
@@ -706,12 +740,7 @@ function onDrop(e) {
 // Computed
 const imageUrl = computed(() => {
   if (!selectedCamId.value || !selectedImage.value) return null
-  return `http://localhost:8000/api/cameras/${selectedCamId.value}/image?file=${selectedImage.value}&t=${Date.now()}`
-})
-
-const rectifiedUrl = computed(() => {
-  if (!selectedCamId.value || !rmse.value) return null
-  return `http://localhost:8000/api/cameras/${selectedCamId.value}/rectified-preview?t=${Date.now()}`
+  return `${API}/api/cameras/${selectedCamId.value}/image?file=${selectedImage.value}&t=${Date.now()}`
 })
 
 // Handlers
@@ -737,6 +766,40 @@ function selectGcp(idx) {
   const next = selectedGcpIdx.value === idx ? null : idx
   if (lastReposition.value && lastReposition.value.idx !== next) lastReposition.value = null
   selectedGcpIdx.value = next
+}
+
+// Click directo sobre el MARCADOR de una varilla en la foto (a diferencia de
+// selectGcp, que se usa desde las listas del lateral). Si la varilla está
+// pendiente de confirmar, clicar justo encima significa "sí, está bien puesta
+// aquí" — antes ese click lo capturaba el propio marcador (@click.stop) y solo
+// alternaba la selección sin confirmar nunca nada. Si ya está confirmada,
+// mantiene el comportamiento normal de selección.
+function handleMarkerClick(idx) {
+  const gcp = currentProfile.value.gcps[idx]
+  if (gcp && gcp.confirmed === false) {
+    lastReposition.value = {
+      idx,
+      pixel: [...gcp.pixel],
+      rel: [...gcp.rel],
+      confirmed: gcp.confirmed,
+      aligned_H: gcp.aligned_H,
+      reprojected_at: gcp.reprojected_at,
+    }
+    gcp.confirmed = true
+    gcp.reprojected_at = null
+    gcp.aligned_H = currentAlignInfo.value?.H || gcp.aligned_H
+    // justCreatedIdx = idx (no null): un click siguiente en la foto debe
+    // seguir añadiendo varillas nuevas, no reposicionar esta que se acaba
+    // de confirmar — si no, el gesto más natural después de confirmar
+    // (clicar el siguiente punto) desplazaba silenciosamente el que
+    // acabábamos de fijar. Mismo criterio que ya usa handleImageClick al
+    // crear un punto nuevo.
+    justCreatedIdx.value = idx
+    selectedGcpIdx.value = idx
+    saveAnnotations()
+    return
+  }
+  selectGcp(idx)
 }
 
 function undoReposition() {
@@ -810,6 +873,15 @@ const confirmedGcpsCount = computed(() =>
   currentProfile.value.gcps.filter(g => g.confirmed !== false).length
 )
 
+// Punto de aviso sobre el número del paso en el stepper — feedback de estado
+// a simple vista, sin tener que entrar en cada paso para descubrir que algo
+// quedó a medias.
+function stepNeedsAttention(stepId) {
+  if (stepId === 4) return rodsHasIssues.value
+  if (stepId === 5) return pendingGcps.value.length > 0 || (confirmedGcpsCount.value > 0 && confirmedGcpsCount.value < 4)
+  return false
+}
+
 // Watches
 watch(selectedCamId, () => {
   if (selectedCamId.value) {
@@ -826,7 +898,10 @@ watch(selectedCamId, () => {
 })
 
 watch(currentStep, (step) => {
-  if (step === 6) loadSavedCalibration()
+  // calibResult es estado compartido entre Cálculo (6) y Validación (7) —
+  // cualquiera de los dos puede ser el punto de entrada (p.ej. "Ver" desde
+  // Vista general salta directo a Validación sin pasar por Cálculo antes).
+  if (step === 6 || step === 7) loadSavedCalibration()
 })
 
 watch(selectedImage, () => {
@@ -866,7 +941,12 @@ onMounted(() => {
                (!selectedCamId && step.id > 1) ? 'opacity-40 pointer-events-none' : 'cursor-pointer'
              ]"
              @click="currentStep = step.id">
-          <div class="dot">{{ currentStep > step.id ? '✓' : step.id }}</div>
+          <div class="dot relative">
+            {{ currentStep > step.id ? '✓' : step.id }}
+            <span v-if="stepNeedsAttention(step.id)"
+                  class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-white"
+                  :title="`${step.name}: hay elementos pendientes de revisar`"></span>
+          </div>
           <span class="label">{{ step.name }}</span>
         </div>
         <div v-if="i < steps.length - 1" class="connector"></div>
@@ -971,9 +1051,13 @@ onMounted(() => {
           </div>
 
           <div class="card-standard flex flex-col h-[500px]">
-            <div class="card-header flex justify-between">
+            <div class="card-header flex justify-between items-center">
               <span>Fotogramas ({{ availableImages.length }})</span>
-              <button @click="fetchImages" class="text-blue-600 hover:underline">↻</button>
+              <div class="flex items-center gap-3 normal-case font-normal">
+                <span class="flex items-center gap-1 text-[9px] text-slate-400"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Calibrada</span>
+                <span class="flex items-center gap-1 text-[9px] text-slate-400"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>Marcada</span>
+                <button @click="fetchImages" class="text-blue-600 hover:underline">↻</button>
+              </div>
             </div>
             <div class="flex-1 overflow-y-auto divide-y divide-slate-100">
                <div v-for="img in availableImages" :key="img.filename"
@@ -981,7 +1065,7 @@ onMounted(() => {
                     :class="selectedImage === img.filename ? 'bg-blue-50' : 'hover:bg-slate-50'"
                     class="p-3 cursor-pointer flex items-center space-x-3 transition-colors group">
                   <div class="w-12 h-8 bg-slate-200 rounded overflow-hidden shrink-0">
-                    <img :src="`http://localhost:8000/api/cameras/${selectedCamId}/image?file=${img.filename}&thumb=1`" class="w-full h-full object-cover">
+                    <img :src="`${API}/api/cameras/${selectedCamId}/image?file=${img.filename}&thumb=1`" class="w-full h-full object-cover">
                   </div>
                   <div class="flex-1 min-w-0">
                     <p class="text-[10px] font-semibold truncate" :class="selectedImage === img.filename ? 'text-blue-700' : 'text-slate-700'">{{ img.filename }}</p>
@@ -1001,15 +1085,15 @@ onMounted(() => {
        </div>
 
        <!-- Preview -->
-       <div class="lg:col-span-3 card-standard flex flex-col overflow-hidden bg-slate-900 relative">
+       <div class="lg:col-span-3 card-standard flex flex-col overflow-hidden bg-slate-50 relative">
           <div v-if="selectedImage" class="h-full flex flex-col">
             <div class="flex-1 flex items-center justify-center p-4">
-              <img :src="imageUrl" class="max-w-full max-h-full object-contain">
+              <img :src="imageUrl" class="max-w-full max-h-full object-contain rounded">
             </div>
-            <div class="p-4 bg-slate-900/90 backdrop-blur border-t border-white/10 flex justify-between items-center">
+            <div class="p-4 bg-white border-t border-slate-200 flex justify-between items-center">
               <div class="flex space-x-4 items-center">
-                <span class="text-xs font-semibold text-white uppercase">{{ selectedImage }}</span>
-                <span v-if="currentProfile.reference_image === selectedImage" class="bg-emerald-600 text-white text-[9px] font-semibold px-2 py-0.5 rounded">REFERENCIA BASE</span>
+                <span class="text-xs font-semibold text-slate-700 uppercase">{{ selectedImage }}</span>
+                <span v-if="currentProfile.reference_image === selectedImage" class="bg-emerald-100 text-emerald-700 border border-emerald-200 text-[9px] font-semibold px-2 py-0.5 rounded">REFERENCIA BASE</span>
               </div>
               <div class="space-x-2">
                 <button v-if="currentProfile.reference_image !== selectedImage" @click="setAsReference(selectedImage)" class="btn-secondary py-1 text-[10px]">Set como Referencia</button>
@@ -1017,8 +1101,8 @@ onMounted(() => {
               </div>
             </div>
           </div>
-          <div v-else class="flex-1 flex flex-col items-center justify-center text-slate-500 space-y-4">
-            <svg class="w-16 h-16 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" stroke-width="1.5"/></svg>
+          <div v-else class="flex-1 flex flex-col items-center justify-center text-slate-400 space-y-4">
+            <svg class="w-16 h-16 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" stroke-width="1.5"/></svg>
             <p class="text-sm font-semibold uppercase tracking-wider">Selecciona o sube un fotograma</p>
           </div>
        </div>
@@ -1155,8 +1239,15 @@ onMounted(() => {
           <!-- Importar CSV de campo (columna FILE, una varilla por imagen): se
                importa y se revisa/confirma aquí mismo, sin salir de Marcación.
                Un CSV de catálogo genérico (sin FILE) también se acepta — alimenta
-               el catálogo UTM que se gestiona en el paso Catálogo. -->
-          <div @dragover.prevent="isDraggingRodsCsv = true"
+               el catálogo UTM que se gestiona en el paso Catálogo. Colapsada tras
+               un botón compacto: en visitas repetidas al paso no compite en
+               tamaño con el área de trabajo real (foto/mapa). -->
+          <button v-if="!showImportDropzone" @click="showImportDropzone = true"
+                  class="btn-secondary self-start shrink-0 text-[10px] py-1.5 uppercase">
+            + Importar CSV de campo (por imagen)
+          </button>
+          <div v-else
+               @dragover.prevent="isDraggingRodsCsv = true"
                @dragleave.prevent="isDraggingRodsCsv = false"
                @drop.prevent="onDropRodsCsv"
                :class="isDraggingRodsCsv ? 'border-blue-600 bg-blue-50' : 'border-slate-200 bg-white'"
@@ -1164,6 +1255,7 @@ onMounted(() => {
             <input type="file" accept=".csv,.txt" @change="importRodsCsv" class="absolute inset-0 opacity-0 cursor-pointer" :disabled="importingRods">
             <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" stroke-width="2"/></svg>
             <p class="text-xs font-semibold text-slate-600 uppercase">{{ importingRods ? 'Importando…' : 'Importar CSV de varillas de campo (por imagen)' }}</p>
+            <button @click.stop="showImportDropzone = false" class="absolute top-1.5 right-1.5 text-slate-400 hover:text-slate-600 text-xs leading-none p-1">×</button>
           </div>
 
           <!-- Sesiones del CSV sin ninguna imagen coincidente: hay que asignarlas a mano -->
@@ -1193,13 +1285,26 @@ onMounted(() => {
           </div>
 
           <!-- Varillas importadas ya emparejadas por imagen: se guardan como
-               pendientes (confirmed=false) y se confirman abajo con la lupa. -->
+               pendientes (confirmed=false) y se confirman abajo con la lupa.
+               Colapsado a un resumen de una línea en cuanto todo está guardado
+               y sin incidencias — si no, se queda ocupando espacio a perpetuidad
+               aunque ya no haya nada que revisar aquí. -->
           <div v-if="imageGroups.length" class="card-standard overflow-hidden shrink-0">
             <div class="card-header flex justify-between items-center">
               <span class="uppercase tracking-wider text-[10px]">Varillas importadas por imagen ({{ imageGroups.length }})</span>
-              <button @click="imageGroups = []; unmatchedGroups = []; importMode = null" class="text-slate-400 hover:underline text-[10px] font-semibold uppercase">Ocultar</button>
+              <div class="flex items-center gap-3">
+                <button v-if="!importGroupsNeedAttention" @click="importGroupsExpanded = !importGroupsExpanded"
+                        class="text-blue-600 hover:underline text-[10px] font-semibold uppercase">
+                  {{ importGroupsExpanded ? 'Ocultar detalle' : 'Ver detalle' }}
+                </button>
+                <button @click="imageGroups = []; unmatchedGroups = []; importMode = null; importGroupsExpanded = false"
+                        class="text-slate-400 hover:underline text-[10px] font-semibold uppercase">Descartar</button>
+              </div>
             </div>
-            <div class="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+            <p v-if="!importGroupsNeedAttention && !importGroupsExpanded" class="px-3.5 py-2 text-[10px] text-emerald-600">
+              ✓ Todas las sesiones importadas y confirmadas.
+            </p>
+            <div v-else class="divide-y divide-slate-100 max-h-72 overflow-y-auto">
               <div v-for="(group, gi) in imageGroups" :key="'m' + gi" class="p-3 space-y-2">
                 <div class="flex items-center justify-between flex-wrap gap-2">
                   <div>
@@ -1260,7 +1365,7 @@ onMounted(() => {
                     @click="selectedImage = img.filename"
                     :class="selectedImage === img.filename ? 'ring-2 ring-blue-600' : 'ring-1 ring-slate-200 hover:ring-slate-300'"
                     class="relative shrink-0 w-16 h-11 rounded overflow-hidden transition-all">
-              <img :src="`http://localhost:8000/api/cameras/${selectedCamId}/image?file=${img.filename}&thumb=1`" class="w-full h-full object-cover">
+              <img :src="`${API}/api/cameras/${selectedCamId}/image?file=${img.filename}&thumb=1`" class="w-full h-full object-cover">
               <span v-if="img.calibrated" title="Calibrada" class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-1 ring-white"></span>
               <span v-else-if="img.annotated" title="Varillas marcadas, sin calibrar" class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400 ring-1 ring-white"></span>
               <span v-if="img.aligned" :title="`Alineada · ${img.align_inliers ?? '?'} inliers`"
@@ -1280,11 +1385,11 @@ onMounted(() => {
             <div v-for="(gcp, idx) in currentProfile.gcps" :key="idx"
                  class="absolute -translate-x-1/2 -translate-y-1/2"
                  :style="gcpMarkerStyle(gcp)">
-              <div @click.stop="selectGcp(idx)"
+              <div @click.stop="handleMarkerClick(idx)"
                    :class="[
                      gcp.confirmed === false
                        ? (selectedGcpIdx === idx ? 'bg-amber-400 scale-150 ring-4 ring-amber-400/50 border-dashed' : 'bg-amber-400/80 border-dashed animate-pulse')
-                       : (selectedGcpIdx === idx ? 'bg-accent2 scale-150 ring-4 ring-blue-500/50' : 'bg-accent2 scale-100')
+                       : (selectedGcpIdx === idx ? 'bg-emerald-500 scale-150 ring-4 ring-emerald-500/50' : 'bg-emerald-500 scale-100')
                    ]"
                    :title="gcp.confirmed === false ? (gcp.reprojected_at ? 'Reproyectada por alineación — revisar' : 'Aproximado — pendiente de confirmar') : ''"
                    class="w-4 h-4 rounded-full border-2 border-white cursor-pointer transition-all hover:scale-125 z-10 flex items-center justify-center">
@@ -1297,6 +1402,10 @@ onMounted(() => {
                  :style="{ left: loupeScreenPos.left + 'px', top: loupeScreenPos.top + 'px', width: LOUPE_SIZE + 'px', height: LOUPE_SIZE + 'px' }">
               <canvas ref="loupeCanvasRef" :width="LOUPE_SIZE" :height="LOUPE_SIZE" class="block bg-black"></canvas>
               <div class="absolute top-1 left-1 bg-black/70 text-white text-[8px] font-semibold px-1.5 py-0.5 rounded uppercase">×{{ ZOOM_FACTOR }}</div>
+              <div v-if="selectedGcpIdx !== null" class="absolute bottom-1 left-1 right-1 bg-black/70 text-white text-[7px] font-semibold px-1.5 py-0.5 rounded uppercase flex items-center gap-2">
+                <span class="flex items-center gap-1"><span class="w-2 h-px bg-red-500"></span>Cursor</span>
+                <span class="flex items-center gap-1"><span class="w-2 h-px bg-emerald-500"></span>Punto actual</span>
+              </div>
             </div>
 
             <div class="absolute bottom-4 left-4 bg-black/60 text-white text-[10px] px-3 py-1.5 rounded-full font-semibold uppercase tracking-wider backdrop-blur-sm border border-white/20">Modo Marcación: Varillas GCP</div>
@@ -1393,26 +1502,21 @@ onMounted(() => {
             </div>
           </div>
 
-          <div class="card-standard">
-            <div class="card-header flex justify-between items-center">
-              <span class="uppercase tracking-wider text-[10px]">Catálogo UTM ({{ rods.length }})</span>
-              <button @click="currentStep = 4" class="text-blue-600 hover:underline text-[10px] font-semibold uppercase">Editar catálogo</button>
-            </div>
-            <p v-if="!rods.length" class="p-3 text-[10px] text-slate-400 leading-relaxed">
-              Todavía no hay varillas topografiadas. Ve al paso <strong>Catálogo</strong> para importar el CSV o añadirlas a mano.
-            </p>
-            <p v-else class="p-3 text-[10px] text-slate-500">
-              {{ rods.length }} varillas disponibles para autocompletar al editar un punto.
-            </p>
-          </div>
-
           <div class="card-standard flex flex-col h-[420px]">
-            <div class="card-header uppercase tracking-wider text-[10px]">Listado de Varillas ({{ currentProfile.gcps.length }})</div>
+            <div class="card-header flex justify-between items-center">
+              <span class="uppercase tracking-wider text-[10px]">Listado de Varillas ({{ currentProfile.gcps.length }})</span>
+              <button @click="currentStep = 4" class="text-blue-600 hover:underline text-[10px] font-semibold uppercase"
+                      :title="rods.length ? `${rods.length} varillas disponibles para autocompletar` : 'Todavía no hay varillas topografiadas'">
+                Catálogo UTM ({{ rods.length }})
+              </button>
+            </div>
             <div class="flex-1 overflow-y-auto divide-y divide-slate-100 custom-scrollbar">
                <div v-for="(gcp, idx) in currentProfile.gcps" :key="idx"
                     @click="selectGcp(idx)"
                     class="p-3 text-xs flex justify-between items-center cursor-pointer hover:bg-slate-50 transition-colors"
-                    :class="selectedGcpIdx === idx ? 'bg-amber-50 border-l-4 border-accent2' : ''">
+                    :class="selectedGcpIdx === idx
+                      ? (gcp.confirmed === false ? 'bg-amber-50 border-l-4 border-amber-400' : 'bg-emerald-50 border-l-4 border-emerald-500')
+                      : ''">
                   <div>
                     <p class="font-semibold text-slate-700 uppercase text-[10px] flex items-center gap-1.5">
                       {{ gcp.label }}
@@ -1424,9 +1528,9 @@ onMounted(() => {
                </div>
             </div>
             <div class="p-4 border-t border-slate-100 bg-slate-50 space-y-2">
-              <button @click="calculateHomography()" :disabled="confirmedGcpsCount < 4 || calculating"
-                      class="btn-standard w-full uppercase text-xs">
-                {{ calculating ? 'Calculando...' : 'Calcular homografía' }}
+              <button @click="currentStep = 6" :disabled="confirmedGcpsCount < 4"
+                      class="btn-standard w-full uppercase text-xs disabled:opacity-40 disabled:cursor-not-allowed">
+                Continuar a Cálculo →
               </button>
               <p v-if="confirmedGcpsCount < 4" class="text-[9px] text-slate-400 text-center uppercase">
                 Faltan {{ 4 - confirmedGcpsCount }} varilla(s) confirmada(s) (mínimo 4)
@@ -1436,12 +1540,161 @@ onMounted(() => {
        </aside>
     </div>
 
-    <!-- PASO 6: VALIDACION (análisis de error de reproyección por varilla) -->
+    <!-- PASO 6: CALCULO (dispara el ajuste de homografía y deja iterar sobre
+         los residuos por varilla — excluir, ajustar umbral, recalcular —
+         antes de pasar a la validación final). -->
     <div v-if="currentStep === 6" class="space-y-4">
+      <div class="card-standard p-4 text-xs text-slate-500 leading-relaxed">
+        <strong class="text-slate-700">¿Qué hace este cálculo?</strong> Cada varilla que confirmaste en Marcación
+        aporta dos coordenadas del mismo punto: dónde cae en la foto (píxel) y dónde está en la realidad
+        (UTM, metros). Con al menos 4 de esas parejas, el sistema calcula la fórmula matemática (la
+        "homografía") que convierte cualquier píxel de la foto en su coordenada real — es lo que luego
+        permite medir distancias y área de playa sobre la imagen. El <strong>RMSE</strong> mide cuánto se
+        desvía esa fórmula de las varillas que usaste para calcularla: cuanto más bajo, mejor encaja.
+      </div>
+
+      <!-- Selector de imagen: la calibración es por imagen (cada una tiene su
+           propio cálculo), así que se puede pinchar entre imágenes para
+           comparar resultados sin volver a Marcación cada vez. La que quede
+           calculada en último lugar es la que se usa como activa de la
+           cámara para analizar el resto de sus capturas (ver memoria, §4.2). -->
+      <div v-if="availableImages.length > 1" class="card-standard p-2 flex items-center gap-2 overflow-x-auto shrink-0">
+        <button v-for="img in availableImages" :key="img.filename"
+                @click="selectedImage = img.filename"
+                :class="selectedImage === img.filename ? 'ring-2 ring-blue-600' : 'ring-1 ring-slate-200 hover:ring-slate-300'"
+                class="relative shrink-0 w-16 h-11 rounded overflow-hidden transition-all">
+          <img :src="`${API}/api/cameras/${selectedCamId}/image?file=${img.filename}&thumb=1`" class="w-full h-full object-cover">
+          <span v-if="img.calibrated" title="Calibrada" class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-1 ring-white"></span>
+          <span v-else-if="img.annotated" title="Varillas marcadas, sin calibrar" class="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400 ring-1 ring-white"></span>
+        </button>
+      </div>
+
+      <div v-if="!calibResult" class="card-standard p-16 text-center space-y-4 min-h-[400px] flex flex-col items-center justify-center">
+        <svg class="w-12 h-12 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="1.5"/></svg>
+        <p class="text-sm font-semibold uppercase tracking-wider text-slate-400">
+          {{ confirmedGcpsCount }} / {{ currentProfile.gcps.length }} varilla(s) confirmada(s)
+        </p>
+        <button @click="calculateHomography()" :disabled="confirmedGcpsCount < 4 || calculating"
+                class="btn-standard uppercase text-xs disabled:opacity-40 disabled:cursor-not-allowed">
+          {{ calculating ? 'Calculando…' : 'Calcular homografía' }}
+        </button>
+        <p v-if="confirmedGcpsCount < 4" class="text-[10px] text-slate-400 uppercase">
+          Faltan {{ 4 - confirmedGcpsCount }} varilla(s) confirmada(s) (mínimo 4) — vuelve a
+          <button @click="currentStep = 5" class="text-blue-600 hover:underline font-semibold">Marcación</button>
+        </p>
+      </div>
+
+      <template v-else>
+        <!-- Aviso de geometría inestable: explica un RMSE disparado en vez de
+             dejarlo como un número grande sin más contexto — ver
+             geometry_warning en calculate_homography (backend). -->
+        <div v-if="calibResult.geometry_warning" class="card-standard border-red-200 bg-red-50 p-3 flex items-start gap-2.5">
+          <svg class="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"/></svg>
+          <div>
+            <p class="text-[10px] font-semibold text-red-700 uppercase tracking-wider">RMSE poco fiable — geometría de varillas inestable</p>
+            <p class="text-[11px] text-red-700 leading-relaxed mt-0.5">{{ calibResult.geometry_warning }}</p>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <p class="text-xs text-slate-500">
+            RMSE reproyección <strong class="text-slate-800 font-mono">{{ calibResult.rmse_px?.toFixed(2) }} px</strong>
+            · RMSE terreno <strong class="font-mono" :class="calibOk ? 'text-slate-800' : 'text-red-600'">{{ calibResult.rmse_m?.toFixed(3) }} m</strong>
+          </p>
+          <p class="text-[10px] text-slate-400 font-mono">{{ calibResult.image }} · {{ formatTs(calibResult.date) }}</p>
+        </div>
+
+        <!-- Nota persistente (no solo al pasar el ratón): cuando el umbral por
+             varilla está ajustado fino, es normal que varias varillas queden
+             "sobre umbral" en píxeles aunque la calibración en conjunto sea
+             buena — sin esto, una tabla en ámbar/rojo parece un problema real
+             aunque el RMSE terreno esté perfectamente dentro de tolerancia. -->
+        <div v-if="flaggedCount > 0 && calibOk" class="card-standard border-blue-200 bg-blue-50 p-3 text-[11px] text-blue-800 leading-relaxed">
+          {{ flaggedCount }} varilla(s) superan el umbral de {{ threshold }}px marcado arriba, pero
+          la calibración en conjunto es correcta — el RMSE terreno ({{ calibResult.rmse_m?.toFixed(3) }} m)
+          es el que decide si la calibración vale, no esto. Súbelo si no necesitas tanta precisión
+          por varilla, o revisa solo las filas marcadas si quieres afinar más.
+        </div>
+
+        <!-- Tabla de residuos por varilla -->
+        <div class="card-standard overflow-hidden flex flex-col">
+          <div class="card-header flex justify-between items-center">
+            <span>Error de reproyección por varilla</span>
+            <div class="flex items-center space-x-2"
+                 title="Solo marca en la tabla qué varilla concreta podría estar mal puesta (útil para localizar un misclick) — no es el criterio de si la calibración es válida, eso lo decide el RMSE terreno de la Validación.">
+              <label class="text-[9px] text-slate-400 uppercase font-semibold">Umbral por varilla (px)</label>
+              <input type="number" step="0.1" min="0.1" v-model.number="threshold"
+                     class="input-standard w-20 py-1 text-xs font-mono text-right">
+            </div>
+          </div>
+          <div class="overflow-x-auto flex-1">
+            <table class="w-full text-left text-sm">
+              <thead class="text-slate-500 font-semibold border-b border-slate-200">
+                <tr>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px]">#</th>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px]">Varilla</th>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-right">Error (px)</th>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-right">Error (m)</th>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-center">Inlier RANSAC</th>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-center">Estado</th>
+                  <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-center">Excluir</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <tr v-for="r in calibResult.residuals" :key="r.idx"
+                    :class="(r.excluded || r.pending) ? 'opacity-40 bg-slate-50' : (r.above_threshold ? 'bg-amber-50' : 'hover:bg-slate-50')"
+                    class="transition-colors text-slate-700">
+                  <td class="px-4 py-3 text-[10px] font-semibold text-slate-400">{{ r.idx + 1 }}</td>
+                  <td class="px-4 py-3 text-[11px] font-semibold uppercase">{{ r.label }}</td>
+                  <td class="px-4 py-3 text-right font-mono text-[11px]"
+                      :class="r.above_threshold ? 'text-amber-700 font-semibold' : 'text-slate-600'">
+                    {{ r.error_px.toFixed(2) }}
+                  </td>
+                  <td class="px-4 py-3 text-right font-mono text-[11px] text-slate-500">{{ r.error_m.toFixed(3) }}</td>
+                  <td class="px-4 py-3 text-center">
+                    <span v-if="r.inlier === true" class="text-emerald-600 font-semibold" title="Inlier del ajuste RANSAC">✓</span>
+                    <span v-else-if="r.inlier === false" class="text-red-600 font-semibold" title="Outlier descartado por RANSAC">✗</span>
+                    <span v-else class="text-slate-300">—</span>
+                  </td>
+                  <td class="px-4 py-3 text-center">
+                    <span v-if="r.pending" class="px-2 py-0.5 rounded text-[9px] font-semibold uppercase bg-amber-100 text-amber-700 border border-amber-200">Pendiente</span>
+                    <span v-else-if="r.excluded" class="px-2 py-0.5 rounded text-[9px] font-semibold uppercase bg-slate-100 text-slate-500 border border-slate-200">Excluida</span>
+                    <span v-else-if="r.above_threshold" class="px-2 py-0.5 rounded text-[9px] font-semibold uppercase bg-amber-100 text-amber-700 border border-amber-200" title="Ayuda de diagnóstico por varilla — no decide si la calibración es válida">⚠ Sobre umbral</span>
+                    <span v-else class="px-2 py-0.5 rounded text-[9px] font-semibold uppercase bg-emerald-100 text-emerald-700 border border-emerald-200">OK</span>
+                  </td>
+                  <td class="px-4 py-3 text-center">
+                    <input type="checkbox" :disabled="r.pending" :checked="excludedIdx.includes(r.idx)" @change="toggleExcluded(r.idx)"
+                           class="w-3.5 h-3.5 accent-blue-600 cursor-pointer disabled:opacity-30">
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center">
+            <button v-if="flaggedCount" @click="excludeFlagged" :disabled="calculating"
+                    class="text-red-600 hover:underline text-[10px] font-semibold uppercase">
+              Excluir {{ flaggedCount }} sobre umbral y recalcular
+            </button>
+            <span v-else class="text-[10px] text-slate-400 uppercase font-semibold">Todas las varillas activas dentro de tolerancia</span>
+            <button @click="recalculate" :disabled="calculating" class="btn-standard py-1.5 text-[10px] uppercase">
+              {{ calculating ? 'Recalculando…' : 'Recalcular' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center">
+          <button @click="currentStep = 5" class="text-[10px] text-slate-400 hover:text-slate-600 font-semibold uppercase">← Volver a Marcación</button>
+          <button @click="currentStep = 7" class="btn-standard py-2 text-xs uppercase">Continuar a Validación →</button>
+        </div>
+      </template>
+    </div>
+
+    <!-- PASO 7: VALIDACION (resumen final de la calibración de esta imagen) -->
+    <div v-if="currentStep === 7" class="space-y-4">
       <div v-if="!calibResult" class="card-standard p-16 text-center space-y-4 min-h-[400px] flex flex-col items-center justify-center">
         <svg class="w-12 h-12 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="1.5"/></svg>
         <p class="text-sm font-semibold uppercase tracking-wider text-slate-400">Esta imagen aún no tiene calibración calculada</p>
-        <button @click="currentStep = 5" class="btn-standard uppercase text-xs">Ir a Marcación</button>
+        <button @click="currentStep = 6" class="btn-standard uppercase text-xs">Ir a Cálculo</button>
       </div>
 
       <template v-else>
@@ -1449,19 +1702,30 @@ onMounted(() => {
           <div :class="calibOk ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-red-100 text-red-800 border-red-200'"
                class="inline-flex items-center space-x-2 px-5 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider border">
             <svg v-if="!calibOk" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" stroke-width="2"/></svg>
-            <span>{{ calibOk ? 'Calibración dentro de tolerancia' : `${flaggedCount} varilla(s) superan el umbral` }}</span>
+            <span>{{ calibOk
+              ? `RMSE ${calibResult.rmse_m?.toFixed(2)} m — dentro de tolerancia`
+              : `RMSE ${calibResult.rmse_m?.toFixed(2)} m — por encima de ${(calibResult.rmse_good_m ?? 1.5).toFixed(1)} m` }}</span>
           </div>
           <p class="text-[10px] text-slate-400 font-mono">{{ calibResult.image }} · {{ formatTs(calibResult.date) }}</p>
+        </div>
+
+        <div v-if="calibResult.geometry_warning" class="card-standard border-red-200 bg-red-50 p-3 flex items-start gap-2.5">
+          <svg class="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"/></svg>
+          <div>
+            <p class="text-[10px] font-semibold text-red-700 uppercase tracking-wider">RMSE poco fiable — geometría de varillas inestable</p>
+            <p class="text-[11px] text-red-700 leading-relaxed mt-0.5">{{ calibResult.geometry_warning }}</p>
+            <button @click="currentStep = 6" class="text-[10px] font-semibold text-red-700 hover:underline uppercase mt-1">Volver a Cálculo →</button>
+          </div>
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
           <div class="card-standard p-4">
             <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">RMSE reproyección</p>
-            <p class="text-xl font-semibold font-mono" :class="calibOk ? 'text-slate-900' : 'text-red-600'">{{ calibResult.rmse_px?.toFixed(2) }} px</p>
+            <p class="text-xl font-semibold text-slate-900 font-mono">{{ calibResult.rmse_px?.toFixed(2) }} px</p>
           </div>
-          <div class="card-standard p-4">
+          <div class="card-standard p-4" :title="`Objetivo: RMSE terreno ≤ ${(calibResult.rmse_good_m ?? 1.5).toFixed(1)} m — este es el criterio real de aceptación, no el error en píxeles por varilla.`">
             <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">RMSE terreno</p>
-            <p class="text-xl font-semibold text-slate-900 font-mono">{{ calibResult.rmse_m?.toFixed(3) }} m</p>
+            <p class="text-xl font-semibold font-mono" :class="calibOk ? 'text-slate-900' : 'text-red-600'">{{ calibResult.rmse_m?.toFixed(3) }} m</p>
           </div>
           <div class="card-standard p-4">
             <p class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider mb-1">MAE reproyección</p>
@@ -1484,89 +1748,10 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <!-- Tabla de residuos por varilla -->
-          <div class="lg:col-span-2 card-standard overflow-hidden flex flex-col">
-            <div class="card-header flex justify-between items-center">
-              <span>Error de reproyección por varilla</span>
-              <div class="flex items-center space-x-2">
-                <label class="text-[9px] text-slate-400 uppercase font-semibold">Umbral (px)</label>
-                <input type="number" step="0.1" min="0.1" v-model.number="threshold"
-                       class="input-standard w-20 py-1 text-xs font-mono text-right">
-              </div>
-            </div>
-            <div class="overflow-x-auto flex-1">
-              <table class="w-full text-left text-sm">
-                <thead class="text-slate-500 font-semibold border-b border-slate-200">
-                  <tr>
-                    <th class="px-4 py-3 uppercase tracking-wider text-[10px]">#</th>
-                    <th class="px-4 py-3 uppercase tracking-wider text-[10px]">Varilla</th>
-                    <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-right">Error (px)</th>
-                    <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-right">Error (m)</th>
-                    <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-center">Inlier RANSAC</th>
-                    <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-center">Estado</th>
-                    <th class="px-4 py-3 uppercase tracking-wider text-[10px] text-center">Excluir</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  <tr v-for="r in calibResult.residuals" :key="r.idx"
-                      :class="(r.excluded || r.pending) ? 'opacity-40 bg-slate-50' : (r.above_threshold ? 'bg-red-50' : 'hover:bg-slate-50')"
-                      class="transition-colors text-slate-700">
-                    <td class="px-4 py-3 text-[10px] font-semibold text-slate-400">{{ r.idx + 1 }}</td>
-                    <td class="px-4 py-3 text-[11px] font-semibold uppercase">{{ r.label }}</td>
-                    <td class="px-4 py-3 text-right font-mono text-[11px]"
-                        :class="r.above_threshold ? 'text-red-600 font-semibold' : 'text-slate-600'">
-                      {{ r.error_px.toFixed(2) }}
-                    </td>
-                    <td class="px-4 py-3 text-right font-mono text-[11px] text-slate-500">{{ r.error_m.toFixed(3) }}</td>
-                    <td class="px-4 py-3 text-center">
-                      <span v-if="r.inlier === true" class="text-emerald-600 font-semibold" title="Inlier del ajuste RANSAC">✓</span>
-                      <span v-else-if="r.inlier === false" class="text-red-600 font-semibold" title="Outlier descartado por RANSAC">✗</span>
-                      <span v-else class="text-slate-300">—</span>
-                    </td>
-                    <td class="px-4 py-3 text-center">
-                      <span v-if="r.pending" class="px-2 py-0.5 rounded text-[9px] font-semibold uppercase bg-amber-100 text-amber-700 border border-amber-200">Pendiente</span>
-                      <span v-else-if="r.excluded" class="px-2 py-0.5 rounded text-[9px] font-semibold uppercase bg-slate-100 text-slate-500 border border-slate-200">Excluida</span>
-                      <span v-else-if="r.above_threshold" class="px-2 py-0.5 rounded text-[9px] font-semibold uppercase bg-red-100 text-red-700 border border-red-200">⚠ Sobre umbral</span>
-                      <span v-else class="px-2 py-0.5 rounded text-[9px] font-semibold uppercase bg-emerald-100 text-emerald-700 border border-emerald-200">OK</span>
-                    </td>
-                    <td class="px-4 py-3 text-center">
-                      <input type="checkbox" :disabled="r.pending" :checked="excludedIdx.includes(r.idx)" @change="toggleExcluded(r.idx)"
-                             class="w-3.5 h-3.5 accent-blue-600 cursor-pointer disabled:opacity-30">
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center">
-              <button v-if="flaggedCount" @click="excludeFlagged" :disabled="calculating"
-                      class="text-red-600 hover:underline text-[10px] font-semibold uppercase">
-                Excluir {{ flaggedCount }} sobre umbral y recalcular
-              </button>
-              <span v-else class="text-[10px] text-slate-400 uppercase font-semibold">Todas las varillas activas dentro de tolerancia</span>
-              <button @click="recalculate" :disabled="calculating" class="btn-standard py-1.5 text-[10px] uppercase">
-                {{ calculating ? 'Recalculando…' : 'Recalcular' }}
-              </button>
-            </div>
-          </div>
-
-          <!-- Vista rectificada + acciones -->
-          <div class="space-y-4">
-            <div class="card-standard overflow-hidden">
-              <div class="card-header uppercase tracking-wider text-[10px]">Vista rectificada (UTM)</div>
-              <div class="aspect-video bg-slate-900 relative">
-                <img v-if="rectifiedUrl && !rectifiedFailed" :src="rectifiedUrl" @error="rectifiedFailed = true"
-                     class="w-full h-full object-contain">
-                <div v-else class="w-full h-full flex items-center justify-center text-slate-500 text-[10px] font-semibold uppercase tracking-wider">
-                  Vista previa no disponible
-                </div>
-              </div>
-            </div>
-            <div class="card-standard p-4 space-y-2">
-              <button @click="currentStep = 5" class="btn-secondary w-full text-xs uppercase">Reajustar Puntos</button>
-              <button @click="currentStep = 1; fetchCameras()" class="btn-standard w-full text-xs uppercase">Finalizar Proceso</button>
-            </div>
-          </div>
+        <div class="card-standard p-4 flex flex-wrap gap-3 justify-end">
+          <button @click="currentStep = 6" class="btn-secondary text-xs uppercase">← Volver a Cálculo</button>
+          <button @click="currentStep = 5" class="btn-secondary text-xs uppercase">Reajustar Puntos</button>
+          <button @click="currentStep = 1; fetchCameras()" class="btn-standard text-xs uppercase">Finalizar Proceso</button>
         </div>
       </template>
     </div>

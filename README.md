@@ -58,25 +58,23 @@ El instalador resultante pesa ~185 MB. Si en algun momento quieres migrar una ca
 ### 1. Diagnostico Inicial
 Verifica la conexion con la API y el estado de las camaras:
 ```bash
-python3 verify_setup.py
+python3 scripts/verify_setup.py
 ```
 
 ### 2. Descarga de Imagenes
-El sistema descarga imagenes automaticamente evitando duplicados.
+El sistema descarga imagenes automaticamente evitando duplicados. Requiere
+`OBSCAPE_USERNAME`/`OBSCAPE_API_KEY` en el entorno o en un `.env` en la raiz
+del repo (ver `.env.example`).
 ```bash
 # Descarga estandar (ultimos 14 dias, 12:00h)
 python3 acces_api/scheduled_download.py
 ```
 
-### 3. Calibracion y Mantenimiento
-Para calibrar una camara desde cero o realizar ajustes si se ha movido:
-```bash
-# Lanzador rapido para CAM 1
-python3 visualizar_calibracion.py
-
-# Ajuste rapido (arrastrar puntos) en una imagen nueva
-python3 proces_images/recalibrate.py --cam 1 --image ruta/foto.jpg
-```
+### 3. Calibracion
+La calibracion (marcado de varillas GCP y calculo de homografia pixel -> UTM)
+se hace desde la interfaz web, en **Calibracion** en el menu lateral — no hay
+script de linea de comandos para esto. Ver la seccion "Calibracion Interactiva"
+mas arriba y `docs/user_manual.md` para el flujo completo.
 
 ### 4. Segmentacion y Extraccion (Mes 3)
 Prueba el pipeline de extraccion de linea de costa:
@@ -92,6 +90,6 @@ python3 proces_images/test_mes3_pipeline.py --cam 1
 
 ## Documentacion completa
 Para mas detalles, consulta la carpeta `docs/`:
-- [Guia de Comandos](docs/13_guia_comandos.md) - Lista completa de herramientas.
-- [Mejoras del Sistema](docs/12_mejoras_sistema.md) - Detalles sobre las ultimas actualizaciones.
-- [Estado del Proyecto](docs/09_estado.md) - Progreso de los hitos.
+- [Manual de Usuario](docs/user_manual.md) - Guia completa de uso de la interfaz web.
+- [Memoria del Proyecto](docs/memoria.pdf) - Documento tecnico completo (arquitectura, calibracion, segmentacion, validacion).
+- [Informe Mes 2 - Calibracion](docs/reports/mes_2_calibracion.md) - Detalle del hito de calibracion.

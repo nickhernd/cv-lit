@@ -11,20 +11,23 @@ La filosofía central es la separación entre staging y commit:
 """
 
 import asyncio
+import tempfile
 import uuid
 import shutil
 import json
 import io
-from dataclasses import dataclass, field, asdict
-from typing import Dict, List, Optional, Literal
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 from pathlib import Path
 from datetime import datetime
 
 import cv2
 import numpy as np
 from fastapi import APIRouter, HTTPException, BackgroundTasks
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+from config import _safe_filename
 
 # ── Constantes ──────────────────────────────────────────────────────────────
 SIFT_FEATURES    = 3000
@@ -63,7 +66,9 @@ def _check_lighting(gray: np.ndarray) -> tuple[bool, str]:
 
 # DEBUG (INIT): directorio de staging temporal para los jobs de alineación masiva.
 # Se crea al importar el módulo (arranque del backend), no en cada request.
-TEMP_BASE    = Path("/tmp/cv_lit_batch")
+# tempfile.gettempdir() resuelve al directorio temporal real del SO (no un
+# "/tmp" fijo que no existe como tal en Windows).
+TEMP_BASE    = Path(tempfile.gettempdir()) / "cv_lit_batch"
 TEMP_BASE.mkdir(parents=True, exist_ok=True)
 
 # ── Máscaras de zonas estables por cámara ───────────────────────────────────
@@ -160,12 +165,22 @@ class AlignmentResult:
     filename: str
     status: str                    # "ok" | "failed" | "reference"
     inliers: int = 0
+    n_good_matches: int = 0        # coincidencias SIFT+FLANN antes de RANSAC (inliers es un subconjunto)
     mean_shift_px: float = 0.0     # mediana de flujo óptico residual
     H: Optional[List] = None       # matriz 3x3 como lista plana
     approved: bool = True          # override de aprobación por imagen
     fail_reason: str = ""          # "no_features" | "low_matches" | "ransac_failed" | "bad_lighting:*"
     used_mask: bool = False        # True si la alineación usó máscara de zonas
     lighting_issue: str = ""       # "overexposed" | "underexposed" | "low_contrast" | ""
+
+    def __post_init__(self):
+        # Una alineación fallida cae al frame ORIGINAL sin transformar (ver
+        # _align_to_reference) — nunca debe quedar aprobada por defecto, o
+        # commit_batch() la copiaría al directorio final sin que nadie la
+        # haya revisado. Solo importa cuando el caller no pasa approved=False
+        # explícitamente, que es el caso de todas las construcciones "failed".
+        if self.status == "failed":
+            self.approved = False
 
 
 # DEBUG: estado completo de un job de alineación masiva (una cámara, un lote de
@@ -415,7 +430,7 @@ def _align_to_reference(
 
     if H is None:
         return img.copy(), AlignmentResult(
-            filename="", status="failed", inliers=inliers, fail_reason=reason
+            filename="", status="failed", inliers=inliers, n_good_matches=n_good, fail_reason=reason
         ), reason
 
     # DEBUG (ROTACION+TRASLACION): AQUÍ se APLICA la transformación — warpPerspective
@@ -431,6 +446,7 @@ def _align_to_reference(
         filename="",
         status="ok",
         inliers=inliers,
+        n_good_matches=n_good,
         mean_shift_px=round(mean_shift, 2),
         H=H.flatten().tolist(),
         used_mask=used_mask,
@@ -492,6 +508,7 @@ async def _run_pipeline(job_id: str, image_paths: Dict[str, Path], base_path: Pa
                 filename=filename,
                 status="reference",
                 inliers=len(ref_kp),
+                n_good_matches=len(ref_kp),
                 mean_shift_px=0.0,
             )
             continue
@@ -596,10 +613,17 @@ async def start_batch(req: BatchStartRequest, background_tasks: BackgroundTasks)
 
     cam_folder = Path(DATA_DIR) / CAMERAS[req.cam_id]["folder"]
 
+    # Saneamos cada filename recibido del cliente (basename puro, sin
+    # componentes de directorio) ANTES de unirlo a cam_folder — si no, un
+    # "../../../etc/passwd" o una ruta absoluta en el JSON del body podría
+    # apuntar fuera de la carpeta de la cámara (lectura arbitraria de disco).
+    safe_filenames = [_safe_filename(fn) for fn in req.image_filenames]
+    safe_base = _safe_filename(req.base_filename)
+
     # Validar que todos los archivos existen antes de encolar
     image_paths: Dict[str, Path] = {}
     missing = []
-    for fn in req.image_filenames:
+    for fn in safe_filenames:
         p = cam_folder / fn
         if not p.exists():
             missing.append(fn)
@@ -609,16 +633,16 @@ async def start_batch(req: BatchStartRequest, background_tasks: BackgroundTasks)
     if missing:
         raise HTTPException(400, f"Imágenes no encontradas: {missing[:5]}")
 
-    base_path = cam_folder / req.base_filename
+    base_path = cam_folder / safe_base
     if not base_path.exists():
-        raise HTTPException(400, f"Imagen base no encontrada: {req.base_filename}")
+        raise HTTPException(400, f"Imagen base no encontrada: {safe_base}")
 
     job_id = str(uuid.uuid4())[:8]
     job = BatchJob(
         job_id=job_id,
         cam_id=req.cam_id,
-        base_filename=req.base_filename,
-        image_filenames=req.image_filenames,
+        base_filename=safe_base,
+        image_filenames=safe_filenames,
         progress_total=len(image_paths),
     )
     _jobs[job_id] = job
@@ -656,6 +680,7 @@ def get_results(job_id: str):
                 "filename":       r.filename,
                 "status":         r.status,
                 "inliers":        r.inliers,
+                "n_good_matches": r.n_good_matches,
                 "mean_shift_px":  r.mean_shift_px,
                 "approved":       r.approved,
                 "fail_reason":    r.fail_reason,
@@ -685,7 +710,7 @@ def preview_original(job_id: str, filename: str):
     if not job:
         raise HTTPException(404, "Job no encontrado")
     from config import CAMERAS, DATA_DIR
-    path = Path(DATA_DIR) / CAMERAS[job.cam_id]["folder"] / filename
+    path = Path(DATA_DIR) / CAMERAS[job.cam_id]["folder"] / _safe_filename(filename)
     return _serve_image(path)
 
 
@@ -696,7 +721,7 @@ def preview_aligned(job_id: str, filename: str):
     job = _jobs.get(job_id)
     if not job:
         raise HTTPException(404, "Job no encontrado")
-    return _serve_image(job.aligned_dir / filename)
+    return _serve_image(job.aligned_dir / _safe_filename(filename))
 
 
 # DEBUG:
@@ -706,7 +731,7 @@ def preview_diff(job_id: str, filename: str):
     job = _jobs.get(job_id)
     if not job:
         raise HTTPException(404, "Job no encontrado")
-    return _serve_image(job.diff_dir / filename)
+    return _serve_image(job.diff_dir / _safe_filename(filename))
 
 
 # DEBUG:
@@ -716,7 +741,7 @@ def preview_blend(job_id: str, filename: str):
     job = _jobs.get(job_id)
     if not job:
         raise HTTPException(404, "Job no encontrado")
-    return _serve_image(job.blend_dir / filename)
+    return _serve_image(job.blend_dir / _safe_filename(filename))
 
 
 # DEBUG: PATCH /api/batch/{job_id}/approve/{filename} — el usuario descarta/aprueba

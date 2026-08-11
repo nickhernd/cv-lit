@@ -4,6 +4,23 @@
 
 \section{Estrategia de validación}
 
+\begin{infobox}[Dos niveles de validación: interna (automática) y de campo (independiente)]
+Conviene distinguir dos cosas que comparten vocabulario (``RMSE'') pero no son lo mismo:
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Validación interna}, implementada y automática: en el paso Validación de la
+        calibración (capítulo~\ref{ch:calibration}), el sistema compara la homografía ajustada
+        contra las \emph{mismas} varillas usadas para calcularla, y expone un RMSE en metros
+        frente a un umbral objetivo (\texttt{RMSE\_GOOD\_M}~=~2~m). Es el criterio de
+        aceptación que se usa hoy en producción.
+  \item \textbf{Validación de campo}, metodológica (no automatizada en la interfaz): comparar la
+        línea de costa detectada contra puntos GNSS de campo del IEL que \textbf{no} hayan
+        participado en la calibración — la referencia más honesta posible, porque no puede
+        estar sesgada por los mismos puntos que ajustaron la homografía. Es el procedimiento que
+        describe el resto de este capítulo, pensado para auditorías periódicas de precisión más
+        que para el día a día del sistema.
+\end{itemize}
+\end{infobox}
+
 Comparación de la línea detectada contra \textbf{transectos GNSS independientes} del IEL:
 puntos \textbf{no usados} en la calibración de homografía.
 
@@ -26,7 +43,7 @@ donde $d_i$ es la distancia mínima en metros del punto GNSS $i$ a la polilínea
 \toprule
 \textbf{Métrica} & \textbf{Objetivo} & \textbf{Condición} \\
 \midrule
-RMSE geométrico    & $< 1{,}5$~m & Condiciones estándar (12:00h, sin interferencias) \\
+RMSE geométrico    & $< 2$~m (\texttt{RMSE\_GOOD\_M}) & Condiciones estándar (12:00h, sin interferencias) — mismo umbral que usa la validación interna del paso Cálculo (\S\ref{sec:dos-umbrales} del capítulo~\ref{ch:calibration}) \\
 MAE geométrico     & $< 1{,}0$~m & Objetivo secundario \\
 Cobertura temporal & $\geq 90\%$ & Imágenes a 12:00h procesadas sin error \\
 $\delta_\text{px}$ alineación & $< 3$~px & Drift residual post-homografía \\

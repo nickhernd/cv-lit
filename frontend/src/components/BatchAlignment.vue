@@ -1,5 +1,6 @@
 <script setup>
 import { ref, reactive, computed, watch, onUnmounted } from 'vue'
+import { API_BASE } from '../api.js'
 
 const props = defineProps({
   camId:       { type: Number, required: true },
@@ -8,7 +9,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['notify', 'committed', 'discard'])
 
-const API = 'http://localhost:8000'
+const API = API_BASE
 
 // ── Máquina de estados ───────────────────────────────────────────────────────
 // idle → configuring → processing → reviewing → committed
@@ -163,13 +164,13 @@ function statusTooltip(r) {
   if (r.status === 'failed') {
     const msgs = {
       no_features:   'Sin suficientes features detectables en las zonas estables',
-      low_matches:   `Pocos matches encontrados (${r.inliers}) — zonas muy distintas`,
-      ransac_failed: `RANSAC no convergió (${r.inliers} inliers)`,
+      low_matches:   `Pocos matches encontrados (${r.n_good_matches}) — zonas muy distintas`,
+      ransac_failed: `RANSAC no convergió (${r.inliers} de ${r.n_good_matches} matches eran fiables)`,
     }
     return msgs[r.fail_reason] || 'Alineación fallida'
   }
   const maskInfo = r.used_mask ? ' (zonas estables)' : ' (imagen completa)'
-  return `${r.inliers} inliers · delta ${r.mean_shift_px}px${maskInfo}`
+  return `${r.inliers} de ${r.n_good_matches} puntos coincidentes usados · delta ${r.mean_shift_px}px${maskInfo}`
 }
 
 const approvedCount = computed(() =>
@@ -556,10 +557,14 @@ onUnmounted(() => clearInterval(pollInterval))
         <div v-if="selectedResult" class="flex items-center space-x-4 text-xs">
           <span class="font-mono text-slate-500 truncate max-w-[180px]">{{ selectedResult.filename }}</span>
           <div class="flex space-x-3">
-            <div class="text-slate-500">
-              Inliers: <span class="font-semibold text-slate-800">{{ selectedResult.inliers }}</span>
+            <div class="text-slate-500"
+                 title="De todas las coincidencias SIFT encontradas entre esta imagen y la referencia, estas son las que RANSAC aceptó como fiables (usadas para calcular la alineación) — el resto se descartan por no encajar con el conjunto (valores atípicos).">
+              Puntos usados:
+              <span class="font-semibold text-slate-800">{{ selectedResult.inliers }}</span>
+              <span class="text-slate-400">/ {{ selectedResult.n_good_matches }}</span>
             </div>
-            <div class="text-slate-500">
+            <div class="text-slate-500"
+                 title="Delta: desplazamiento medio en píxeles entre la imagen alineada y la referencia, tras aplicar la homografía. Más bajo es mejor; por encima de ~3px puede notarse un ligero desajuste visual.">
               Delta:
               <span class="font-semibold"
                     :class="selectedResult.mean_shift_px > 3 ? 'text-amber-600' : 'text-emerald-600'">
@@ -616,22 +621,22 @@ onUnmounted(() => clearInterval(pollInterval))
       </div>
 
       <!-- Leyenda del mapa delta -->
-      <div v-if="viewMode === 'diff'" class="bg-slate-800 rounded-md px-4 py-2 flex items-center space-x-6 text-[10px] text-slate-300 shrink-0">
-        <span class="font-semibold text-slate-400 uppercase tracking-wider">Leyenda delta:</span>
+      <div v-if="viewMode === 'diff'" class="card-standard px-4 py-2 flex items-center space-x-6 text-[10px] text-slate-600 shrink-0">
+        <span class="font-semibold text-slate-500 uppercase tracking-wider">Leyenda delta:</span>
         <div class="flex items-center space-x-1.5">
-          <div class="w-3 h-3 rounded bg-black border border-slate-600"></div>
+          <div class="w-3 h-3 rounded bg-black border border-slate-300"></div>
           <span>Alineación perfecta</span>
         </div>
         <div class="flex items-center space-x-1.5">
-          <div class="w-3 h-3 rounded" style="background:#ff4400"></div>
+          <div class="w-3 h-3 rounded border border-slate-300" style="background:#ff4400"></div>
           <span>Error de intensidad</span>
         </div>
         <div class="flex items-center space-x-1.5">
-          <div class="w-3 h-3 rounded" style="background:#ffffff"></div>
+          <div class="w-3 h-3 rounded border border-slate-300" style="background:#ffffff"></div>
           <span>Error severo</span>
         </div>
         <div class="flex items-center space-x-1.5">
-          <div class="w-3 h-3 rounded" style="background:#00ffff"></div>
+          <div class="w-3 h-3 rounded border border-slate-300" style="background:#00ffff"></div>
           <span>Bordes divergentes</span>
         </div>
       </div>

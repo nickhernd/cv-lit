@@ -1,5 +1,27 @@
-# Vue 3 + Vite
+# Línea de Costa — Frontend
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+Interfaz web (Vue 3 + Vite + Tailwind) del sistema de monitorización de línea de
+costa. Dashboard, calibración interactiva, alineación masiva, análisis de línea
+de costa, mapa GeoJSON y modo automático. Ver el `README.md` de la raíz del
+repo para la descripción completa del proyecto.
 
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+## Desarrollo
+
+```bash
+npm install
+npm run dev       # http://localhost:5173, con el backend en http://localhost:8000
+```
+
+## Configuración
+
+La URL del backend es configurable vía `VITE_API_URL` (ver `.env.example`).
+Sin definir, usa `http://localhost:8000`.
+
+## Build de producción
+
+```bash
+npm run build      # genera frontend/dist/
+```
+
+`frontend/dist/` es lo que sirve `backend/main.py` (modo web) o lo que empaqueta
+el instalador de escritorio (ver `installer/cv-lit.iss` y el README de la raíz).

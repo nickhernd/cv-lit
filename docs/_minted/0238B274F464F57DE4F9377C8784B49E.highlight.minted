@@ -1,0 +1,8 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{n}{H}\PYG{p}{,} \PYG{n}{ransac\PYGZus{}mask} \PYG{o}{=} \PYG{n}{cv2}\PYG{o}{.}\PYG{n}{findHomography}\PYG{p}{(}
+    \PYG{n}{pts\PYGZus{}px}\PYG{p}{,}             \PYG{c+c1}{\PYGZsh{} píxeles marcados/confirmados en la foto}
+    \PYG{n}{pts\PYGZus{}utm}\PYG{p}{,}            \PYG{c+c1}{\PYGZsh{} coordenadas UTM del catálogo de varillas}
+    \PYG{n}{cv2}\PYG{o}{.}\PYG{n}{RANSAC}\PYG{p}{,}
+    \PYG{l+m+mf}{3.0}                 \PYG{c+c1}{\PYGZsh{} umbral de reproyección en el dominio UTM: 3 metros}
+\PYG{p}{)}
+\end{MintedVerbatim}

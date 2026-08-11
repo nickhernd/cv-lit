@@ -52,17 +52,28 @@ APP_MODE=demo uvicorn main:app --reload
 
 ## 3. Calibración de cámaras
 
-La calibración establece la homografía píxel → UTM (EPSG:25830) para cada cámara.
+La calibración establece la homografía píxel → UTM (EPSG:25830) para cada cámara. Es un
+asistente de 7 pasos: **Vista general → Imágenes → Alineación → Catálogo → Marcación →
+Cálculo → Validación**.
 
-1. Ir a **Calibración** en el menú lateral.
-2. Seleccionar la cámara (1–6).
-3. Marcar los GCPs (Ground Control Points) en la imagen: hacer clic en el punto visible y asignar las coordenadas UTM (X, Y) del GCP correspondiente.
-   - Mínimo 4 GCPs de tipo `calib`, recomendado 8+.
-   - Los GCPs de validación (`val`) no se usan en el ajuste; sirven para medir el RMSE independiente.
-4. Pulsar **Calcular homografía**.
-   - El sistema calcula H con RANSAC y muestra RMSE en metros.
-   - Objetivo: RMSE < 1.5 m.
-5. El perfil se guarda automáticamente en `calibration/cam_X_profile.json` y `calibration/cam_X_profile.yaml`.
+1. Ir a **Calibración** en el menú lateral y seleccionar la cámara (1–6).
+2. **Imágenes**: elegir o subir el fotograma a calibrar, y marcarlo como imagen de referencia.
+3. **Marcación**: marcar los GCPs (Ground Control Points, "varillas") en la imagen — clic sobre
+   el punto visible (apóyate en la lupa para el píxel exacto) y asigna sus coordenadas UTM
+   (X, Y). Cada varilla queda "confirmada" (marcador verde) o "pendiente" (ámbar, si viene
+   importada de un CSV con posición aproximada) — hace falta un mínimo de 4 confirmadas,
+   recomendado 8+.
+4. **Cálculo**: pulsar **Calcular homografía**. El sistema ajusta H con RANSAC a partir de las
+   varillas confirmadas y muestra una tabla de error de reproyección por varilla — se puede
+   excluir una varilla puntual y recalcular si su error está muy por encima del resto. Si las
+   varillas marcadas quedan casi todas alineadas en una sola línea, el sistema avisa de que la
+   geometría es inestable (RANSAC no encuentra un ajuste fiable) — en ese caso conviene añadir
+   varillas repartidas en más de una zona/profundidad de la imagen.
+5. **Validación**: resumen final — RMSE de reproyección (px) y RMSE en terreno (m). Objetivo:
+   RMSE terreno < 2 m (el umbral por varilla en píxeles de la tabla de Cálculo es solo una ayuda
+   para localizar una varilla mal marcada, no el criterio de aceptación).
+6. El perfil se guarda automáticamente en `calibration/cam_X_profile.json` (y la matriz de
+   homografía en `calibration/cam_X_H.npy`).
 
 ---
 
@@ -138,7 +149,27 @@ python scripts/debug_all_demo.py --cams 1 --max-imgs 10
 
 ---
 
-## 7. Procesamiento automático a las 12:00h
+## 7. Modo automático
+
+Automatiza de punta a punta lo que las secciones 4 y 6 hacen a mano, para un rango de fechas:
+descarga las imágenes nuevas de la API de Obscape, alinea el lote contra la más antigua, y
+analiza cada imagen resultante (segmentación + línea de costa + GeoJSON).
+
+1. Ir a **Modo automático** en el menú lateral.
+2. Elegir una cámara **ya calibrada** (las no calibradas aparecen deshabilitadas en el
+   desplegable — la calibración inicial sigue siendo manual, ver sección 3).
+3. Elegir el rango de fechas (desde / hasta).
+4. Pulsar **Iniciar procesamiento automático** y esperar — la pantalla muestra el progreso por
+   fase (Descarga → Alineación → Análisis) y, al terminar, una tabla con el resultado de cada
+   imagen (confianza, área seca, si fue rechazada y por qué).
+5. Exportar el GeoJSON combinado de la cámara desde el botón de la tabla de resultados.
+
+Requiere `OBSCAPE_USERNAME`/`OBSCAPE_API_KEY` configurados (variables de entorno o `.env` en la
+raíz del repo, ver `.env.example`).
+
+---
+
+## 8. Procesamiento automático a las 12:00h
 
 El script `scripts/auto_process_noon.py` procesa automáticamente la imagen de mediodía de cada cámara.
 
@@ -165,5 +196,5 @@ Los resultados diarios se guardan en `proces_images/data/noon_summary_YYYY-MM-DD
 |---------|---------------|----------|
 | `SAM no disponible` | Sin checkpoint o GPU | Colocar `sam_vit_h_4b8939.pth` en la raíz o usar `APP_MODE=demo` |
 | Imagen rechazada `low_confidence` | Iluminación difícil | Ajustar `CONFIDENCE_THRESHOLD` o revisar máscara SIFT |
-| RMSE > 1.5 m en calibración | Pocos GCPs o GCPs mal marcados | Añadir más GCPs bien distribuidos en la imagen |
+| RMSE > 2 m en calibración | Pocos GCPs, GCPs mal marcados, o varillas casi alineadas en una sola línea (ver aviso de geometría inestable en el paso Cálculo) | Añadir más GCPs bien distribuidos en más de una zona/profundidad de la imagen |
 | Backend no arranca | Dependencias faltantes | `pip install -r backend/requirements.txt` |

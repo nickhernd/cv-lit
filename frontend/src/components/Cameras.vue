@@ -1,8 +1,9 @@
 <script setup>
 import { ref, reactive, watch, onMounted } from 'vue'
+import { API_BASE } from '../api.js'
 
 const emit = defineEmits(['notify', 'calibrate-camera'])
-const API = 'http://localhost:8000'
+const API = API_BASE
 
 const cameras = ref([])
 const loading = ref(true)

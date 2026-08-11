@@ -1,6 +1,0 @@
-\begin{MintedVerbatim}[commandchars=\\\{\}]
-/tmp/cv\PYGZus{}lit\PYGZus{}batch/\PYGZob{}job\PYGZus{}id\PYGZcb{}/
-  aligned/    ← imágenes con warpPerspective aplicado (staging)
-  diff/       ← mapas de delta por imagen
-  blend/      ← blend 50/50 en escala de grises
-\end{MintedVerbatim}

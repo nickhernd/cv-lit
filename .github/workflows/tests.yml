@@ -23,5 +23,8 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r backend/requirements.txt
 
+      - name: Comprobar que todo el código Python compila
+        run: python -m compileall -q backend proces_images acces_api homography scripts tests
+
       - name: Tests del pipeline (sin backend levantado)
-        run: pytest tests/test_pipeline_integration.py -v
+        run: pytest tests/ -v --ignore=tests/test_api_integration.py

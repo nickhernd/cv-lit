@@ -9,8 +9,11 @@ import json
 import sys
 from pathlib import Path
 
-# Anadir directorios al path para importar modulos locales
-BASE_DIR = Path(__file__).parent
+# Anadir directorios al path para importar modulos locales. Este script vive
+# en scripts/, así que la raíz del repo es el padre de su directorio, no el
+# propio directorio (antes apuntaba a scripts/acces_api, scripts/calibration,
+# etc. — ninguno existe, así que todos los checks fallaban siempre).
+BASE_DIR = Path(__file__).parent.parent
 sys.path.append(str(BASE_DIR / "acces_api"))
 
 try:
@@ -25,9 +28,9 @@ def check_mes_1():
         print("  [FAILED] No se pudo importar ObscapeClient. Revisa acces_api/obscape_api.py")
         return False
     
-    client = ObscapeClient()
     print("  [.] Conectando con API Obscape...")
     try:
+        client = ObscapeClient()
         stations = client.list_stations(cameras_only=True)
         if stations:
             print(f"  [OK] Conexion API exitosa. {len(stations)} camaras encontradas.")

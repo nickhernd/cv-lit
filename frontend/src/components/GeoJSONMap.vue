@@ -1,9 +1,10 @@
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { API_BASE } from '../api.js'
 import Map from './Map.vue'
 
 const emit = defineEmits(['notify', 'calibrate-camera'])
-const API = 'http://localhost:8000'
+const API = API_BASE
 
 const combined = ref(null)
 const perCamera = ref({})
@@ -21,9 +22,10 @@ async function fetchCombined() {
 async function fetchCameras() {
   try {
     const res = await fetch(`${API}/api/dashboard`)
+    if (!res.ok) throw new Error('HTTP ' + res.status)
     const data = await res.json()
     cameras.value = data.cameras
-  } catch (e) { /* noop */ }
+  } catch (e) { emit('notify', 'Error al cargar cámaras', 'error') }
 }
 
 async function toggleCamLayer(idx) {

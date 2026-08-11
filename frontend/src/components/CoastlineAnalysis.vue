@@ -1,8 +1,9 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { API_BASE } from '../api.js'
 
 const emit = defineEmits(['notify'])
-const API = 'http://localhost:8000'
+const API = API_BASE
 
 // ── Estado ───────────────────────────────────────────────────────────────────
 const camId        = ref(1)

@@ -179,15 +179,6 @@
 .badge-neutral { @apply bg-slate-100 text-slate-500; }
 .badge-info { @apply bg-blue-50 text-blue-700; }
 
-/* Cabecera de página persistente (App.vue): título + subtítulo + acciones,
-   igual que el topbar del mock — sustituye a los antiguos <h1> con
-   border-b repetidos en cada componente. */
-.page-topbar {
-  @apply flex items-center justify-between gap-4 pb-3.5 mb-5 border-b border-slate-200;
-}
-.page-title { @apply text-base font-semibold text-slate-900; }
-.page-sub { @apply text-xs text-slate-400 mt-0.5; }
-
 /* Stepper de puntos conectados (paso a paso de Calibración, como en el mock) */
 .stepper { @apply flex items-center mb-4; }
 .stepper .step { @apply flex items-center gap-1.5; }

@@ -24,8 +24,24 @@ Linea de costa-6.zip
 /mocks/
 
 node_modules/
-node_modules/
 
 # Bytecode compilado de Python — se regenera solo, no aporta nada versionado
 __pycache__/
 *.pyc
+
+# Salida de scripts/debug_all_demo.py — regenerable, no es código versionado
+/debug_demo/
+
+# Vídeos de referencia sueltos, sin relación con el código
+*.mp4
+
+# Basura de compilación LaTeX (docs/memoria.tex, docs/technical_memory/) —
+# se conservan los .pdf finales, no los artefactos intermedios de latexmk
+*.aux
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.out
+*.toc

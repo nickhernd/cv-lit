@@ -14,12 +14,26 @@ import cv2
 import pandas as pd
 from typing import List, Optional
 import shutil
-from pathlib import Path
 import sys
 import datetime
 
-from config import CAMERAS, DATA_DIR, CALIBRATION_DIR
+from config import CAMERAS, DATA_DIR, CALIBRATION_DIR, _safe_filename
 from batch_alignment import router as batch_router
+from auto_mode import router as auto_router
+
+
+def _safe_print(*args, **kwargs):
+    """print() normal, pero tolerante a sys.stdout is None — en el build de
+    escritorio empaquetado con PyInstaller (console=False, ver
+    desktop_launcher.spec) no hay consola adjunta y sys.stdout puede ser
+    None; un print() de arranque normal ahí lanzaría AttributeError y
+    tumbaría la app antes de mostrar la ventana."""
+    if sys.stdout is None:
+        return
+    try:
+        print(*args, **kwargs)
+    except OSError:
+        pass
 
 # Configurar path para modulos de procesamiento. Congelada (PyInstaller,
 # onedir), "la ubicación de este archivo" no es una ruta real en disco —
@@ -44,7 +58,7 @@ try:
     from cam_thresholds import get_threshold, validate_mask
     from georef_export import confidence_index, RMSE_GOOD_M
 except ImportError:
-    print("[WARNING] No se pudieron importar los modulos de procesamiento.")
+    _safe_print("[WARNING] No se pudieron importar los modulos de procesamiento.")
     def get_threshold(cam_id): return {"confidence_min": 0.45, "mask_area_min_ratio": 0.05, "mask_area_max_ratio": 0.70}
     def validate_mask(mask, cam_id, shape): return True, ""
     def confidence_index(mask, rmse_m, coastline_points=None, prob_map=None): return 0.0
@@ -59,14 +73,16 @@ CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.45"))
 # backend.main:app) se ejecuta TODO el código a nivel de módulo de este archivo,
 # de arriba a abajo — este es el verdadero "inicio" del backend.
 app = FastAPI(title="CV-Lit API")
-# DEBUG (INIT): registra las rutas de batch_alignment.py (prefijo /api/batch) sobre esta app.
+# DEBUG (INIT): registra las rutas de batch_alignment.py (prefijo /api/batch) y
+# auto_mode.py (prefijo /api/automode) sobre esta app.
 app.include_router(batch_router)
+app.include_router(auto_router)
 
 # DEBUG (INIT): modo de ejecución global — "real" (pipeline completo con SAM/GCPs) vs
 # "demo" (datos simulados, sin cargar modelos pesados). Se lee UNA vez al arrancar
 # y condiciona el comportamiento de get_segmenter(), get_dashboard() y calculate_homography().
 APP_MODE = os.getenv("APP_MODE", "real").lower()
-print(f"[INFO] Iniciando en MODO: {APP_MODE.upper()}")
+_safe_print(f"[INFO] Iniciando en MODO: {APP_MODE.upper()}")
 
 # Log persistente (JSONL, una línea por entrada) — antes system_logs vivía
 # solo en memoria y se perdía en cada reinicio del backend (`uvicorn --reload`
@@ -144,11 +160,15 @@ def get_segmenter():
     return segmenter
 
 # DEBUG (INIT): habilita CORS abierto ("*") para que el frontend (Vite, otro origen/puerto)
-# pueda llamar a esta API sin bloqueos del navegador.
+# pueda llamar a esta API sin bloqueos del navegador. allow_credentials=False
+# a propósito: esta API no usa cookies/sesión (auth es la cabecera X-API-Key,
+# ver más abajo), y combinar origins="*" con credentials=True es una
+# configuración CORS insegura (permite peticiones credenciales desde
+# cualquier origen).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -184,7 +204,15 @@ class CalibrationProfile(BaseModel):
 class HomographyRequest(BaseModel):
     """Parámetros del cálculo de homografía por imagen."""
     image_name: Optional[str] = None      # si falta, se usa la referencia del perfil
-    threshold_px: float = 1.0             # umbral tolerable de error de reproyección (px)
+    # Umbral de error de reproyección (px) para marcar una varilla individual
+    # como "sobre umbral" en la tabla de Validación — es una AYUDA para
+    # detectar de un vistazo qué varilla concreta podría estar mal marcada
+    # (un misclick, o una varilla-catálogo equivocada), no el criterio real
+    # de aceptación de la calibración (eso es rmse_m frente a RMSE_GOOD_M, ver
+    # calculate_homography). Con fotos de ~4-5k px de ancho y sin corrección
+    # de distorsión de lente, exigir <1px por varilla marcada a mano es
+    # prácticamente imposible de cumplir aunque la calibración sea correcta.
+    threshold_px: float = 5.0
     excluded: List[int] = []              # índices de varillas a excluir del cálculo
 
 # Las imágenes de cámara llevan el timestamp de captura en el nombre:
@@ -200,17 +228,6 @@ def _parse_capture_ts(filename: str) -> Optional[str]:
         return dt.isoformat(timespec="seconds")
     except ValueError:
         return None
-
-def _safe_filename(filename: Optional[str]) -> str:
-    """Reduce cualquier nombre de archivo recibido del cliente a un nombre
-    "plano" sin componentes de directorio (os.path.basename), para que un
-    '../../../etc/passwd' o una ruta absoluta no puedan escapar de la carpeta
-    de datos de la cámara. Se usa en TODO endpoint que recibe un filename del
-    cliente y lo mete en un os.path.join (lectura, borrado o escritura)."""
-    name = os.path.basename((filename or "").strip().replace("\\", "/"))
-    if not name or name in (".", ".."):
-        raise HTTPException(status_code=400, detail="Nombre de archivo inválido")
-    return name
 
 def _annotations_path(cam_id: int, filename: str) -> str:
     base = _safe_filename(filename).rsplit(".", 1)[0] + ".json"
@@ -338,39 +355,6 @@ def _check_rmse_trend(cam_id: int, rmse_m: float, max_entries: int = 20):
     with open(path, "w") as f:
         json.dump(entries[-max_entries:], f, indent=2)
 
-# DEBUG: alinea `img` contra `ref_img` con ORB+RANSAC (versión más simple/antigua
-# que la de batch_alignment.py, que usa SIFT). No parece estar referenciada por
-# ningún endpoint activo de este archivo — revisar si sigue en uso.
-def align_image_to_ref(img: np.ndarray, ref_img: np.ndarray) -> np.ndarray:
-    """Alinea una imagen a una referencia usando ORB."""
-    gray_img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    gray_ref = cv2.cvtColor(ref_img, cv2.COLOR_BGR2GRAY)
-    
-    orb = cv2.ORB_create(nfeatures=2000)
-    kp1, des1 = orb.detectAndCompute(gray_img, None)
-    kp2, des2 = orb.detectAndCompute(gray_ref, None)
-    
-    if des1 is None or des2 is None: return img
-        
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-    matches = bf.match(des1, des2)
-    matches = sorted(matches, key=lambda x: x.distance)
-    
-    good_matches = matches[:int(len(matches) * 0.15)]
-    if len(good_matches) < 20: return img
-        
-    src_pts = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
-    dst_pts = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
-    
-    # DEBUG (ROTACION+TRASLACION): versión legacy (ORB) — misma idea que
-    # batch_alignment._try_align(): H imagen→referencia por matching de features,
-    # y warpPerspective aplica la rotación/traslación a la imagen completa.
-    H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
-    if H is None: return img
-
-    h, w = ref_img.shape[:2]
-    return cv2.warpPerspective(img, H, (w, h))
-
 # DEBUG: expone el buffer system_logs para que el frontend muestre el log de actividad en vivo.
 @app.get("/api/logs")
 def get_logs():
@@ -453,6 +437,8 @@ def get_report(format: str = "json"):
 # capturas de una cámara. Escribe en calibration/cam_{id}_profile.json.
 @app.post("/api/cameras/{cam_id}/set-reference")
 def set_reference_image(cam_id: int, filename: str):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
     filename = _safe_filename(filename)
     profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_profile.json")
     if os.path.exists(profile_path):
@@ -472,6 +458,8 @@ def set_reference_image(cam_id: int, filename: str):
 # data/CAM_{id}/json/{filename}.json. Usado por el editor de anotaciones del frontend.
 @app.get("/api/cameras/{cam_id}/images/{filename}/annotations")
 def get_image_annotations(cam_id: int, filename: str):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
     json_path = _annotations_path(cam_id, filename)
     if os.path.exists(json_path):
         with open(json_path, "r") as f:
@@ -483,6 +471,8 @@ def get_image_annotations(cam_id: int, filename: str):
 # para no borrar claves que el frontend no envía (p.ej. "calibration").
 @app.post("/api/cameras/{cam_id}/images/{filename}/annotations")
 def save_image_annotations(cam_id: int, filename: str, data: dict):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
     target_dir = os.path.join(DATA_DIR, f"CAM_{cam_id}", "json")
     os.makedirs(target_dir, exist_ok=True)
     json_path = _annotations_path(cam_id, filename)
@@ -748,7 +738,7 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
         } for i, p in enumerate(points)]
         add_log(f"Homografía Cam {cam_id} simulada (Demo)", "success")
         return {"status": "success", "image": image_name, "rmse_px": 0.62, "rmse_m": 0.12,
-                "mae_px": 0.45, "mae_m": 0.09,
+                "mae_px": 0.45, "mae_m": 0.09, "rmse_good_m": RMSE_GOOD_M, "geometry_warning": None,
                 "threshold_px": payload.threshold_px, "gcps_used": len(included_idx),
                 "excluded": sorted(excluded), "residuals": residuals}
 
@@ -775,6 +765,27 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
         for pos, i in enumerate(included_idx):
             inlier_by_idx[i] = bool(flat[pos])
 
+    # Aviso de geometría inestable: si RANSAC no encuentra un subconjunto de
+    # varillas mutuamente consistente, la H calculada no es de fiar aunque
+    # técnicamente se haya podido invertir — es la causa real detrás de los
+    # RMSE disparados (decenas de metros) que si no, quedan sin explicar.
+    # Motivo típico: una varilla con la UTM o el píxel mal introducidos, o
+    # que las varillas marcadas están casi todas alineadas en una única
+    # línea/transecto (geométricamente insuficiente para fijar los 8 grados
+    # de libertad de una homografía, aunque el cálculo en sí no falle).
+    MIN_INLIER_FRACTION = 0.6  # por debajo de esto, la H no se considera fiable
+    inlier_count = sum(inlier_by_idx.values())
+    inlier_fraction = (inlier_count / len(included_idx)) if included_idx else 1.0
+    geometry_warning = None
+    if inlier_fraction < MIN_INLIER_FRACTION:
+        geometry_warning = (
+            f"RANSAC solo encontró {inlier_count} de {len(included_idx)} varillas "
+            "mutuamente consistentes — este RMSE probablemente no refleja la calidad "
+            "real de la calibración. Revisa si alguna varilla tiene la UTM o el píxel "
+            "mal introducidos, y si las varillas marcadas están casi todas en una sola "
+            "línea, añade alguna repartida en otra zona/profundidad de la imagen."
+        )
+
     # DEBUG (ERROR POR VARILLA): AQUÍ se calcula el error de reproyección de CADA
     # varilla por separado: E_i = ||x_i - x̂_i|| (distancia euclídea entre lo
     # medido y lo que predice la homografía), en ambos dominios:
@@ -782,7 +793,7 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
     #              del píxel donde se marcó la varilla
     #  - error_px: distancia entre el píxel marcado y la retro-proyección con H⁻¹
     #              del UTM medido
-    # Estos valores llenan la tabla del paso 5 (Validación) y deciden qué filas
+    # Estos valores llenan la tabla del paso Cálculo y deciden qué filas
     # se marcan en rojo (error_px > threshold_px). El error POR IMAGEN es el RMSE
     # de estos residuos, que se guarda en el JSON de anotaciones de la imagen.
     residuals = []
@@ -834,6 +845,15 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
         "rmse_m": round(rmse_m, 4),
         "mae_px": round(mae_px, 4),
         "mae_m": round(mae_m, 4),
+        # Umbral de RMSE en metros que el resto del sistema ya usa para
+        # considerar "buena" una calibración (ver georef_export.RMSE_GOOD_M,
+        # el mismo factor que pondera confidence_index() en analyze_roi). El
+        # frontend lo usa para decidir el estado Óptimo/Revisar del paso de
+        # Validación — no el umbral en píxeles por varilla, que es solo una
+        # ayuda para detectar varillas mal marcadas, no el criterio real de
+        # aceptación (ver comentario junto a threshold_px en HomographyRequest).
+        "rmse_good_m": RMSE_GOOD_M,
+        "geometry_warning": geometry_warning,
         "threshold_px": payload.threshold_px,
         "gcps_used": len(included_idx),
         "excluded": sorted(excluded),
@@ -872,60 +892,14 @@ def calculate_homography(cam_id: int, payload: Optional[HomographyRequest] = Non
     # analyze_roi carga la homografía desde el .npy — mantenerlo sincronizado
     np.save(os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_H.npy"), H)
 
-    # Vista previa rectificada (planta cenital) para el paso de Validación: reproyecta
-    # la foto completa a un lienzo en UTM local componiendo T (UTM->lienzo, origen y
-    # escala ajustados a la huella de la imagen) con H (píxel->UTM). Sin esto, el
-    # endpoint /rectified-preview nunca tiene el JPG que sirve y el panel se queda
-    # permanentemente en "vista previa no disponible".
-    try:
-        img_path = _resolve_camera_image_path(cam_id, image_name)
-        img = cv2.imread(img_path)
-        if img is not None:
-            h_img, w_img = img.shape[:2]
-            # Acotar el lienzo a la franja por DEBAJO de las varillas de
-            # calibración: la homografía solo es fiable cerca de donde se
-            # calibró. Si los límites del lienzo se calculan con la foto
-            # ENTERA (cielo/horizonte incluidos, muy lejos del plano de la
-            # playa), esas esquinas se proyectan a UTM que se dispara hacia
-            # el infinito y la franja real de playa queda como una tira
-            # minúscula en una esquina del resultado — de ahí que la vista
-            # rectificada se viera irreconocible. Se recorta un margen por
-            # encima de la varilla más alta marcada de esta imagen.
-            gcp_y_min = float(pts_px[:, 1].min())
-            margin = 0.10 * max(h_img - gcp_y_min, 1.0)
-            y0 = max(0.0, gcp_y_min - margin)
-            corners_px = np.array([[0, y0], [w_img, y0], [w_img, h_img], [0, h_img]], dtype=np.float64)
-            corners_utm = cv2.perspectiveTransform(corners_px.reshape(-1, 1, 2), H).reshape(-1, 2)
-            min_x, min_y = corners_utm.min(axis=0)
-            max_x, max_y = corners_utm.max(axis=0)
-            extent_x, extent_y = max(max_x - min_x, 1e-6), max(max_y - min_y, 1e-6)
-            scale = 1000 / max(extent_x, extent_y)
-            canvas_w, canvas_h = max(1, round(extent_x * scale)), max(1, round(extent_y * scale))
-            # T: UTM -> lienzo (Y invertida para que el norte quede arriba)
-            T = np.array([
-                [scale, 0, -min_x * scale],
-                [0, -scale, max_y * scale],
-                [0, 0, 1],
-            ], dtype=np.float64)
-            rectified = cv2.warpPerspective(img, T @ H, (canvas_w, canvas_h))
-            cv2.imwrite(os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_rectified.jpg"), rectified)
-    except Exception as e:
-        add_log(f"No se pudo generar la vista rectificada de Cam {cam_id}: {e}", "warning")
-
     flagged = sum(1 for r in residuals if r["above_threshold"])
     msg = f"Homografía Cam {cam_id} ({image_name}) calculada. RMSE: {rmse_px:.2f}px / {rmse_m:.3f}m"
     if flagged:
         msg += f" — {flagged} varilla(s) sobre umbral de {payload.threshold_px}px"
-    add_log(msg, "success" if not flagged else "warning")
+    if geometry_warning:
+        msg += " — ⚠ geometría de varillas inestable, ver detalle en Validación"
+    add_log(msg, "success" if not flagged and not geometry_warning else "warning")
     return {"status": "success", **calibration}
-
-# DEBUG: sirve la imagen rectificada (vista cenital tras aplicar homografía) generada
-# previamente en calibration/cam_{id}_rectified.jpg.
-@app.get("/api/cameras/{cam_id}/rectified-preview")
-def get_rectified_preview(cam_id: int):
-    preview_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_rectified.jpg")
-    if not os.path.exists(preview_path): raise HTTPException(status_code=404, detail="Preview not found")
-    return FileResponse(preview_path)
 
 # DEBUG: endpoint núcleo del pipeline de análisis. Carga imagen + homografía,
 # segmenta arena seca (SAM -> color_fallback -> Otsu, en cascada), valida la
@@ -933,8 +907,10 @@ def get_rectified_preview(cam_id: int):
 # UTM con la homografía y guarda el GeoJSON + preview resultantes en DATA_DIR.
 @app.post("/api/cameras/{cam_id}/analyze-roi")
 def analyze_roi(cam_id: int, filename: Optional[str] = None):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
     add_log(f"Iniciando segmentación y georreferenciación para Cam {cam_id}", "info")
-    
+
     # 1. Cargar imagen
     info = CAMERAS[cam_id]
     target_file = _safe_filename(filename) if filename else _latest_image_filename(cam_id)
@@ -1132,8 +1108,10 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
 # ── Alineación con preview blend 50/50 ────────────────────────────────────────
 # DEBUG: alinea una imagen 'target' contra una referencia con SIFT+FLANN+RANSAC y
 # devuelve un PNG con un blend 50/50 en blanco y negro para inspección visual rápida.
-# NOTA (ver comentario interno más abajo): no usa las máscaras de zonas estables de
-# alignment_masks.json, a diferencia de batch_alignment.py; posiblemente en desuso.
+# SÍ está en uso: lo llama Calibration.vue como vista previa rápida de alineación
+# antes de lanzar una Alineación masiva completa. No usa las máscaras de zonas
+# estables de alignment_masks.json (a diferencia de batch_alignment.py) porque aquí
+# la referencia puede ser una imagen subida ad-hoc, no la de una cámara calibrada.
 @app.post("/api/cameras/{cam_id}/align-preview")
 async def align_preview(
     cam_id: int,
@@ -1207,7 +1185,6 @@ async def align_preview(
 
     # DEBUG (ROTACION+TRASLACION): igual que en batch_alignment._try_align() —
     # H imagen→referencia a partir de matches SIFT, y warpPerspective la aplica.
-    # (Endpoint de preview individual, posiblemente en desuso; ver nota de arriba.)
     H, mask = cv2.findHomography(dst, src, cv2.RANSAC, RANSAC_THRESH)
     inliers  = int(mask.ravel().sum()) if mask is not None else 0
 
@@ -1280,17 +1257,29 @@ def get_analysis_result(cam_id: int):
     if os.path.exists(path): return FileResponse(path)
     return get_camera_image(cam_id)
 
+# Límite de tamaño por fichero subido (imagen o CSV) — evita que un cliente
+# agote el disco con un solo POST; generoso para fotos 4K sin comprimir.
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+
 # DEBUG: sube uno o varios archivos de imagen a la carpeta de una cámara
 # (DATA_DIR/{folder}), creando el directorio si no existe.
 @app.post("/api/cameras/{cam_id}/upload-images")
 async def upload_images(cam_id: int, files: List[UploadFile] = File(...)):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
     cam_folder = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"])
     os.makedirs(cam_folder, exist_ok=True)
     uploaded = []
     for file in files:
         safe_name = _safe_filename(file.filename)
+        if not safe_name.lower().endswith(IMAGE_EXTS):
+            raise HTTPException(status_code=400, detail=f"Tipo de archivo no permitido: {safe_name}")
+        contents = await file.read()
+        if len(contents) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail=f"Archivo demasiado grande: {safe_name}")
         file_path = os.path.join(cam_folder, safe_name)
-        with open(file_path, "wb") as buffer: shutil.copyfileobj(file.file, buffer)
+        with open(file_path, "wb") as buffer:
+            buffer.write(contents)
         uploaded.append(safe_name)
     add_log(f"Subidas {len(uploaded)} imágenes a Cam {cam_id}", "info")
     return {"status": "success", "uploaded": uploaded, "count": len(uploaded)}
@@ -1343,7 +1332,8 @@ def delete_camera_image(cam_id: int, filename: str):
             add_log(f"Imagen {filename} eliminada de Cam {cam_id}", "info")
             return {"status": "success"}
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            add_log(f"Error al eliminar {filename} de Cam {cam_id}: {e}", "error")
+            raise HTTPException(status_code=500, detail="No se pudo eliminar el archivo")
     raise HTTPException(status_code=404, detail="File not found")
 
 # ── Catálogo de varillas (coordenadas UTM topografiadas en campo) ─────────────
@@ -1389,9 +1379,13 @@ def _match_image_for_file_tag(cam_id: int, file_tag: str) -> Optional[dict]:
 async def import_rods(cam_id: int, file: UploadFile = File(...)):
     if cam_id not in CAMERAS:
         raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    if not _safe_filename(file.filename).lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Solo se admiten archivos .csv")
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="El archivo está vacío")
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Archivo demasiado grande")
     try:
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError:

@@ -1,0 +1,167 @@
+\chapter{Módulo de Automatización (Auto Mode)}
+\label{ch:automode}
+% ==============================================================
+
+\section{¿Qué problema resuelve?}
+
+Sin este módulo, procesar un lote nuevo de capturas de una cámara requiere repetir a mano,
+imagen a imagen, tres pasos ya vistos en capítulos anteriores: descargar las fotos nuevas de
+Obscape, alinearlas contra una referencia (capítulo~\ref{ch:batch}) y analizarlas para extraer
+la línea de costa (capítulo~\ref{ch:segmentation}). \emph{Auto Mode} automatiza esas tres cosas
+de punta a punta para un rango de fechas elegido por el usuario, sin reimplementar ninguna: las
+orquesta, llamando directamente a las mismas funciones que usa el flujo manual.
+
+\begin{infobox}[¿Sobre qué se ejecuta: una imagen, un lote, o toda la cámara?]
+Sobre un \textbf{lote acotado por fecha}, elegido explícitamente por el usuario (cámara +
+rango \emph{desde}/\emph{hasta}) — nunca se descargan ni procesan imágenes fuera de ese rango,
+y nunca se lanza automáticamente sin que el usuario pulse \emph{Iniciar}. Dentro de ese rango,
+se procesan \textbf{todas} las imágenes nuevas encontradas (las que ya existen en disco se
+saltan). No sustituye a la calibración (capítulo~\ref{ch:calibration}), que sigue siendo un
+paso manual previo y obligatorio.
+\end{infobox}
+
+\section{Requisito previo: la cámara debe estar ya calibrada}
+
+Auto Mode analiza imágenes con \texttt{analyze\_roi()}, el mismo endpoint que usa el botón
+manual \emph{Analizar imagen} — y ese endpoint necesita una homografía activa para la cámara
+(capítulo~\ref{ch:calibration}, \S4.2). Por eso, al pulsar \emph{Iniciar} el backend comprueba
+primero si existe \texttt{calibration/cam\_\{id\}\_H.npy} o un \texttt{H} guardado en el
+perfil de la cámara; si no, rechaza la petición con un mensaje explícito en vez de descargar
+imágenes que luego no se podrían georreferenciar:
+
+\begin{codebox}[\_is\_calibrated() --- backend/auto\_mode.py]
+\begin{minted}{python}
+def _is_calibrated(cam_id: int) -> bool:
+    if os.path.exists(f"{CALIBRATION_DIR}/cam_{cam_id}_H.npy"):
+        return True
+    profile = load_json(f"{CALIBRATION_DIR}/cam_{cam_id}_profile.json")
+    return bool(profile and profile.get("H"))
+\end{minted}
+\end{codebox}
+
+La calibración inicial de una cámara \textbf{no} se automatiza: depende de coordenadas UTM de
+varillas topografiadas en campo, que no vienen de la API de imágenes de Obscape. Auto Mode
+empieza donde termina la calibración, no la sustituye.
+
+\section{Las cuatro fases}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.5cm and 1.4cm]
+  \node[block, fill=SkyBlue!15] (desc) {1. Descarga\\{\tiny Obscape API}};
+  \node[block, fill=Orange!15, right=of desc] (base) {2. Base\\{\tiny imagen más antigua}};
+  \node[block, fill=OliveGreen!15, right=of base] (alin) {3. Alineación\\{\tiny reutiliza cap.~\ref{ch:batch}}};
+  \node[block, fill=NavyBlue!15, right=of alin] (anal) {4. Análisis\\{\tiny reutiliza cap.~\ref{ch:segmentation}}};
+
+  \draw[arrow] (desc) -- (base);
+  \draw[arrow] (base) -- (alin);
+  \draw[arrow] (alin) -- (anal);
+\end{tikzpicture}
+\caption{Pipeline de Auto Mode --- cada fase reutiliza código ya existente, sin reimplementar nada}
+\label{fig:automode-pipeline}
+\end{figure}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Descarga}: pide a la API de Obscape los puntos de datos de la cámara en
+        \([\text{desde}, \text{hasta}]\) y descarga las imágenes que aún no existen en disco
+        (mismo criterio de deduplicación que el descargador manual,
+        \texttt{acces\_api/obscape\_api.py}), guardándolas planas en
+        \texttt{DATA\_DIR/\{carpeta\_cámara\}/} con el nombrado
+        \texttt{<epoch>\_<AAAAMMDD>\_<HHMMSS>\_<serie>.jpg} que el resto del backend ya
+        reconoce. Si no hay imágenes nuevas en el rango, el job termina ahí con un mensaje
+        claro (nada que hacer) en vez de seguir con pasos vacíos.
+  \item \textbf{Selección de base}: la imagen descargada con el timestamp de captura
+        \textbf{más antiguo} del lote se usa como referencia para la alineación — el resto del
+        lote se alinea contra ella. Si el lote tiene una sola imagen, este y el siguiente paso
+        se omiten (nada que alinear).
+  \item \textbf{Alineación}: construye un \texttt{BatchJob} igual que el flujo manual de
+        alineación masiva y llama directamente a \texttt{batch\_alignment.\_run\_pipeline()} y,
+        si el resultado queda \texttt{ready}, a \texttt{commit\_batch()} — sin pantalla de
+        revisión intermedia (\S\ref{sec:automode-commit} explica por qué es seguro comitear sin
+        que un humano revise cada imagen).
+  \item \textbf{Análisis}: para cada imagen del lote (la alineada si el commit tuvo éxito, la
+        original si no — \texttt{\_resolve\_camera\_image\_path()} ya resuelve esa prioridad,
+        capítulo~\ref{ch:batch}), llama a \texttt{main.analyze\_roi()}: la misma función que
+        ejecuta el botón manual \emph{Analizar imagen}. Segmenta, extrae la línea de costa, la
+        proyecta a UTM con la homografía activa de la cámara y guarda el GeoJSON resultante.
+\end{enumerate}
+
+\section{Por qué el commit automático es seguro sin revisión humana}
+\label{sec:automode-commit}
+
+El módulo de alineación masiva (capítulo~\ref{ch:batch}) se diseñó para uso interactivo: un
+humano revisa cada imagen alineada y aprueba o descarta antes de comitear. Auto Mode no tiene
+ese paso — comitea en cuanto el job de alineación termina. Esto es seguro porque
+\texttt{AlignmentResult} fuerza \texttt{approved=False} automáticamente en cualquier resultado
+\texttt{"failed"} (ver \texttt{\_\_post\_init\_\_} en el capítulo~\ref{ch:batch}), y
+\texttt{commit\_batch()} solo copia al directorio final las imágenes aprobadas: una alineación
+fallida queda excluida del commit por sí sola, sin que nadie tenga que marcarla a mano, y el
+análisis posterior usa entonces la imagen \textbf{original sin transformar} para esa captura en
+concreto (en vez de una alineación mal hecha).
+
+\section{Modelos de dominio}
+
+\begin{codebox}[Dataclasses principales (backend/auto\_mode.py)]
+\begin{minted}{python}
+@dataclass
+class ImageResult:
+    filename:      str
+    captured_at:   Optional[str] = None
+    is_base:       bool = False
+    align_status:  str = ""    # "" | "ok" | "failed" | "reference"
+    confidence:    float = 0.0
+    dry_area_m2:   float = 0.0
+    rejected:      bool = False
+    reject_reason: str = ""
+    error:         str = ""
+
+@dataclass
+class AutoJob:
+    job_id:           str
+    cam_id:            int
+    from_date:        str
+    to_date:          str
+    status:           str = "pending"  # pending|downloading|aligning|analyzing|done|error
+    step:             str = ""         # descripción legible del paso actual
+    progress_current: int = 0
+    progress_total:   int = 0
+    downloaded:       List[str] = field(default_factory=list)
+    results:          List[ImageResult] = field(default_factory=list)
+    error_msg:        str = ""
+\end{minted}
+\end{codebox}
+
+\section{API REST del módulo}
+
+\begin{table}[H]
+\centering
+\caption{Endpoints del router \texttt{/api/automode/}}
+\label{tab:api-automode}
+\begin{tabular}{C{1.5cm} L{5cm} L{6cm}}
+\toprule
+\textbf{Método} & \textbf{Ruta} & \textbf{Descripción} \\
+\midrule
+\texttt{POST} & \texttt{/start}            & Valida cámara calibrada y encola el pipeline completo en background \\
+\texttt{GET}  & \texttt{/\{id\}/status}    & Polling de progreso (fase actual + contadores) \\
+\texttt{GET}  & \texttt{/\{id\}/results}   & Resultado detallado por imagen, solo cuando \texttt{status} es \texttt{done} o \texttt{error} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Igual que el módulo de alineación masiva, el estado de cada job vive \textbf{solo en memoria}
+(\texttt{\_jobs}, diccionario global) — no persiste entre reinicios del backend, y el frontend
+hace polling a \texttt{/status} cada 1,5~s mientras el job está en curso.
+
+\section{Nota de empaquetado: import dinámico y PyInstaller}
+
+\texttt{\_download\_new\_images()} importa \texttt{obscape\_api} dentro de la propia función,
+no como import de módulo al principio del fichero (el mismo patrón que usan
+\texttt{segmentation\_sam} y compañía en \texttt{main.py}, capítulo~\ref{ch:architecture}). El
+análisis estático de PyInstaller no sigue ese tipo de import, así que sin declararlo
+explícitamente en \texttt{hiddenimports} (\texttt{backend/desktop\_launcher.spec}) Auto Mode
+habría funcionado perfectamente en desarrollo y fallado con \texttt{ModuleNotFoundError} en el
+\texttt{.exe} empaquetado — un fallo que solo se ve al probar el instalador final, no en
+desarrollo. Corregido añadiendo \texttt{"obscape\_api"} a \texttt{hiddenimports} y
+\texttt{acces\_api/} a \texttt{pathex} en el \texttt{.spec}.
+
+% ==============================================================

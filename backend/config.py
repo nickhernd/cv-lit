@@ -1,6 +1,8 @@
 import os
 import sys
 
+from fastapi import HTTPException
+
 # DEBUG (INIT): config.py se importa al arrancar main.py y batch_alignment.py.
 # Calcula las rutas base del proyecto a partir de la ubicación de este archivo
 # (backend/config.py -> sube dos niveles -> raíz del proyecto). Solo aplica
@@ -46,3 +48,17 @@ CAMERAS = {
     6: {"name": "CAM 6 (Sur Punta)", "id": "8210", "serial": "PTM61470",
         "folder": "camera6", "file": "1777891200_20260504_104000_PTM61470.jpg"},
 }
+
+
+def _safe_filename(filename):
+    """Reduce cualquier nombre de archivo recibido del cliente a un nombre
+    "plano" sin componentes de directorio (os.path.basename), para que un
+    '../../../etc/passwd' o una ruta absoluta no puedan escapar de la carpeta
+    de datos de la cámara. Se usa en TODO endpoint (de main.py o
+    batch_alignment.py) que recibe un filename del cliente y lo mete en un
+    os.path.join/Path (lectura, borrado o escritura) — compartido aquí para
+    que ambos módulos apliquen exactamente la misma sanitización."""
+    name = os.path.basename((filename or "").strip().replace("\\", "/"))
+    if not name or name in (".", ".."):
+        raise HTTPException(status_code=400, detail="Nombre de archivo inválido")
+    return name

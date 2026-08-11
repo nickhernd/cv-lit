@@ -2,10 +2,14 @@
 \label{ch:calibration}
 % ==============================================================
 
-\section{Fundamento matemático}
+\section{¿Qué es la calibración y para qué sirve?}
 
-La calibración estima la \textbf{homografía planar} $\mathbf{H}$ (matriz $3\times3$) que
-transforma coordenadas de imagen $(u,v)$ a coordenadas métricas $(X,Y)$ en EPSG:25830:
+Cada cámara ve la playa en \textbf{perspectiva}: un píxel de la imagen no dice, por sí solo,
+qué punto real de la playa representa. La calibración resuelve exactamente ese problema: encuentra
+la transformación matemática que convierte un píxel $(u,v)$ de la foto en una coordenada real
+$(X,Y)$ en metros, en el sistema de referencia EPSG:25830 (ETRS89 / UTM huso 30N).
+
+Esa transformación es una \textbf{homografía} $\mathbf{H}$, una matriz $3\times3$:
 
 \begin{equation}
   \begin{pmatrix} X \\ Y \\ 1 \end{pmatrix}
@@ -15,58 +19,214 @@ transforma coordenadas de imagen $(u,v)$ a coordenadas métricas $(X,Y)$ en EPSG
   \label{eq:homography}
 \end{equation}
 
-La hipótesis de planaridad es válida dado que el objeto de interés (línea de costa) es
-aproximadamente plano a escala de cada cámara.
+\begin{infobox}[¿Por qué una homografía y no algo más simple?]
+Una homografía es la transformación correcta cuando se proyecta un plano (la arena de la
+playa, que se asume aproximadamente plana) visto desde un punto de vista arbitrario —
+mezcla en una sola matriz la rotación, traslación, escala \emph{y} la perspectiva de la
+cámara. Un simple factor de escala metros/píxel no sirve aquí: un píxel cerca de la cámara
+cubre muchísimo menos terreno real que un píxel cerca del horizonte, y esa relación cambia de
+forma no lineal con la distancia — es exactamente lo que la homografía sí modela.
+\end{infobox}
 
-\subsection{Corrección de distorsión radial}
+\begin{warnbox}[Ojo: esta NO es la única homografía del sistema]
+Este capítulo cubre la homografía de \textbf{calibración geométrica}: píxel de la foto
+$\rightarrow$ coordenada UTM real. Existe una \textbf{segunda homografía}, completamente
+distinta, en el módulo de alineación masiva (capítulo~\ref{ch:batch}): esa es
+\emph{imagen$\rightarrow$imagen} (corrige el pequeño desplazamiento de la cámara entre dos
+fotos) y no tiene nada que ver con coordenadas UTM. Las dos se calculan con la misma función
+de OpenCV (\texttt{cv2.findHomography} con RANSAC) pero resuelven problemas distintos, sobre
+puntos de entrada distintos, y no se deben confundir. Ver la nota comparativa en
+\S\ref{sec:dos-homografias}.
+\end{warnbox}
 
-Antes de estimar $\mathbf{H}$, los puntos imagen se corrigen con los parámetros intrínsecos:
+\section{De dónde salen los puntos de control (GCPs)}
 
-\begin{equation}
-  \mathbf{K} = \begin{pmatrix} f_x & 0 & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{pmatrix},
-  \quad
-  \mathbf{D} = (k_1, k_2, p_1, p_2, k_3)
-\end{equation}
+La homografía se ajusta a partir de \textbf{GCPs} (\emph{Ground Control Points}, aquí llamados
+``varillas''): puntos de los que se conocen \emph{las dos} coordenadas del mismo punto físico —
+dónde cae en la foto (píxel) y dónde está en la realidad (UTM, en metros). Hacen falta un
+mínimo de 4 pares para que el sistema tenga suficiente información (una homografía tiene 8
+grados de libertad); en la práctica se recomiendan 8 o más, y cuantos más se usen, más robusto
+es el ajuste frente a un punto puntual mal marcado.
 
-Implementado via \texttt{cv2.calibrateCamera()} con tablero de ajedrez o GCPs propios.
+Cada GCP llega al sistema por una de estas dos vías:
 
-\subsection{Estimación RANSAC}
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Manual}: clic directo sobre la imagen en la interfaz web (paso \emph{Marcación},
+        \S\ref{sec:flujo-web}), con una lupa de precisión ($\times6$) para acertar el píxel exacto
+        en fotos de varios miles de píxeles de ancho.
+  \item \textbf{Importado de un levantamiento de campo} (CSV con columna \texttt{FILE} que liga
+        cada varilla a la sesión de disparo en la que se topografió): el píxel llega como
+        \emph{aproximado} (varilla ``pendiente'', marcador ámbar) y hay que confirmarlo con la
+        lupa antes de que cuente para el ajuste — así un píxel mal ubicado en el CSV no puede
+        colar error silenciosamente en la calibración.
+\end{itemize}
 
-\begin{codebox}[Estimación de homografía con RANSAC]
+\begin{infobox}[¿El cálculo se hace sobre una imagen o sobre todas las de la cámara?]
+Sobre \textbf{una sola imagen}, la que esté seleccionada en ese momento en el paso Marcación
+—cada imagen tiene su propio conjunto de varillas marcadas y su propia homografía calculada,
+guardada junto a esa imagen concreta (\texttt{data/CAM\_X/json/\{imagen\}.json}, campo
+\texttt{calibration})—. Lo que SÍ es por cámara es el \emph{resultado activo}: cada vez que se
+calcula (o recalcula) la homografía de una imagen, esa $\mathbf{H}$ se copia también al
+\textbf{perfil de la cámara} (\texttt{calibration/cam\_X\_profile.json} y
+\texttt{cam\_X\_H.npy|}), sobrescribiendo la anterior. Es esa copia a nivel de cámara —la
+última calibración calculada, sea de la imagen que sea— la que usa el análisis de línea de
+costa (capítulo~\ref{ch:validation}) para \emph{todas} las imágenes nuevas de esa cámara, hasta
+la siguiente recalibración. En otras palabras: se calibra imagen a imagen, pero solo hace falta
+una calibración vigente por cámara para poder analizar el resto de sus capturas.
+\end{infobox}
+
+\section{Flujo actual: calibración interactiva desde la interfaz web}
+\label{sec:flujo-web}
+
+La calibración se hace hoy \textbf{enteramente desde el navegador} (pantalla
+\emph{Calibración}), no con scripts de línea de comandos. El asistente tiene 7 pasos; los tres
+que corresponden a este capítulo son \emph{Marcación}, \emph{Cálculo} y \emph{Validación}:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.5cm and 1.6cm]
+  \node[block, fill=SkyBlue!15] (marc) {Marcación\\{\tiny marcar/confirmar varillas}};
+  \node[block, fill=Orange!15, right=of marc] (calc) {Cálculo\\{\tiny RANSAC $\rightarrow \mathbf{H}$ + residuos}};
+  \node[block, fill=OliveGreen!15, right=of calc] (val) {Validación\\{\tiny RMSE terreno vs.\ umbral}};
+
+  \draw[arrow] (marc) -- (calc) node[midway,above,label]{$\geq 4$ confirmadas};
+  \draw[arrow] (calc) -- (val) node[midway,above,label]{Continuar};
+  \draw[arrow, bend left=35, color=BrickRed!60] (calc.north) to node[above,label]{\textcolor{BrickRed}{excluir + recalcular}} (calc.north);
+\end{tikzpicture}
+\caption{Los tres pasos del asistente de calibración implicados en este capítulo}
+\label{fig:calib-steps}
+\end{figure}
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Marcación}: se marca (o confirma) cada varilla sobre la foto. Un clic directo
+        encima del marcador de una varilla pendiente la confirma en su sitio; un clic en
+        cualquier otro punto de la imagen la reposiciona. Cada varilla confirmada se pinta en
+        \textbf{verde}; las pendientes, en ámbar.
+  \item \textbf{Cálculo}: al pulsar \emph{Calcular homografía} se ejecuta el ajuste
+        (\S\ref{sec:ransac}) y aparece una tabla de error de reproyección por varilla — se puede
+        excluir una varilla concreta y recalcular sin ella, de forma iterativa, antes de pasar a
+        Validación.
+  \item \textbf{Validación}: resumen final de la calidad de la calibración de esta imagen —
+        RMSE en metros frente al umbral objetivo, y estado \emph{Óptimo}/\emph{Revisar}.
+\end{enumerate}
+
+\begin{warnbox}[Scripts de calibración retirados]
+Versiones anteriores de este sistema incluían herramientas de línea de comandos
+(\texttt{calibration\_tool.py}, \texttt{automate\_homography.py}, \texttt{recalibrate.py}) para
+marcar GCPs fuera del navegador. Se han retirado del repositorio: la calibración de producción
+vive por completo en el backend web (\texttt{calculate\_homography()}, invocado desde el paso
+Cálculo) y esas herramientas habían quedado desincronizadas de ese flujo real —
+\texttt{calibration\_tool.py} en concreto ni siquiera llegaba a compilar. El flujo de este
+capítulo es el único vigente.
+\end{warnbox}
+
+\section{Estimación con RANSAC}
+\label{sec:ransac}
+
+\begin{codebox}[Estimación de homografía con RANSAC --- \texttt{calculate\_homography()} en el backend]
 \begin{minted}{python}
-H, mask = cv2.findHomography(
-    pts_img,            # puntos imagen (u,v)
-    pts_world,          # coordenadas UTM (X,Y) en EPSG:25830
+H, ransac_mask = cv2.findHomography(
+    pts_px,             # píxeles marcados/confirmados en la foto
+    pts_utm,            # coordenadas UTM del catálogo de varillas
     cv2.RANSAC,
-    ransacReprojThreshold=5.0   # umbral de reproyección (px)
+    3.0                 # umbral de reproyección en el dominio UTM: 3 metros
 )
 \end{minted}
 \end{codebox}
 
-\section{Proceso de calibración por cámara}
+\begin{infobox}[¿Qué hace RANSAC aquí y qué es un \emph{inlier}?]
+RANSAC (\emph{Random Sample Consensus}) prueba subconjuntos de varillas y se queda con la
+homografía que consigue que el mayor número posible de ellas encaje dentro de un margen de
+error tolerable (aquí, 3~m en UTM). Las varillas que SÍ encajan con esa homografía se llaman
+\textbf{inliers}; las que no —porque su UTM o su píxel están mal, o porque son incompatibles
+con el resto— quedan como \emph{outliers} y no participan en el ajuste final. Es la misma idea
+que un ``voto mayoritario'' geométrico: una sola varilla mal introducida no puede arruinar la
+homografía si el resto de varillas son consistentes entre sí. La tabla de residuos del paso
+Cálculo marca con un \checkmark verde las varillas que RANSAC aceptó como inlier y con una
+\textcolor{BrickRed}{$\times$} roja las que descartó.
+\end{infobox}
 
-\begin{enumerate}[leftmargin=1.5em]
-  \item \textbf{Recepción de GCPs} del IEL: puntos de control con coordenadas $(X,Y,Z)$
-        en EPSG:25830 y su correspondiente píxel imagen $(u,v)$. Mínimo 4 pares; recomendado $\geq 8$.
-  \item \textbf{Marcado interactivo} con \texttt{calibration\_tool.py}:
-        \begin{itemize}
-          \item Click izquierdo → punto de \textit{calibración} (verde)
-          \item Click derecho → punto de \textit{validación} (azul, no usado en H)
-          \item Tecla \texttt{h} → estimación RANSAC
-          \item Tecla \texttt{s} → guardar perfil
-          \item Tecla \texttt{p} → exportar imagen de diagnóstico
-        \end{itemize}
-  \item \textbf{Validación ciega}: el RMSE se calcula por separado sobre los puntos de
-        validación (no vistos en RANSAC), garantizando una estimación honesta del error.
-  \item \textbf{Guardar perfil}: \texttt{calibration/cam\_N\_profile.json} con $\mathbf{H}$,
-        metadatos, RMSE calibración/validación y fecha.
-\end{enumerate}
+\subsection{Aviso de geometría inestable}
+\label{sec:geometria-inestable}
 
-\section{Resultados de calibración (junio 2026)}
+Si las varillas marcadas quedan casi todas alineadas a lo largo de una única línea (por
+ejemplo, una fila de estacas topografiadas siguiendo la orilla, con muy poca variación en la
+dirección perpendicular), el sistema queda \textbf{numéricamente mal condicionado}: existen
+infinitas homografías que explican igual de bien esos puntos, y una homografía así puede
+fallar estrepitosamente (RMSE de decenas de metros) aunque el cálculo en sí no produzca ningún
+error. Se detecta comprobando qué fracción de las varillas activas quedó como inlier de
+RANSAC:
+
+\begin{equation}
+  f_\text{inlier} = \frac{\text{varillas inlier}}{\text{varillas activas}}
+  \qquad\qquad
+  f_\text{inlier} < 0{,}6 \;\Rightarrow\; \text{aviso de geometría inestable}
+\end{equation}
+
+Cuando esto ocurre, la interfaz muestra explícitamente cuántas varillas de cuántas encajaron y
+recomienda añadir varillas repartidas en más de una zona/profundidad de la imagen, en vez de
+dejar solo un RMSE alto sin explicación.
+
+\section{Dos umbrales que no hay que confundir}
+\label{sec:dos-umbrales}
+
+La pantalla de calibración maneja \textbf{dos umbrales distintos}, en dominios distintos, con
+propósitos distintos — es la fuente de confusión más habitual al leer los resultados:
 
 \begin{table}[H]
 \centering
-\caption{Resultados de precisión por cámara}
+\caption{Umbral por varilla (píxeles) frente a umbral de aceptación (metros)}
+\label{tab:dos-umbrales}
+\begin{tabularx}{\textwidth}{L{3.2cm} C{2.6cm} X}
+\toprule
+\textbf{} & \textbf{Umbral} & \textbf{Para qué sirve} \\
+\midrule
+Error por varilla & 5~px (ajustable) & Ayuda visual para \emph{localizar} qué varilla concreta
+  podría estar mal puesta (un misclick, o una varilla del catálogo equivocada). No decide si la
+  calibración es válida. \\
+\addlinespace
+RMSE terreno & 2~m (\texttt{RMSE\_GOOD\_M}) & \textbf{Criterio real de aceptación} de la
+  calibración de esta imagen — el mismo valor que pondera el índice de confianza del análisis
+  de línea de costa (capítulo~\ref{ch:validation}). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{warnbox}[Por qué el estado ya NO depende de que todas las varillas bajen del umbral en píxeles]
+En una iteración anterior de este sistema, el indicador ``Óptimo / Revisar'' exigía que
+\emph{todas} las varillas individuales tuvieran un error de reproyección por debajo de 1~px.
+Con fotos de varios miles de píxeles de ancho marcadas a mano, ese criterio era prácticamente
+imposible de cumplir incluso con una calibración objetivamente buena: se observó un caso real
+con RMSE~terreno~=~0,24~m (muy por debajo del objetivo de 2~m) donde 7 de 8 varillas aparecían
+igualmente como ``sobre umbral''. El estado ahora se decide por el RMSE en metros frente a
+\texttt{RMSE\_GOOD\_M}, que es la métrica que de verdad importa para georreferenciar la línea
+de costa; el umbral en píxeles sigue existiendo solo como ayuda de diagnóstico por varilla.
+\end{warnbox}
+
+\section{Métricas del ajuste: RMSE y MAE}
+
+Para cada varilla activa (no excluida, no pendiente) se calcula el error de reproyección en
+los dos dominios:
+
+\begin{align}
+  e_{\text{px},i} &= \big\| \,\mathbf{H}^{-1}(\text{UTM}_i) - \text{píxel}_i \,\big\| \\
+  e_{\text{m},i}  &= \big\| \,\mathbf{H}(\text{píxel}_i) - \text{UTM}_i \,\big\|
+\end{align}
+
+y a partir de esos residuos, el RMSE (penaliza más los errores grandes — útil para detectar
+varillas mal marcadas) y el MAE (distancia media, sin elevar al cuadrado):
+
+\begin{equation}
+  \text{RMSE} = \sqrt{\frac{1}{N}\sum_{i=1}^N e_i^2}
+  \qquad\qquad
+  \text{MAE} = \frac{1}{N}\sum_{i=1}^N e_i
+\end{equation}
+
+\section{Resultados de calibración (campaña junio 2026)}
+
+\begin{table}[H]
+\centering
+\caption{Resultados de precisión por cámara — campaña de calibración inicial}
 \label{tab:calibration-results}
 \begin{tabular}{C{1.8cm} C{1.8cm} C{2.5cm} C{2.5cm} C{2.5cm} C{2.2cm}}
 \toprule
@@ -83,21 +243,21 @@ CAM~6 & 69 & 6.14 & 4.74          & 130.62 & \textcolor{BrickRed}{Critico} \\
 \end{table}
 
 \begin{warnbox}[Cámaras con error elevado]
-Los errores de CAM~4 (100~px) y CAM~6 (130~px) superan ampliamente el umbral de aceptación
-y sugieren una de estas causas:
-\begin{itemize}
-  \item Distorsión radial no corregida (requiere parámetros intrínsecos reales).
-  \item Inconsistencia en los puntos manuales (GCPs marcados con baja precisión).
-  \item Movimiento de la cámara entre la toma de referencia y la calibración.
-\end{itemize}
-\textbf{Acción recomendada:} recalibrar con \texttt{recalibrate.py --cam 4} y \texttt{--cam 6}
-sobre imágenes actuales, revisando la distribución espacial de los GCPs.
+Los errores de CAM~4 y CAM~6 superan ampliamente el objetivo de 2~m y son consistentes con el
+problema descrito en \S\ref{sec:geometria-inestable}: en la sesión de campo correspondiente a
+CAM~6, las varillas topografiadas quedan casi alineadas en una única línea a lo largo de la
+orilla (variación de apenas $\sim$5~m en un eje frente a $\sim$140~m en el otro), lo que deja la
+homografía numéricamente mal condicionada.
+\textbf{Acción recomendada:} volver a topografiar varillas para estas cámaras repartidas en más
+de una zona/profundidad de la imagen (no solo a lo largo de la orilla), y recalibrar desde el
+paso Marcación de la interfaz web.
 \end{warnbox}
 
 \section{Imágenes de diagnóstico}
 
 Las imágenes de la figura~\ref{fig:diagnostics} muestran la reproyección de GCPs sobre las
-imágenes de referencia. Los vectores de error se representan magnificados $\times10$.
+imágenes de referencia, de la campaña de calibración inicial. Los vectores de error se
+representan magnificados $\times10$.
 
 \begin{figure}[H]
   \centering
@@ -137,16 +297,35 @@ imágenes de referencia. Los vectores de error se representan magnificados $\tim
   \label{fig:diagnostics}
 \end{figure}
 
-\section{Recalibración rápida}
+\section{Comparación con la homografía de alineación (capítulo~\ref{ch:batch})}
+\label{sec:dos-homografias}
 
-Si la cámara sufre un ligero movimiento (viento, mantenimiento), se puede actualizar la
-homografía sin reintroducir coordenadas UTM:
+\begin{table}[H]
+\centering
+\caption{Las dos homografías del sistema, lado a lado}
+\label{tab:dos-homografias}
+\begin{tabularx}{\textwidth}{L{3.4cm} X X}
+\toprule
+\textbf{} & \textbf{Calibración (este capítulo)} & \textbf{Alineación masiva (cap.~\ref{ch:batch})} \\
+\midrule
+Dominio & Píxel de la foto $\rightarrow$ UTM (metros) & Píxel de una foto $\rightarrow$ píxel de
+  otra foto (misma cámara) \\
+Entrada & Varillas GCP marcadas a mano (píxel + UTM conocidos) & Puntos SIFT emparejados por
+  FLANN entre dos capturas \\
+Umbral RANSAC & 3~m (dominio UTM) & 5~px (dominio píxel) \\
+Se calcula & Una vez por imagen de referencia, al calibrar & Una vez por cada imagen nueva del
+  lote, contra la base \\
+Para qué sirve & Georreferenciar la línea de costa detectada (obtener m$^2$, coordenadas reales) &
+  Corregir el pequeño desplazamiento de la cámara (viento, mantenimiento) para que la
+  calibración siga siendo válida en fotos posteriores \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
-\begin{codebox}[Recalibración]
-\begin{minted}{bash}
-# Arrastra los GCPs existentes sobre la imagen nueva
-python3 proces_images/recalibrate.py --cam 1 --image /ruta/nueva_foto.jpg
-\end{minted}
-\end{codebox}
+Ambas usan \texttt{cv2.findHomography(..., cv2.RANSAC, umbral)} porque el problema matemático
+subyacente es el mismo (encontrar la transformación proyectiva que mejor explica un conjunto de
+correspondencias de puntos, descartando las atípicas) — pero los puntos de entrada, el dominio
+del umbral y el propósito final son distintos, y conviene no confundir un ``RMSE'' o unos
+``inliers'' de una con los de la otra al leer los logs o la interfaz.
 
 % ==============================================================

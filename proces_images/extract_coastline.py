@@ -217,8 +217,6 @@ def draw_coastline(image: np.ndarray, points: list,
         x, y = int(p["point"][0]), int(p["point"][1])
         cv2.circle(image, (x, y), 12, (0, 255, 255), -1)
 
-    cv2.putText(image, "CV-LIT 4K: DETECTADO", (100, 150),
-                cv2.FONT_HERSHEY_SIMPLEX, 3.0, (0, 0, 255), 8)
     return image
 
 

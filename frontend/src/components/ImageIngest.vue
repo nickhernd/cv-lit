@@ -1,8 +1,9 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { API_BASE } from '../api.js'
 
 const emit = defineEmits(['notify', 'go-resultados'])
-const API = 'http://localhost:8000'
+const API = API_BASE
 
 const cameras = ref([])
 const camId = ref(null)

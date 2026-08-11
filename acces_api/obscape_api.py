@@ -24,6 +24,7 @@ import argparse
 import csv
 import json
 import logging
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -33,16 +34,37 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+BASE_DIR = Path(__file__).parent.parent
+
+
+def _load_dotenv(path: Path) -> None:
+    """Carga pares KEY=VALUE de un .env a os.environ (sin pisar variables ya
+    definidas en el entorno real). Sin dependencias externas — solo para no
+    obligar a exportar OBSCAPE_USERNAME/OBSCAPE_API_KEY a mano cada sesión."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip().strip('"').strip("'")
+        os.environ.setdefault(key, value)
+
+
+_load_dotenv(BASE_DIR / ".env")
+
 # ── Configuracion ──────────────────────────────────────────────────────────────
+# Credenciales SIEMPRE desde entorno (variable real o .env local, nunca
+# hardcodeadas en el código — ver .env.example en la raíz del repo).
 API_URL  = "https://obscape.com/portal/api/v3/api"
-USERNAME = "fuster"
-API_KEY  = "c1RyHhP6aJBPRHwIUrpz9eEPHPGhlbuMZIujEUvWTJaJPXJO0x"
+USERNAME = os.environ.get("OBSCAPE_USERNAME")
+API_KEY  = os.environ.get("OBSCAPE_API_KEY")
 
 # Fecha de inicio del proyecto (limite para --all)
 PROJECT_START = "2026-01-01T00:00:00"
 
 # Directorios de salida
-BASE_DIR = Path(__file__).parent.parent
 OUT_DIR  = BASE_DIR / "proces_images" / "data"
 LOG_DIR  = BASE_DIR / "data" / "logs"
 
@@ -50,6 +72,12 @@ LOG_DIR  = BASE_DIR / "data" / "logs"
 
 class ObscapeClient:
     def __init__(self, username: str = USERNAME, api_key: str = API_KEY):
+        if not username or not api_key:
+            raise RuntimeError(
+                "Faltan credenciales de Obscape: define OBSCAPE_USERNAME y "
+                "OBSCAPE_API_KEY (variables de entorno o en un .env en la raíz "
+                "del repo, ver .env.example)."
+            )
         self.username = username
         self.api_key  = api_key
         self.session  = requests.Session()
@@ -205,6 +233,44 @@ class ObscapeClient:
             print(f"  [!] Excepcion: {e}")
             return None, False
 
+    def download_image_flat(
+        self,
+        station_id: str,
+        serial: str,
+        timestamp: int,
+        out_dir: Path,
+    ) -> tuple[Path | None, bool]:
+        """
+        Variante de download_image() para consumidores que guardan las imágenes
+        planas en una sola carpeta por cámara (sin subcarpetas images/+json/),
+        nombradas "<epoch>_<YYYYMMDD>_<HHMMSS>_<serial>.jpg" — el formato que
+        reconoce backend/main.py (FILENAME_TS_RE) para leer la fecha de captura
+        directamente del nombre de archivo. Usado por backend/auto_mode.py.
+        Retorna (path, is_new).
+        """
+        out_dir.mkdir(parents=True, exist_ok=True)
+        ts = int(timestamp)
+        dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+        img_path = out_dir / f"{ts}_{dt.strftime('%Y%m%d_%H%M%S')}_{serial}.jpg"
+
+        if img_path.exists():
+            return img_path, False
+
+        try:
+            r = self._get({"station": station_id, "image": ts}, stream=True)
+            if r.status_code != 200:
+                self.log_event(station_id, serial, ts, "ERROR", f"HTTP {r.status_code}")
+                return None, False
+            ct = r.headers.get("Content-Type", "")
+            if "image" not in ct:
+                self.log_event(station_id, serial, ts, "ERROR", f"Invalid content-type: {ct}")
+                return None, False
+            img_path.write_bytes(r.content)
+            self.log_event(station_id, serial, ts, "OK")
+            return img_path, True
+        except Exception as e:
+            self.log_event(station_id, serial, ts, "ERROR", str(e))
+            return None, False
 
     def download_range(
         self,

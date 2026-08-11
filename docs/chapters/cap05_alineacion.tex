@@ -2,6 +2,18 @@
 \label{ch:batch}
 % ==============================================================
 
+\begin{infobox}[¿Esto se hace sobre una imagen o sobre todas las de la cámara?]
+Sobre un \textbf{lote elegido por el usuario} (típicamente, todas las capturas nuevas de una
+cámara desde la última alineación), nunca sobre ``todas las imágenes'' automáticamente sin
+elegir. El usuario escoge primero una \textbf{imagen base} (referencia) y después qué imágenes
+del lote alinear contra ella; el sistema procesa el lote entero de una sola vez (tarea en
+segundo plano) y produce un resultado por imagen. La homografía de alineación
+\textbf{no se reutiliza entre lotes}: cada imagen del lote obtiene su propia $\mathbf{H}$
+respecto a la base elegida en ese momento — no hay una única ``homografía de alineación de la
+cámara'' persistente, a diferencia de la homografía de calibración del
+capítulo~\ref{ch:calibration}, que sí queda como valor activo por cámara.
+\end{infobox}
+
 \section{Motivación}
 
 El flujo anterior validaba fotogramas de forma \textbf{unitaria}: una llamada API por imagen,
@@ -45,7 +57,9 @@ El módulo implementa una \textbf{máquina de estados no-destructiva} de 5 fases
 \end{figure}
 
 \begin{infobox}[Principio de no-destructividad]
-Todo el trabajo intermedio vive en \texttt{/tmp/cv\_lit\_batch/\{job\_id\}/}.
+Todo el trabajo intermedio vive en el directorio temporal del sistema operativo
+(\texttt{tempfile.gettempdir()/cv\_lit\_batch/\{job\_id\}/} — p.~ej.\ \texttt{/tmp/...} en
+Linux/macOS, \texttt{C:\textbackslash Users\textbackslash...\textbackslash AppData\textbackslash Local\textbackslash Temp\textbackslash...} en Windows).
 Los originales de cada cámara \textbf{nunca} se modifican.
 La escritura permanente ocurre \textbf{únicamente} al llamar al commit explícito.
 \end{infobox}
@@ -54,7 +68,7 @@ La escritura permanente ocurre \textbf{únicamente} al llamar al commit explíci
 
 \begin{codebox}[]
 \begin{minted}{text}
-/tmp/cv_lit_batch/{job_id}/
+{tmp_dir}/cv_lit_batch/{job_id}/
   aligned/    ← imágenes con warpPerspective aplicado (staging)
   diff/       ← mapas de delta por imagen
   blend/      ← blend 50/50 en escala de grises
@@ -81,6 +95,32 @@ La escritura permanente ocurre \textbf{únicamente} al llamar al commit explíci
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{infobox}[De \emph{keypoint} a \emph{inlier}: el camino completo de un punto]
+Vale la pena distinguir claramente los tres números que aparecen en la interfaz de revisión
+(\S\ref{sec:api}), porque cada uno cuenta algo distinto:
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Keypoints} (\texttt{SIFT\_FEATURES}, hasta 3\,000): puntos de la imagen con
+        textura suficientemente distintiva como para reconocerlos en otra foto (esquinas,
+        bordes marcados, estructuras fijas). Se detectan por separado en la imagen base y en
+        cada imagen a alinear.
+  \item \textbf{Matches / coincidencias} (\texttt{n\_good\_matches} en el resultado): de todos
+        los keypoints de ambas imágenes, cuántos el emparejador FLANN considera que
+        \emph{probablemente} son el mismo punto físico, tras aplicar el ratio test de Lowe
+        (0.75) para descartar coincidencias ambiguas. Todavía puede haber matches erróneos
+        aquí (texturas repetidas, reflejos).
+  \item \textbf{Inliers} (\texttt{MIN\_INLIERS}/\texttt{MIN\_INLIERS\_FULL}): de esos matches,
+        cuántos son geométricamente consistentes con \textbf{una única} homografía —
+        es decir, cuántos sobreviven a RANSAC. Es el número que de verdad importa: la
+        homografía final se calcula solo con los inliers. En la interfaz esto se muestra como
+        ``\emph{X / Y puntos}'' (inliers / \texttt{n\_good\_matches}) — un ratio bajo indica que
+        muchos matches iniciales resultaron ser ruido, aunque la alineación en sí haya
+        funcionado bien con los que quedaron.
+\end{enumerate}
+El $\delta_{\text{px}}$ (\S\ref{sec:delta}) es un número aparte: no mide cuántos puntos
+encajaron, sino \emph{cuánto} desplazamiento residual queda de media después de aplicar la
+homografía — el termómetro de calidad final del resultado, más que del proceso.
+\end{infobox}
 
 \subsection{Estrategia de dos pasadas}
 
@@ -164,6 +204,7 @@ Los bordes estructurales que \textbf{no coinciden} entre referencia y alineada a
 \textbf{cian}, identificando exactamente qué objeto se desplazó y en qué dirección.
 
 \subsection{Capa 3 — Métrica escalar $\delta_{\text{px}}$ (flujo óptico Farneback)}
+\label{sec:delta}
 
 \begin{equation}
   \delta_{\text{px}} = \text{mediana}\left(
@@ -172,11 +213,21 @@ Los bordes estructurales que \textbf{no coinciden} entre referencia y alineada a
 \end{equation}
 
 donde $(v_x, v_y)$ es el campo de flujo óptico residual post-warp calculado con Farneback.
-Mide cuántos píxeles de desplazamiento sistemático quedan tras la homografía.
 
-\textbf{Umbral de alerta} en la UI: $\delta_{\text{px}} > 3$.
+\begin{infobox}[¿Qué es \emph{delta} y para qué sirve?]
+Después de aplicar la homografía (\texttt{warpPerspective}), la imagen alineada debería quedar
+prácticamente superpuesta a la referencia. $\delta_{\text{px}}$ mide cuánto NO ha quedado
+superpuesta: para cada píxel se estima cuánto se tendría que mover todavía para encajar
+perfectamente (flujo óptico residual), y se toma la mediana de esos desplazamientos sobre toda
+la imagen. Es, en la práctica, el indicador de \emph{calidad del resultado} de la alineación —
+mientras que los inliers (recuadro anterior) miden la calidad del \emph{proceso} que llevó a
+calcular esa homografía. Un valor bajo (cerca de 0~px) significa que la imagen alineada encaja
+bien con la referencia; por encima de 3~px empieza a notarse un desajuste visual, y es el
+umbral que la interfaz usa para pintar el dato en ámbar en vez de verde.
+\end{infobox}
 
 \section{API REST del módulo}
+\label{sec:api}
 
 \begin{table}[H]
 \centering
@@ -206,14 +257,23 @@ Mide cuántos píxeles de desplazamiento sistemático quedan tras la homografía
 \begin{minted}{python}
 @dataclass
 class AlignmentResult:
-    filename:      str
-    status:        str       # "ok" | "failed" | "reference"
-    inliers:       int       # inliers RANSAC
-    mean_shift_px: float     # mediana flujo óptico residual (px)
-    H:             Optional[List]  # homografía 3×3 como lista plana
-    approved:      bool = True     # override de aprobación por imagen
-    fail_reason:   Optional[str] = None  # no_features|low_matches|ransac_failed
-    used_mask:     bool = True     # True = pasada con máscara activa
+    filename:        str
+    status:          str     # "ok" | "failed" | "reference"
+    inliers:         int = 0 # matches que sobrevivieron a RANSAC
+    n_good_matches:  int = 0 # matches FLANN antes de RANSAC (inliers es un subconjunto)
+    mean_shift_px:   float = 0.0   # delta — ver §\ref{sec:delta}
+    H:               Optional[List] = None  # homografía 3×3 como lista plana
+    approved:        bool = True   # override de aprobación por imagen
+    fail_reason:     str = ""      # no_features|low_matches|ransac_failed|bad_lighting:*
+    used_mask:       bool = False  # True = pasada con máscara de zonas estables
+    lighting_issue:  str = ""      # overexposed|underexposed|low_contrast|""
+
+    def __post_init__(self):
+        # Una alineación "failed" cae al frame ORIGINAL sin transformar — nunca
+        # debe quedar aprobada por defecto, o el commit la copiaría al
+        # directorio final sin que nadie la haya revisado.
+        if self.status == "failed":
+            self.approved = False
 
 @dataclass
 class BatchJob:
@@ -221,10 +281,10 @@ class BatchJob:
     cam_id:           int
     base_filename:    str
     image_filenames:  List[str]
-    status:           str    # pending|processing|ready|committed|failed|discarded
-    results:          Dict[str, AlignmentResult]
-    progress_current: int
-    progress_total:   int
+    status:           str = "pending"  # pending|processing|ready|committed|failed|discarded
+    results:          Dict[str, AlignmentResult] = field(default_factory=dict)
+    progress_current: int = 0
+    progress_total:   int = 0
 \end{minted}
 \end{codebox}
 

@@ -2,6 +2,19 @@
 \label{ch:masks}
 % ==============================================================
 
+% Robustez de compilación: las capturas de referencia por cámara de este
+% capítulo son assets de la campaña de campo, no versionados en el
+% repositorio de código. Si faltan, se muestra un marcador en vez de abortar
+% la compilación de toda la memoria — en cuanto se añadan al repo (o a la
+% carpeta de trabajo de LaTeX), las figuras se renderizan solas sin tocar
+% este fichero.
+\newcommand{\safeimg}[2][width=\textwidth]{%
+  \IfFileExists{#2}{\includegraphics[#1]{#2}}{%
+    \fbox{\parbox[c][4cm][c]{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{\centering
+      \ttfamily\small Imagen no disponible en el repositorio:\\ \url{#2}}}%
+  }%
+}
+
 \section{Problema: objetos dinámicos en SIFT}
 
 Sin restricciones de zona, SIFT detecta features en \textbf{cualquier región} de la imagen,
@@ -71,7 +84,7 @@ Las figuras siguientes muestran, sobre una imagen real de cada cámara, las regi
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\textwidth]{mask_cam1.jpg}
+  \safeimg{mask_cam1.jpg}
   \caption{CAM~1 — horizonte del mar ($y=0{,}39$--$0{,}48$) + arena baja izq + vegetación dcha (hasta fondo).
            Zona diseñada para evitar las gaviotas que vuelan en $y < 0{,}38$.}
   \label{fig:mask-cam1-vis}
@@ -79,7 +92,7 @@ Las figuras siguientes muestran, sobre una imagen real de cada cámara, las regi
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\textwidth]{mask_cam2.jpg}
+  \safeimg{mask_cam2.jpg}
   \caption{CAM~2 — horizonte del mar ($y=0{,}34$--$0{,}48$) + zona izquierda con vallas y vegetación
            ($x=0{,}00$--$0{,}28$, hasta el borde inferior). Las vallas y masa vegetal ofrecen features
            estables cuando la visibilidad no permite distinguir el Peñón de Ifach.}
@@ -88,7 +101,7 @@ Las figuras siguientes muestran, sobre una imagen real de cada cámara, las regi
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\textwidth]{mask_cam3.jpg}
+  \safeimg{mask_cam3.jpg}
   \caption{CAM~3 — horizonte del mar ($y=0{,}45$--$0{,}56$) + kiosco de playa en la esquina
            inferior derecha ($x=0{,}87$--$1{,}00$, $y=0{,}80$--$0{,}93$). Se excluye deliberadamente
            la franja $x=0{,}72$--$0{,}87$: las palmeras que hay ahí agitan sus hojas con el viento
@@ -99,7 +112,7 @@ Las figuras siguientes muestran, sobre una imagen real de cada cámara, las regi
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\textwidth]{mask_cam4.jpg}
+  \safeimg{mask_cam4.jpg}
   \caption{CAM~4 — horizonte del mar ($y=0{,}38$--$0{,}52$) + paseo marítimo/edificios en
            la esquina izquierda ($x=0{,}00$--$0{,}28$, hasta el borde inferior). La infraestructura
            urbana proporciona features angulares muy discriminantes.}
@@ -108,7 +121,7 @@ Las figuras siguientes muestran, sobre una imagen real de cada cámara, las regi
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\textwidth]{mask_cam5.jpg}
+  \safeimg{mask_cam5.jpg}
   \caption{CAM~5 — horizonte del mar ($y=0{,}36$--$0{,}50$) + franja derecha estrecha
            ($x=0{,}68$--$1{,}00$). La zona derecha captura vegetación y estructuras fijas
            con mayor estabilidad que la franja izquierda anterior.}
@@ -117,7 +130,7 @@ Las figuras siguientes muestran, sobre una imagen real de cada cámara, las regi
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=\textwidth]{mask_cam6.jpg}
+  \safeimg{mask_cam6.jpg}
   \caption{CAM~6 — horizonte del mar ($y=0{,}40$--$0{,}54$) + bloque de edificios en la
            esquina izquierda ($x=0{,}00$--$0{,}35$). Los edificios tienen fachadas con
            ventanas y balcones que generan features muy estables.}
@@ -137,12 +150,12 @@ referencia adicional de gran contraste.
 \begin{figure}[H]
   \centering
   \begin{subfigure}[b]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{img_cam1_mask_actual.jpg}
+    \safeimg{img_cam1_mask_actual.jpg}
     \caption{Máscara anterior — zona ``horizonte'' comienza en $y=0{,}24$, alcanzando el cielo con gaviotas}
   \end{subfigure}
   \hfill
   \begin{subfigure}[b]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{img_cam1_mask_propuesta.jpg}
+    \safeimg{img_cam1_mask_propuesta.jpg}
     \caption{Máscara corregida — \texttt{horizonte\_mar} comienza en $y=0{,}39$ (mar bajo), más arena baja y vegetación hasta el fondo}
   \end{subfigure}
   \caption{Comparativa de máscaras SIFT para CAM~1 (imagen 4608$\times$2682~px)}

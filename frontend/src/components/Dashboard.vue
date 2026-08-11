@@ -1,8 +1,10 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
+import { API_BASE } from '../api.js'
 import Map from './Map.vue'
 
 const emit = defineEmits(['select-camera', 'notify'])
+const API = API_BASE
 
 const data = ref(null)
 const error = ref(null)
@@ -13,7 +15,7 @@ const logs = ref([])            // /api/logs — para "Actividad reciente"
 const histCam = ref(null)       // null = todas las cámaras combinadas (media diaria)
 
 async function fetchHistorical() {
-  const url = 'http://localhost:8000/api/historical-data' + (histCam.value ? `?cam_id=${histCam.value}` : '')
+  const url = `${API}/api/historical-data` + (histCam.value ? `?cam_id=${histCam.value}` : '')
   try {
     const res = await fetch(url)
     historicalData.value = res.ok ? await res.json() : []
@@ -24,10 +26,10 @@ watch(histCam, fetchHistorical)
 async function fetchData() {
   try {
     const [dashRes, geoRes, camRes, logRes] = await Promise.all([
-      fetch('http://localhost:8000/api/dashboard'),
-      fetch('http://localhost:8000/api/geojson'),
-      fetch('http://localhost:8000/api/cameras'),
-      fetch('http://localhost:8000/api/logs')
+      fetch(`${API}/api/dashboard`),
+      fetch(`${API}/api/geojson`),
+      fetch(`${API}/api/cameras`),
+      fetch(`${API}/api/logs`)
     ])
 
     if (!dashRes.ok || !geoRes.ok) throw new Error('Error al conectar con el servidor')
@@ -83,6 +85,7 @@ function downloadCSV() {
   link.setAttribute("download", "historico_costa_ua.csv")
   document.body.appendChild(link)
   link.click()
+  link.remove()
   emit('notify', 'Archivo CSV generado con éxito', 'success')
 }
 
@@ -90,11 +93,11 @@ function downloadCSV() {
 // imagen y confianza — a diferencia de downloadCSV() arriba, que solo exporta
 // la media diaria global que alimenta el gráfico.
 function downloadReportCSV() {
-  window.open('http://localhost:8000/api/report?format=csv', '_blank')
+  window.open(`${API}/api/report?format=csv`, '_blank')
 }
 async function downloadReportJSON() {
   try {
-    const res = await fetch('http://localhost:8000/api/report?format=json')
+    const res = await fetch(`${API}/api/report?format=json`)
     if (!res.ok) throw new Error('HTTP ' + res.status)
     const data = await res.json()
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -189,16 +192,6 @@ onMounted(fetchData)
        <h1 class="text-3xl font-semibold uppercase tracking-tighter">Reporte Operativo de Litoral</h1>
        <p class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Generado el {{ new Date().toLocaleDateString() }} - CV-LIT UA Engineering</p>
     </div>
-
-    <!-- TELEMETRY GRID (Deshabilitado temporalmente)
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div v-for="(val, label) in { 'Carga CPU': '24.2%', 'RAM': '4.8 GB', 'Almacén': '1.2 TB', 'Latencia': 'Estable' }" :key="label"
-           class="card-standard p-4 flex flex-col justify-center">
-        <p class="text-[10px] font-semibold text-slate-400 uppercase mb-1">{{ label }}</p>
-        <p class="text-xl font-semibold text-slate-900">{{ val }}</p>
-      </div>
-    </div>
-    -->
 
     <!-- Resumen: igual patrón que el mock — 3 cifras clave de un vistazo -->
     <div class="grid grid-cols-3 gap-4">

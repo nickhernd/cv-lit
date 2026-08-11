@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { API_BASE } from './api.js'
 import Dashboard from './components/Dashboard.vue'
 import Calibration from './components/Calibration.vue'
 import CoastlineAnalysis from './components/CoastlineAnalysis.vue'
@@ -21,13 +22,13 @@ const VIEW_META = {
   geomap: { title: 'Mapa GeoJSON', sub: 'EPSG:25830 · Guardamar del Segura' },
   calibration: { title: 'Calibración geométrica', sub: 'Estado por cámara · Módulo offline' },
   cameras: { title: 'Cámaras', sub: 'Configuración hardware · Lente, ROI, ubicación' },
-  automode: { title: 'Modo automático', sub: 'Procesamiento periódico · Directorio vigilado' },
+  automode: { title: 'Modo automático', sub: 'Descarga, alineación y análisis por rango de fechas' },
 }
 const viewMeta = computed(() => VIEW_META[currentView.value] || { title: '', sub: '' })
 
 async function fetchLogs() {
   try {
-    const res = await fetch('http://localhost:8000/api/logs')
+    const res = await fetch(`${API_BASE}/api/logs`)
     logs.value = await res.json()
   } catch (err) { console.error('Error fetching logs:', err) }
 }
