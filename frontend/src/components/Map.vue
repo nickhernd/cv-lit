@@ -93,8 +93,12 @@ const props = defineProps({
 const emit = defineEmits(['select-feature', 'select-camera'])
 
 const layers = {
-  vector: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; CARTO'
+  // OpenStreetMap estándar: sin API key ni cuenta de terceros — CARTO empezó a
+  // exigir una API key para su capa "light_all" gratuita (antes anónima), lo
+  // que tumbaba este mapa en cualquier instalación sin esa clave configurada.
+  vector: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
   }),
   satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: 'Tiles &copy; Esri'

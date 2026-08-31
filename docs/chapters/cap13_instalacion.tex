@@ -88,6 +88,59 @@ Username / API key & configurados por entorno, ver arriba (no se documentan aqu�
 \end{tabular}
 \end{table}
 
+\section{Generar el instalador de Windows}
+\label{sec:build-installer}
+
+La app de escritorio se empaqueta en tres pasos, siempre en este orden — el propio
+\texttt{installer/cv-lit.iss} lleva esta misma receta como comentario de cabecera.
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Build del frontend} (genera nombres de archivo con hash de contenido nuevos
+        en cada build):
+\begin{minted}{bash}
+cd frontend && npm run build && cd ..
+\end{minted}
+  \item \textbf{Empaquetar el backend} con PyInstaller, usando el Python del \texttt{venv} del
+        proyecto (más fiable que depender de que \texttt{pyinstaller} esté en el PATH):
+\begin{minted}{bash}
+cd backend
+..\venv\Scripts\python.exe -m PyInstaller desktop_launcher.spec --noconfirm
+..\venv\Scripts\python.exe -m PyInstaller download_sam.spec --noconfirm
+cd ..
+\end{minted}
+  \item \textbf{Compilar el instalador} con Inno Setup (\url{https://jrsoftware.org/isinfo.php},
+        instalable con \texttt{winget install --id JRSoftware.InnoSetup -e}):
+\begin{minted}{bash}
+"C:\Program Files\Inno Setup 7\ISCC.exe" cv-lit.iss
+\end{minted}
+        El resultado queda en \texttt{installer\textbackslash output\textbackslash
+        LineaDeCosta-Setup.exe} ($\sim$180~MB — el checkpoint de SAM no va incluido, ver
+        \S\ref{ch:setup}).
+\end{enumerate}
+
+\begin{warnbox}[No recompilar el frontend mientras el paso 2 está en marcha]
+Condición de carrera real detectada en 2026-08: si se relanza \texttt{npm run build} MIENTRAS
+PyInstaller todavía está empaquetando (por ejemplo, en otra terminal), los nombres de archivo
+con hash de \texttt{frontend/dist/assets/} cambian a mitad de camino y el paquete final
+contiene referencias a archivos que ya no existen — la app instalada carga en blanco, sin
+ningún error visible durante el empaquetado (solo un aviso \texttt{WARNING: Ignoring
+non-existent resource} en el log de PyInstaller, fácil de pasar por alto). Si se sospecha que
+ha pasado, repetir el paso 2 entero sin tocar \texttt{frontend/dist/} mientras corre, y
+comparar que los nombres de archivo en \texttt{backend\textbackslash
+dist\textbackslash LineaDeCosta\textbackslash \_internal\textbackslash frontend\_dist\textbackslash
+assets\textbackslash} coincidan exactamente con los de \texttt{frontend/dist/assets/}.
+\end{warnbox}
+
+\textbf{Verificación rápida tras compilar}, sin necesidad de instalar nada: arrancar el
+ejecutable empaquetado directamente y comprobar que sirve la app entera.
+\begin{minted}{bash}
+cd backend\dist\LineaDeCosta
+.\LineaDeCosta.exe
+# en otra terminal:
+curl http://127.0.0.1:8000/               # debe devolver el HTML del frontend
+curl http://127.0.0.1:8000/api/cameras    # debe devolver JSON con las 6 cámaras
+\end{minted}
+
 % ==============================================================
 \appendix
 % ==============================================================

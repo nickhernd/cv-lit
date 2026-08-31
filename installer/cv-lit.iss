@@ -1,23 +1,48 @@
 ; Instalador de "Línea de Costa" (Guardamar del Segura) para Windows.
 ;
-; Antes de compilar este script hay que generar los ejecutables que empaqueta:
-;   cd frontend && npm run build && cd ..
+; PASO 1 — build del frontend (deja frontend\dist\ con hashes de contenido
+; nuevos en cada build):
+;   cd frontend
+;   npm run build
+;   cd ..
+;
+; PASO 2 — empaquetar el backend con PyInstaller. Usar el Python del venv del
+; proyecto (más fiable que depender de que "pyinstaller" esté en el PATH):
 ;   cd backend
-;   pyinstaller desktop_launcher.spec
-;   pyinstaller download_sam.spec
+;   ..\venv\Scripts\python.exe -m PyInstaller desktop_launcher.spec --noconfirm
+;   ..\venv\Scripts\python.exe -m PyInstaller download_sam.spec --noconfirm
 ;   cd ..
 ; Esto deja backend\dist\LineaDeCosta\ (la app) y backend\dist\download_sam.exe
 ; (el descargador del modelo SAM, ver download_sam.py) — las rutas [Files] de
 ; abajo asumen esa estructura por defecto de PyInstaller (sin --distpath).
 ;
-; Compilar con Inno Setup (https://jrsoftware.org/isinfo.php):
-;   ISCC.exe cv-lit.iss
-; El instalador resultante queda en installer\output\LineaDeCosta-Setup.exe.
+; ¡OJO! — condición de carrera real que ya ha pasado: si vuelves a ejecutar
+; "npm run build" MIENTRAS el PASO 2 está en marcha (p.ej. en otra terminal),
+; los nombres de archivo con hash de frontend\dist\assets\ cambian a mitad de
+; camino y el PASO 2 empaqueta una carpeta con referencias a archivos que ya
+; no existen — la app instalada carga en blanco. Si sospechas que ha pasado,
+; repite el PASO 2 entero SIN tocar frontend\dist\ mientras corre, y compara
+; que los nombres de archivo en backend\dist\LineaDeCosta\_internal\
+; frontend_dist\assets\ coincidan exactamente con los de frontend\dist\assets\.
+;
+; PASO 3 — compilar el instalador con Inno Setup
+; (https://jrsoftware.org/isinfo.php — instalado vía
+; "winget install --id JRSoftware.InnoSetup -e"):
+;   "C:\Program Files\Inno Setup 7\ISCC.exe" cv-lit.iss
+; (o solo "ISCC.exe cv-lit.iss" si ya está en el PATH). El instalador
+; resultante queda en installer\output\LineaDeCosta-Setup.exe (~180 MB).
 ;
 ; El checkpoint del modelo SAM (~2.4 GB) NO se empaqueta aquí — la app
 ; funciona sin él (segmentación por color/Otsu, ver get_segmenter() en
 ; backend/main.py) y se descarga aparte, opcionalmente, con download_sam.exe.
-; Así el instalador se queda en ~1-1.5 GB en vez de arrastrar ese archivo.
+; Así el instalador se queda en ~180 MB en vez de arrastrar ese archivo.
+;
+; Verificación rápida tras compilar, sin instalar nada (arranca el backend
+; empaquetado y comprueba que sirve la app entera):
+;   cd backend\dist\LineaDeCosta
+;   .\LineaDeCosta.exe
+;   (en otra terminal) curl http://127.0.0.1:8000/  -> debe devolver el HTML
+;   y curl http://127.0.0.1:8000/api/cameras -> debe devolver JSON con 6 cámaras
 
 #define MyAppName "Linea de Costa"
 #define MyAppVersion "0.1.0"

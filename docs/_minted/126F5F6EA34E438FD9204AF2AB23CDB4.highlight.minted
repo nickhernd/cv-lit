@@ -1,0 +1,6 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{n+nb}{cd}\PYG{+w}{ }backend
+..\PYG{l+s+se}{\PYGZbs{}v}env\PYG{l+s+se}{\PYGZbs{}S}cripts\PYG{l+s+se}{\PYGZbs{}p}ython.exe\PYG{+w}{ }\PYGZhy{}m\PYG{+w}{ }PyInstaller\PYG{+w}{ }desktop\PYGZus{}launcher.spec\PYG{+w}{ }\PYGZhy{}\PYGZhy{}noconfirm
+..\PYG{l+s+se}{\PYGZbs{}v}env\PYG{l+s+se}{\PYGZbs{}S}cripts\PYG{l+s+se}{\PYGZbs{}p}ython.exe\PYG{+w}{ }\PYGZhy{}m\PYG{+w}{ }PyInstaller\PYG{+w}{ }download\PYGZus{}sam.spec\PYG{+w}{ }\PYGZhy{}\PYGZhy{}noconfirm
+\PYG{n+nb}{cd}\PYG{+w}{ }..
+\end{MintedVerbatim}

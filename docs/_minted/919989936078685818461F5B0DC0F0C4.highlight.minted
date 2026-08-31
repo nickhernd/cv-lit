@@ -1,0 +1,7 @@
+\begin{MintedVerbatim}[commandchars=\\\{\}]
+\PYG{n+nb}{cd}\PYG{+w}{ }backend\PYG{l+s+se}{\PYGZbs{}d}ist\PYG{l+s+se}{\PYGZbs{}L}ineaDeCosta
+.\PYG{l+s+se}{\PYGZbs{}L}ineaDeCosta.exe
+\PYG{c+c1}{\PYGZsh{} en otra terminal:}
+curl\PYG{+w}{ }http://127.0.0.1:8000/\PYG{+w}{               }\PYG{c+c1}{\PYGZsh{} debe devolver el HTML del frontend}
+curl\PYG{+w}{ }http://127.0.0.1:8000/api/cameras\PYG{+w}{    }\PYG{c+c1}{\PYGZsh{} debe devolver JSON con las 6 cámaras}
+\end{MintedVerbatim}
