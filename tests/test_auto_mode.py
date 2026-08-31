@@ -174,3 +174,119 @@ def test_start_with_no_new_images_completes_immediately(monkeypatch):
     assert results_resp.json()["items"] == []
 
     _clear_calibration(CAM_ID)
+
+
+# ── _download_new_images: resiliencia por imagen ─────────────────────────────
+# Añadido 2026-08-11: una captura que falla al descargar (timeout, error de
+# Obscape) ya no debe tirar el resto del lote — se salta y se sigue con las
+# demás, en vez de perder también las que sí se habían descargado bien antes.
+
+class _FakeObscapeClientPartialFailure:
+    def __init__(self, *a, **kw):
+        pass
+
+    def get_station_data(self, station_id, from_dt, to_dt, tz):
+        return {"data": [{"time": 1000}, {"time": 2000}, {"time": 3000}]}
+
+    def download_image_flat(self, station_id, serial, ts, folder):
+        if ts == 2000:
+            raise RuntimeError("fallo de red simulado")
+        folder.mkdir(parents=True, exist_ok=True)
+        p = folder / f"{ts}_fake_{serial}.jpg"
+        p.write_bytes(b"fake")
+        return p, True
+
+
+def test_download_new_images_skips_failed_capture_and_continues(monkeypatch):
+    import obscape_api
+    monkeypatch.setattr(obscape_api, "ObscapeClient", _FakeObscapeClientPartialFailure)
+
+    result = auto_mode._download_new_images(CAM_ID, "2026-01-01", "2026-01-02")
+    assert len(result) == 2  # las 2 que no fallaron, no aborta por la del medio
+    assert all("2000" not in fn for fn in result)
+
+
+# ── _run_auto_pipeline: base de alineación ────────────────────────────────────
+# Añadido 2026-08-11: cada lote debe alinearse contra la reference_image
+# PERSISTENTE de la cámara (la que usa el flujo manual), no contra la imagen
+# más antigua de ese lote concreto — si no, cada ejecución de Auto Mode queda
+# en un marco de píxeles distinto al que se usó para calcular la homografía.
+
+def _setup_camera_folder_with_files(*filenames):
+    cam_folder = Path(config.DATA_DIR) / config.CAMERAS[CAM_ID]["folder"]
+    cam_folder.mkdir(parents=True, exist_ok=True)
+    for fn in filenames:
+        (cam_folder / fn).write_bytes(b"fake")
+    return cam_folder
+
+
+def _stub_alignment_and_analysis(monkeypatch, captured: dict):
+    import batch_alignment as ba
+
+    async def fake_run_pipeline(job_id, image_paths, base_path):
+        captured["base_filename"] = ba._jobs[job_id].base_filename
+        captured["base_path"] = base_path
+        ba._jobs[job_id].status = "ready"
+
+    monkeypatch.setattr(ba, "_run_pipeline", fake_run_pipeline)
+    monkeypatch.setattr(ba, "commit_batch", lambda job_id: {"committed": 0, "skipped": 0})
+    monkeypatch.setattr(
+        main, "analyze_roi",
+        lambda cam_id, filename=None: {
+            "confidence": 0.9, "dry_area_m2": 100.0, "rejected": False,
+            "reject_reason": "", "timestamp": "2026-01-01T00:00:00",
+        },
+    )
+
+
+def test_auto_pipeline_uses_persisted_reference_image_as_alignment_base(monkeypatch):
+    cam_folder = _setup_camera_folder_with_files("REF_CALIBRACION.jpg", "nueva1.jpg", "nueva2.jpg")
+    profile_path = Path(config.CALIBRATION_DIR) / f"cam_{CAM_ID}_profile.json"
+    profile_path.write_text(
+        json.dumps({"H": [1, 0, 0, 0, 1, 0, 0, 0, 1], "reference_image": "REF_CALIBRACION.jpg"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(auto_mode, "_download_new_images", lambda cam_id, from_date, to_date: ["nueva1.jpg", "nueva2.jpg"])
+
+    captured = {}
+    _stub_alignment_and_analysis(monkeypatch, captured)
+
+    import asyncio
+    job = auto_mode.AutoJob(job_id="reftest1", cam_id=CAM_ID, from_date="2026-01-01", to_date="2026-01-02")
+    auto_mode._jobs["reftest1"] = job
+    asyncio.run(auto_mode._run_auto_pipeline("reftest1"))
+
+    assert captured["base_filename"] == "REF_CALIBRACION.jpg"
+    assert job.status == "done"
+    assert all(not r.is_base for r in job.results)  # ninguna de las nuevas ES la referencia
+
+    profile_path.unlink()
+    for fn in ("REF_CALIBRACION.jpg", "nueva1.jpg", "nueva2.jpg"):
+        (cam_folder / fn).unlink(missing_ok=True)
+    del auto_mode._jobs["reftest1"]
+
+
+def test_auto_pipeline_falls_back_to_batch_oldest_image_without_reference(monkeypatch):
+    cam_folder = _setup_camera_folder_with_files("nuevaA.jpg", "nuevaB.jpg")
+    profile_path = Path(config.CALIBRATION_DIR) / f"cam_{CAM_ID}_profile.json"
+    # Perfil calibrado (tiene H) pero SIN reference_image persistida — el caso
+    # límite de una cámara calibrada pasando un image_name explícito sin
+    # haber pasado nunca por /set-reference.
+    profile_path.write_text(json.dumps({"H": [1, 0, 0, 0, 1, 0, 0, 0, 1]}), encoding="utf-8")
+    monkeypatch.setattr(auto_mode, "_download_new_images", lambda cam_id, from_date, to_date: ["nuevaA.jpg", "nuevaB.jpg"])
+
+    captured = {}
+    _stub_alignment_and_analysis(monkeypatch, captured)
+
+    import asyncio
+    job = auto_mode.AutoJob(job_id="reftest2", cam_id=CAM_ID, from_date="2026-01-01", to_date="2026-01-02")
+    auto_mode._jobs["reftest2"] = job
+    asyncio.run(auto_mode._run_auto_pipeline("reftest2"))
+
+    assert captured["base_filename"] == "nuevaA.jpg"  # fallback: la más antigua del propio lote
+    assert job.status == "done"
+
+    profile_path.unlink()
+    for fn in ("nuevaA.jpg", "nuevaB.jpg"):
+        (cam_folder / fn).unlink(missing_ok=True)
+    del auto_mode._jobs["reftest2"]

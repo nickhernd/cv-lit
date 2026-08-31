@@ -109,4 +109,50 @@ formato corto pensada para lectura rápida (p.\,ej. en la tabla de \texttt{Resul
 frontend) sin tener que parsear el URN — ambos apuntan al mismo sistema, EPSG:25830.
 \end{infobox}
 
+\section{Índice de confianza (\texttt{Confianza\_IA}) y una limitación conocida}
+\label{sec:confidence-index-limitation}
+
+\texttt{confidence\_index()} (en \texttt{georef\_export.py}) combina cuatro señales en una
+media ponderada — nunca es un solo número aislado:
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item \textbf{Calidad de calibración} (peso 3): $\exp(-\text{RMSE}_m / \text{RMSE\_GOOD\_M})$
+        — constante para todas las imágenes de una misma cámara hasta la siguiente calibración.
+  \item \textbf{Cobertura de máscara} (peso 1): fracción del frame detectada como arena seca,
+        con la puntuación máxima entre el 15\,\% y el 40\,\% de cobertura.
+  \item \textbf{Probabilidad media de SAM} (peso 2): media del canal "seca" del mapa de
+        probabilidad (\texttt{prob\_map}), calculada sobre la región de interés completa.
+  \item \textbf{Confianza de los puntos de costa} (peso 2, si aplica): media de la confianza
+        por punto de la línea extraída.
+\end{enumerate}
+
+Si el resultado queda por debajo de \texttt{confidence\_min} (ajustado por cámara en
+\texttt{cam\_thresholds.py}, típicamente 0.40--0.50), la imagen se rechaza
+(\texttt{reject\_reason: "low\_confidence:X.XX"}) y no se guarda en el histórico.
+
+\begin{infobox}[Limitación conocida --- playas concurridas se rechazan más de lo esperado]
+Diagnosticado el 2026-08-11 con una ejecución real de Auto Mode (Cámara 1, una semana
+completa): 62 de 88 imágenes se rechazaron, y en un primer vistazo el patrón horario diario
+parecía marea alta. Al inspeccionar las imágenes de verdad, la playa estaba seca y visible —
+el patrón real es \textbf{gente y sombrillas en la franja de mayor afluencia}, no marea. Se
+verificó con dos imágenes reales (misma cámara, mismo día): la cobertura de máscara apenas
+cambia (0.86 vs 0.90), pero la probabilidad media de SAM (factor 3) cae de 0.20 a 0.11 con
+playa concurrida — eso explica \textasciitilde80\,\% de la diferencia de confianza entre
+ambas.
+
+Se probaron dos alternativas a la media cruda (mediana, y una media recortada por
+percentil) y ninguna sirve: la mayoría de la región de interés ya es correctamente
+"no arena" (mar), así que esas estadísticas colapsan sin señal útil. Una media restringida a
+píxeles por encima de un umbral absoluto de probabilidad tampoco sirve — invierte el
+problema y premia a la imagen concurrida (un parche pequeño pero muy seguro de arena libre
+entre sombrillas puntúa mejor que una playa grande y difusa).
+
+Con solo dos imágenes de prueba no hay base suficiente para validar una fórmula nueva que
+afecta a las seis cámaras en producción, así que se ha dejado documentado en vez de forzar un
+cambio sin validar. Dos caminos razonables para una futura ronda: (a) recopilar más ejemplos
+reales de playas concurridas/vacías antes de tocar \texttt{confidence\_index()}, o
+(b) atacar la causa raíz enmascarando personas antes de segmentar en vez de ajustar la
+fórmula de confianza a ciegas.
+\end{infobox}
+
 % ==============================================================

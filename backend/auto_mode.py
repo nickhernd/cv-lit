@@ -133,6 +133,7 @@ def _download_new_images(cam_id: int, from_date: str, to_date: str) -> List[str]
     captura (el más antiguo primero)."""
     from config import CAMERAS, DATA_DIR
     from obscape_api import ObscapeClient
+    from main import add_log  # import diferido: evita el ciclo main<->auto_mode al importar
 
     info = CAMERAS[cam_id]
     client = ObscapeClient()
@@ -143,12 +144,26 @@ def _download_new_images(cam_id: int, from_date: str, to_date: str) -> List[str]
     )
     points = data.get("data", [])
 
+    # Cada imagen se descarga en su propio try/except: un timeout o error
+    # puntual de Obscape en UNA captura del rango no debe tirar todo el job
+    # (antes, una sola excepción aquí abortaba la descarga completa y se
+    # perdían también las imágenes que ya se habían bajado bien antes de
+    # llegar a la que falló).
     downloaded = []
+    failed = 0
     for pt in points:
         ts = int(pt["time"]) if isinstance(pt, dict) else int(pt[0])
-        path, is_new = client.download_image_flat(info["id"], info["serial"], ts, cam_folder)
+        try:
+            path, is_new = client.download_image_flat(info["id"], info["serial"], ts, cam_folder)
+        except Exception as e:
+            failed += 1
+            add_log(f"Auto Mode Cam {cam_id}: fallo al descargar la captura {ts} — {e}", "warning")
+            continue
         if is_new and path:
             downloaded.append(path.name)
+
+    if failed:
+        add_log(f"Auto Mode Cam {cam_id}: {failed} captura(s) no se pudieron descargar, continuando con el resto", "warning")
 
     downloaded.sort()  # el nombre empieza por el epoch -> orden cronológico
     return downloaded
@@ -173,19 +188,39 @@ async def _run_auto_pipeline(job_id: str):
             add_log(f"Auto Mode Cam {job.cam_id}: no hay imágenes nuevas en el rango indicado", "warning")
             return
 
-        base_filename = job.downloaded[0]
+        # Base de alineación: SIEMPRE la reference_image PERSISTENTE de la
+        # cámara (la misma que fija /set-reference y usa por defecto el flujo
+        # manual) — nunca la imagen más antigua de este lote concreto. Si cada
+        # lote semanal se alineara contra su propia base, cada semana quedaría
+        # en un marco de píxeles distinto al que se usó para calcular la
+        # homografía H (que se computa una sola vez, sobre calibrated_image);
+        # la H fija aplicada a un marco de píxeles distinto de ese introduce
+        # un desplazamiento sistemático que ni el RMSE de calibración (solo se
+        # calcula una vez) ni la confianza de SAM detectan.
+        from config import CAMERAS, DATA_DIR, CALIBRATION_DIR
+
+        cam_folder = Path(DATA_DIR) / CAMERAS[job.cam_id]["folder"]
+        profile_path = Path(CALIBRATION_DIR) / f"cam_{job.cam_id}_profile.json"
+        reference_image = None
+        if profile_path.exists():
+            with open(profile_path, "r") as f:
+                reference_image = json.load(f).get("reference_image")
+
+        using_calibration_reference = bool(reference_image) and (cam_folder / reference_image).exists()
+        base_filename = reference_image if using_calibration_reference else job.downloaded[0]
         job.results = [ImageResult(filename=fn, is_base=(fn == base_filename)) for fn in job.downloaded]
 
-        # 2. Alineación (solo si hay más de una imagen; reutiliza batch_alignment.py)
-        if len(job.downloaded) > 1:
+        # Alinear siempre que haya una reference_image de calibración válida
+        # (incluso con una sola imagen nueva) — sin ella, mantener el
+        # comportamiento anterior: un lote de una sola imagen no tiene nada
+        # dentro del propio lote contra lo que alinearla, así que se salta.
+        if using_calibration_reference or len(job.downloaded) > 1:
             job.status = "aligning"
             job.step = f"Alineando {len(job.downloaded)} imágenes contra la base"
             add_log(f"Auto Mode Cam {job.cam_id}: alineando {len(job.downloaded)} imágenes (base: {base_filename})", "info")
 
             import batch_alignment as ba
-            from config import CAMERAS, DATA_DIR
 
-            cam_folder = Path(DATA_DIR) / CAMERAS[job.cam_id]["folder"]
             batch_job_id = str(uuid.uuid4())[:8]
             batch_job = ba.BatchJob(
                 job_id=batch_job_id,

@@ -49,7 +49,7 @@ empieza donde termina la calibración, no la sustituye.
 \centering
 \begin{tikzpicture}[node distance=0.5cm and 1.4cm]
   \node[block, fill=SkyBlue!15] (desc) {1. Descarga\\{\tiny Obscape API}};
-  \node[block, fill=Orange!15, right=of desc] (base) {2. Base\\{\tiny imagen más antigua}};
+  \node[block, fill=Orange!15, right=of desc] (base) {2. Base\\{\tiny referencia de calibración}};
   \node[block, fill=OliveGreen!15, right=of base] (alin) {3. Alineación\\{\tiny reutiliza cap.~\ref{ch:batch}}};
   \node[block, fill=NavyBlue!15, right=of alin] (anal) {4. Análisis\\{\tiny reutiliza cap.~\ref{ch:segmentation}}};
 
@@ -70,10 +70,19 @@ empieza donde termina la calibración, no la sustituye.
         \texttt{<epoch>\_<AAAAMMDD>\_<HHMMSS>\_<serie>.jpg} que el resto del backend ya
         reconoce. Si no hay imágenes nuevas en el rango, el job termina ahí con un mensaje
         claro (nada que hacer) en vez de seguir con pasos vacíos.
-  \item \textbf{Selección de base}: la imagen descargada con el timestamp de captura
-        \textbf{más antiguo} del lote se usa como referencia para la alineación — el resto del
-        lote se alinea contra ella. Si el lote tiene una sola imagen, este y el siguiente paso
-        se omiten (nada que alinear).
+  \item \textbf{Selección de base}: TODO el lote se alinea contra la \texttt{reference\_image}
+        \textbf{persistente} de la cámara — la misma imagen que fija \texttt{/set-reference} y
+        usa por defecto el flujo manual (capítulo~\ref{ch:batch}), \emph{nunca} la imagen más
+        antigua de este lote concreto. Es un cambio deliberado de 2026-08-11: si cada lote
+        semanal se alineara contra su propia base, cada ejecución quedaría en un marco de
+        píxeles distinto al que se usó para calcular la homografía H (que se computa una sola
+        vez, sobre \texttt{calibrated\_image}) — la H fija aplicada a un marco de píxeles
+        distinto introduce un desplazamiento sistemático que ni el RMSE de calibración (solo se
+        calcula una vez) ni la confianza de SAM detectan. Si la cámara no tiene
+        \texttt{reference\_image} guardada (calibrada sin pasar nunca por
+        \texttt{/set-reference}), cae al comportamiento anterior: la imagen más antigua del
+        propio lote, y un lote de una sola imagen no se alinea (nada dentro del lote contra lo
+        que alinearla).
   \item \textbf{Alineación}: construye un \texttt{BatchJob} igual que el flujo manual de
         alineación masiva y llama directamente a \texttt{batch\_alignment.\_run\_pipeline()} y,
         si el resultado queda \texttt{ready}, a \texttt{commit\_batch()} — sin pantalla de
