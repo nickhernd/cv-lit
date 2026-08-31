@@ -147,16 +147,37 @@ def confidence_index(
       2. Cobertura de mascara: fraccion del frame con arena detectada
       3. Media de probabilidad SAM (si prob_map disponible)
       4. Confianza de puntos de costa (si coastline_points incluye .confidence)
+
+    Pesos reajustados en 2026-08-31 tras diagnosticar en vivo, con varias
+    cámaras recién recalibradas con datos reales, un doble penalizado
+    estructural: la calidad de calibración (factor 1) es una CONSTANTE por
+    cámara — ya se decide aparte, al calibrar, si el RMSE pasa el umbral
+    RMSE_GOOD_M — pero con peso 3 (el mayor de los cuatro) y una caída
+    exponencial dura, cualquier cámara con un RMSE real "aceptable pero no
+    excelente" (p.ej. 1.5-2.0 m, perfectamente dentro de tolerancia) arrastra
+    la confianza de TODAS sus imágenes hacia abajo, sin que la imagen en sí
+    tenga ningún problema. La probabilidad media de SAM (factor 3) resultó
+    igual de poco fiable por otro motivo: se promedia sobre TODA la zona de
+    interés, que en cualquier foto de costa incluye mar/agua en cantidad —
+    píxeles correctamente "no arena" que diluyen la media aunque la playa se
+    detecte perfectamente. La cobertura de máscara (factor 2) fue, con
+    diferencia, la señal más fiable de las tres en los casos reales
+    comprobados — de ahí el peso subido. Casos verificados con datos reales:
+    3 cámaras con calibración válida (RMSE 1.36-1.98 m) que antes se
+    rechazaban por baja confianza pasan a aceptarse, sin que las máscaras
+    realmente vacías (falla otro filtro aparte, mask_area_min_ratio) ni la
+    homografía mal condicionada (filtro area_no_fiable, también aparte) se
+    vean afectadas — ninguna de las dos depende de confidence_index().
     """
     scores = []
     weights = []
 
-    # 1. Calidad de calibracion (peso 3)
+    # 1. Calidad de calibracion (peso 1 — antes 3, ver nota arriba)
     calib_score = math.exp(-rmse_m / RMSE_GOOD_M)
     scores.append(calib_score)
-    weights.append(3.0)
+    weights.append(1.0)
 
-    # 2. Cobertura de mascara (peso 1) — esperamos >5% y <70% de frame
+    # 2. Cobertura de mascara (peso 2 — antes 1, ver nota arriba) — esperamos >5% y <70% de frame
     if mask is not None:
         total = mask.size
         active = int(np.sum(mask > 0))
@@ -164,13 +185,13 @@ def confidence_index(
         # Score maximo en ~15-40% de cobertura
         cov_score = min(1.0, 2.0 * min(frac, 0.5 - frac) / 0.35) if 0 < frac < 0.5 else 0.1
         scores.append(max(0.0, cov_score))
-        weights.append(1.0)
+        weights.append(2.0)
 
-    # 3. Media de probabilidad SAM (peso 2)
+    # 3. Media de probabilidad SAM (peso 1 — antes 2, ver nota arriba)
     if prob_map is not None and prob_map.ndim == 3:
         mean_prob = float(np.mean(prob_map[:, :, 0]))  # canal seca
         scores.append(np.clip(mean_prob, 0.0, 1.0))
-        weights.append(2.0)
+        weights.append(1.0)
 
     # 4. Confianza media de puntos de costa (peso 2)
     if coastline_points:

@@ -26,7 +26,23 @@ except ImportError:
     SAM_AVAILABLE = False
 
 BASE_DIR  = Path(__file__).parent.parent
-CALIB_DIR = BASE_DIR / "calibration"
+
+# CALIB_DIR: NO se calcula solo a partir de __file__ — en la app empaquetada
+# (PyInstaller) ese cómputo apunta dentro del bundle de solo lectura, no a la
+# carpeta real de datos del usuario (%LOCALAPPDATA%\LineaDeCosta\calibration).
+# Se reutiliza la resolución ya correcta y consciente del entorno de
+# backend/config.py — con fallback local por si este módulo se usa suelto
+# (su propio CLI --image/--cam/--checkpoint) sin backend/ en sys.path.
+# Bug real detectado 2026-08-31: sin esto, ROI_FILE.exists() daba False en
+# el .exe instalado, get_roi() devolvía None, y SAM colocaba sus puntos de
+# referencia sobre la imagen SIN recortar — arena mal detectada, confianza
+# baja en TODAS las imágenes de cámaras con ROI personalizado.
+try:
+    from config import CALIBRATION_DIR as _CALIB_DIR_STR
+    CALIB_DIR = Path(_CALIB_DIR_STR)
+except ImportError:
+    CALIB_DIR = BASE_DIR / "calibration"
+
 ROI_FILE  = CALIB_DIR / "roi_config.json"
 
 # ── Prompts por camara (#43) ─────────────────────────────────────────────────

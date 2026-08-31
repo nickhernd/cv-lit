@@ -27,7 +27,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from config import _safe_filename
+from config import _safe_filename, CALIBRATION_DIR
 
 # ── Constantes ──────────────────────────────────────────────────────────────
 SIFT_FEATURES    = 3000
@@ -83,7 +83,14 @@ TEMP_BASE.mkdir(parents=True, exist_ok=True)
 # aquí vía PUT /api/batch/masks/{cam_id} y se leen del disco en cada job (sin
 # caché en memoria, para que un cambio se refleje en el siguiente lote sin
 # reiniciar el backend).
-MASKS_PATH = Path(__file__).parent.parent / "calibration" / "alignment_masks.json"
+# NO Path(__file__).parent.parent — en la app empaquetada eso apunta dentro
+# del bundle de solo lectura, no a la carpeta real de datos del usuario
+# (mismo bug real encontrado 2026-08-31 en segmentation_sam.py: ahí SÍ tenía
+# consecuencia visible porque get_roi() dependía de encontrar el fichero;
+# aquí _load_masks()/_build_mask() ya degradan con gracia a "sin máscara,
+# imagen completa" si no lo encuentran — pero segundo problema real e igual
+# de silencioso, arreglado por consistencia y porque SÍ empeora la precisión).
+MASKS_PATH = Path(CALIBRATION_DIR) / "alignment_masks.json"
 
 # DEBUG: lee alignment_masks.json del disco en cada llamada (sin caché en memoria)
 # para que los cambios hechos desde la interfaz se apliquen sin reiniciar el backend.

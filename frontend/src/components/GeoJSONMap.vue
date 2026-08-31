@@ -56,8 +56,22 @@ const fitSignal = ref(0)
 let playTimer = null
 
 const historyFeatures = computed(() => history.value?.features || [])
+// Cada análisis aceptado guarda 2 features (línea + polígono de área seca)
+// con la MISMA Timestamp — agrupar por captura para que el deslizador avance
+// una foto real por paso, no una geometría suelta (si no, "Captura 2/16"
+// mostraría solo el polígono de la misma foto que "Captura 1/16" ya mostró,
+// y ese polígono se pintaría como "anterior" en vez de como el actual).
+const historyMoments = computed(() => {
+  const byTs = new Map()
+  for (const f of historyFeatures.value) {
+    const ts = f.properties?.Timestamp
+    if (!byTs.has(ts)) byTs.set(ts, [])
+    byTs.get(ts).push(f)
+  }
+  return [...byTs.entries()].map(([ts, features]) => ({ ts, features }))
+})
 const currentTs = computed(() => {
-  const ts = historyFeatures.value[timeIdx.value]?.properties?.Timestamp
+  const ts = historyMoments.value[timeIdx.value]?.ts
   return ts ? String(ts).replace('T', ' ').slice(0, 16) : '—'
 })
 
@@ -69,7 +83,8 @@ async function loadHistory() {
     const res = await fetch(`${API}/api/cameras/${historyCam.value}/coastline-history`)
     const data = await res.json()
     history.value = data
-    timeIdx.value = Math.max(0, (data.features?.length || 1) - 1)
+    const momentCount = new Set((data.features || []).map(f => f.properties?.Timestamp)).size
+    timeIdx.value = Math.max(0, momentCount - 1)
     fitSignal.value++
     if (!data.features?.length) emit('notify', 'Esta cámara aún no tiene histórico de línea de costa', 'info')
   } catch (e) { emit('notify', 'Error al cargar el histórico', 'error') }
@@ -77,10 +92,10 @@ async function loadHistory() {
 
 function togglePlay() {
   if (playing.value) return stopPlay()
-  if (historyFeatures.value.length < 2) return
+  if (historyMoments.value.length < 2) return
   playing.value = true
   playTimer = setInterval(() => {
-    timeIdx.value = (timeIdx.value + 1) % historyFeatures.value.length
+    timeIdx.value = (timeIdx.value + 1) % historyMoments.value.length
   }, 900)
 }
 
@@ -93,19 +108,19 @@ onUnmounted(stopPlay)
 
 const displayedGeoJson = computed(() => {
   // Modo temporal activo: solo se muestra el histórico de la cámara elegida
-  if (historyCam.value && historyFeatures.value.length) {
+  if (historyCam.value && historyMoments.value.length) {
     const features = []
     if (showTrails.value) {
-      historyFeatures.value.forEach((f, i) => {
+      historyMoments.value.forEach((moment, i) => {
         if (i === timeIdx.value) return
-        features.push({
+        moment.features.forEach(f => features.push({
           ...f,
           properties: { ...f.properties, _style: { color: '#94a3b8', weight: 1.5, opacity: 0.45 } },
-        })
+        }))
       })
     }
-    const current = historyFeatures.value[timeIdx.value]
-    if (current) features.push(current)
+    const current = historyMoments.value[timeIdx.value]
+    if (current) features.push(...current.features)
     return { type: 'FeatureCollection', features }
   }
 
@@ -173,8 +188,8 @@ onMounted(() => {
             <option value="">Desactivada</option>
             <option v-for="cam in cameras" :key="cam.idx" :value="cam.idx">{{ cam.name }}</option>
           </select>
-          <template v-if="historyCam && historyFeatures.length">
-            <input type="range" min="0" :max="historyFeatures.length - 1" v-model.number="timeIdx"
+          <template v-if="historyCam && historyMoments.length">
+            <input type="range" min="0" :max="historyMoments.length - 1" v-model.number="timeIdx"
                    @input="stopPlay" class="w-full accent-blue-600">
             <div class="flex items-center justify-between">
               <button @click="togglePlay" class="btn-secondary py-1 px-3 text-[10px] uppercase">
@@ -186,7 +201,7 @@ onMounted(() => {
               <input type="checkbox" v-model="showTrails" class="rounded">
               <span>Mostrar líneas anteriores</span>
             </label>
-            <p class="text-[9px] text-slate-400 uppercase font-semibold">Captura {{ timeIdx + 1 }} / {{ historyFeatures.length }}</p>
+            <p class="text-[9px] text-slate-400 uppercase font-semibold">Captura {{ timeIdx + 1 }} / {{ historyMoments.length }}</p>
           </template>
           <p v-else-if="historyCam" class="text-[10px] text-slate-400">Sin histórico para esta cámara todavía. Se irá llenando con cada análisis.</p>
         </div>

@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 
 from fastapi import HTTPException
@@ -30,6 +31,27 @@ DATA_DIR = os.environ.get("CVLIT_DATA_DIR") or _DEFAULT_DATA_DIR
 CALIBRATION_DIR = os.environ.get("CVLIT_CALIBRATION_DIR") or _DEFAULT_CALIBRATION_DIR
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(CALIBRATION_DIR, exist_ok=True)
+
+# Sembrar configuración de referencia (ROI y máscaras de zonas estables) en
+# una instalación nueva: son valores FIJOS del despliegue real de las 6
+# cámaras de Guardamar del Segura (encuadre físico de cada cámara), no algo
+# que cada usuario deba crear desde cero al abrir la app por primera vez.
+# Bug real detectado 2026-08-31: sin esto, un CALIBRATION_DIR nuevo (p.ej.
+# %LOCALAPPDATA% recién creado) nunca tiene roi_config.json — SAM coloca sus
+# puntos de referencia sobre la imagen sin recortar, y TODAS las imágenes de
+# esa cámara salen con confianza baja, sin ningún error visible que lo delate.
+# Solo copia si el archivo aún no existe — nunca pisa un roi_config.json que
+# el usuario ya haya editado desde la interfaz (paso "Cámaras").
+if getattr(sys, "frozen", False):
+    _SEED_DIR = os.path.join(sys._MEIPASS, "calibration_seed")
+    for _seed_name in ("roi_config.json", "alignment_masks.json"):
+        _dst = os.path.join(CALIBRATION_DIR, _seed_name)
+        _src = os.path.join(_SEED_DIR, _seed_name)
+        if not os.path.exists(_dst) and os.path.exists(_src):
+            try:
+                shutil.copy2(_src, _dst)
+            except OSError:
+                pass
 
 # DEBUG (INIT): diccionario global de cámaras (id -> nombre, carpeta, imagen por defecto).
 # Es la fuente de verdad que usan casi todos los endpoints de main.py y batch_alignment.py

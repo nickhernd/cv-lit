@@ -45,6 +45,16 @@ if FROZEN:
 else:
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROCES_DIR = os.path.join(BASE_DIR, "proces_images")
+
+# EXE_DIR: carpeta del propio .exe (distinta de BASE_DIR en la app empaquetada).
+# Bug real detectado 2026-08-31: en PyInstaller onedir (>=6), sys._MEIPASS
+# apunta a la subcarpeta _internal/, NO a la carpeta donde vive el .exe —
+# pero download_sam.py guarda el checkpoint de SAM junto al .exe (ver su
+# propio _default_dest_dir()). Con BASE_DIR, get_segmenter() nunca lo
+# encontraba: la app "cargaba SAM con éxito" (sin excepción) pero con
+# predictor=None, caía en silencio a color_fallback, y la confianza salía
+# baja en TODAS las imágenes del .exe instalado, sin ningún error visible.
+EXE_DIR = os.path.dirname(sys.executable) if FROZEN else BASE_DIR
 if PROCES_DIR not in sys.path:
     sys.path.append(PROCES_DIR)
 
@@ -148,12 +158,19 @@ def get_segmenter():
     if APP_MODE == "demo":
         return None
 
-    CHECKPOINT_SAM = os.path.join(BASE_DIR, "sam_vit_h_4b8939.pth")
+    CHECKPOINT_SAM = os.path.join(EXE_DIR, "sam_vit_h_4b8939.pth")
     add_log(f"Cargando segmentador SAM desde {os.path.basename(CHECKPOINT_SAM)}", "info")
     try:
         from segmentation_sam import SAMSegmenter
         segmenter = SAMSegmenter(checkpoint_path=CHECKPOINT_SAM)
-        add_log("SAM Segmenter cargado con éxito", "success")
+        # SAMSegmenter.__init__ no lanza excepción si el checkpoint no existe
+        # (predictor se queda en None) — comprobar aquí para no registrar un
+        # "éxito" engañoso que oculte por qué la app cae a color_fallback.
+        if segmenter.predictor is not None:
+            add_log("SAM Segmenter cargado con éxito", "success")
+        else:
+            add_log(f"Checkpoint SAM no encontrado en {CHECKPOINT_SAM} — usando color_fallback", "warning")
+            segmenter = False
     except Exception as e:
         add_log(f"Fallo al inicializar SAM: {str(e)}", "error")
         segmenter = False
@@ -296,9 +313,13 @@ def _smooth_polyline(pts: np.ndarray, window: int = 9) -> np.ndarray:
 def _history_path(cam_id: int) -> str:
     return os.path.join(DATA_DIR, f"coastline_history_cam{cam_id}.json")
 
-def _append_history(cam_id: int, feature: dict, max_entries: int = 500):
-    """Acumula cada línea de costa aceptada en el histórico de la cámara,
-    ordenado por timestamp de captura (para la visualización temporal)."""
+def _append_history(cam_id: int, features: list, max_entries: int = 500):
+    """Acumula cada línea de costa aceptada (y su polígono de área seca) en el
+    histórico de la cámara, ordenado por timestamp de captura (para la
+    visualización temporal). `features` trae 1+ features del MISMO análisis
+    (misma Timestamp) — se sustituyen juntas para no perder el polígono al
+    re-analizar la misma captura (una sustitución feature a feature borraría
+    la anterior antes de que la segunda entrara)."""
     path = _history_path(cam_id)
     history = {"type": "FeatureCollection", "features": []}
     if os.path.exists(path):
@@ -307,13 +328,16 @@ def _append_history(cam_id: int, feature: dict, max_entries: int = 500):
                 history = json.load(f)
         except (json.JSONDecodeError, OSError):
             pass
-    ts = feature["properties"].get("Timestamp")
-    # Re-analizar la misma captura sustituye su entrada en vez de duplicarla
+    ts = features[0]["properties"].get("Timestamp")
+    # Re-analizar la misma captura sustituye sus entradas en vez de duplicarlas
     history["features"] = [f for f in history.get("features", [])
                            if f.get("properties", {}).get("Timestamp") != ts]
-    history["features"].append(feature)
+    history["features"].extend(features)
     history["features"].sort(key=lambda f: f.get("properties", {}).get("Timestamp", ""))
-    history["features"] = history["features"][-max_entries:]
+    # Recorte por nº de análisis (no de features): cada análisis aporta 2
+    # entradas (línea + polígono) que deben conservarse o descartarse juntas.
+    keep_ts = sorted({f.get("properties", {}).get("Timestamp", "") for f in history["features"]})[-max_entries:]
+    history["features"] = [f for f in history["features"] if f.get("properties", {}).get("Timestamp") in keep_ts]
     with open(path, "w") as f:
         json.dump(history, f)
 
@@ -379,6 +403,8 @@ def get_historical_data(cam_id: Optional[int] = None):
         except (json.JSONDecodeError, OSError):
             continue
         for feature in history.get("features", []):
+            if feature.get("geometry", {}).get("type") != "LineString":
+                continue  # el polígono de área seca repite el mismo valor
             props = feature.get("properties", {})
             ts = props.get("Timestamp")
             area = props.get("Area_Seca_m2")
@@ -408,6 +434,8 @@ def get_report(format: str = "json"):
         except (json.JSONDecodeError, OSError):
             continue
         for feature in history.get("features", []):
+            if feature.get("geometry", {}).get("type") != "LineString":
+                continue  # el polígono de área seca repite la misma fila
             p = feature.get("properties", {})
             rows.append({
                 "camara_idx": cam_idx,
@@ -507,6 +535,7 @@ def get_dashboard():
 
     calibrated_count = 0
     cameras_status = []
+    images_processed = 0
     for cam_idx, info in CAMERAS.items():
         profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_idx}_profile.json")
         # Calibrada = tiene homografía calculada, no basta con que exista el perfil
@@ -519,11 +548,12 @@ def get_dashboard():
             except (json.JSONDecodeError, OSError):
                 is_calibrated = False
         if is_calibrated: calibrated_count += 1
-        
+
         cam_folder = os.path.join(DATA_DIR, info["folder"])
         images_count = 0
         if os.path.exists(cam_folder):
             images_count = len([f for f in os.listdir(cam_folder) if f.endswith(('.jpg', '.png'))])
+        images_processed += images_count
 
         cameras_status.append({
             "id": f"C{cam_idx}", "idx": cam_idx, "name": info["name"],
@@ -531,11 +561,32 @@ def get_dashboard():
             "images": images_count
         })
 
+    # Área seca media: promedio de Area_Seca_m2 sobre todos los análisis
+    # aceptados de todas las cámaras (histórico completo, no solo el más
+    # reciente). Bug real detectado 2026-08-31: estos dos campos estaban
+    # literalmente hardcodeados (506 / "23 480") y nunca reflejaban los datos
+    # reales — el Dashboard mostraba siempre el mismo número sin importar
+    # cuántas imágenes hubiera de verdad ni qué área saliera del análisis.
+    areas = []
+    for path in glob.glob(os.path.join(DATA_DIR, "coastline_history_cam*.json")):
+        try:
+            with open(path, "r") as f:
+                history = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+        for feature in history.get("features", []):
+            if feature.get("geometry", {}).get("type") != "LineString":
+                continue  # el polígono de área seca duplica el mismo valor
+            area = feature.get("properties", {}).get("Area_Seca_m2")
+            if area is not None:
+                areas.append(area)
+    avg_dry_area = f"{round(sum(areas) / len(areas)):,}".replace(",", " ") if areas else "0"
+
     return {
         "cameras_calibrated": calibrated_count,
         "total_cameras": len(CAMERAS),
-        "images_processed": 506,
-        "avg_dry_area": "23 480",
+        "images_processed": images_processed,
+        "avg_dry_area": avg_dry_area,
         "cameras": cameras_status
     }
 
@@ -725,6 +776,11 @@ def get_settings():
         "obscape_username": data.get("obscape_username"),
         "obscape_api_key": data.get("obscape_api_key"),
         "configured": bool(data.get("obscape_username") and data.get("obscape_api_key")),
+        # DEBUG: dónde vive todo en disco — en la app empaquetada es
+        # %LOCALAPPDATA%\LineaDeCosta\..., no algo obvio para quien no sepa
+        # buscarlo, de ahí exponerlo aquí en vez de solo en el código.
+        "data_dir": os.path.abspath(DATA_DIR),
+        "calibration_dir": os.path.abspath(CALIBRATION_DIR),
     }
 
 @app.put("/api/settings")
@@ -770,6 +826,44 @@ def test_obscape_connection():
         return {"status": "success", "stations_found": len(stations)}
     except Exception as e:
         return {"status": "error", "detail": str(e)}
+
+# DEBUG: borra imágenes descargadas, sus anotaciones y el histórico de
+# resultados de TODAS las cámaras — deliberadamente NO toca CALIBRATION_DIR
+# (las homografías ya calculadas sobreviven, no hay que volver a marcar
+# varillas) ni GCP.csv/GCP.xlsx (datos de campo topografiados, irremplazables).
+# Acción irreversible — el frontend exige escribir una frase de confirmación
+# antes de poder llamar a este endpoint; aquí no hay una segunda confirmación
+# porque ya es responsabilidad exclusiva de quien construye la UI que lo llama.
+@app.post("/api/settings/reset-images")
+def reset_images_and_results():
+    deleted = {"cameras_cleared": 0, "history_files": 0, "latest_files": 0}
+    for cam_id, info in CAMERAS.items():
+        img_dir = os.path.join(DATA_DIR, info["folder"])
+        if os.path.isdir(img_dir):
+            shutil.rmtree(img_dir)
+            os.makedirs(img_dir, exist_ok=True)
+            deleted["cameras_cleared"] += 1
+
+        ann_dir = os.path.join(DATA_DIR, f"CAM_{cam_id}")
+        if os.path.isdir(ann_dir):
+            shutil.rmtree(ann_dir)
+
+        history_path = os.path.join(DATA_DIR, f"coastline_history_cam{cam_id}.json")
+        if os.path.exists(history_path):
+            os.remove(history_path)
+            deleted["history_files"] += 1
+
+        for pattern in (f"latest_result_cam{cam_id}.json", f"latest_analysis_cam{cam_id}.jpg"):
+            p = os.path.join(DATA_DIR, pattern)
+            if os.path.exists(p):
+                os.remove(p)
+                deleted["latest_files"] += 1
+
+    add_log(
+        f"Imágenes y resultados eliminados de {deleted['cameras_cleared']} cámara(s) "
+        "— calibración conservada", "warning"
+    )
+    return {"status": "success", **deleted}
 
 # Calcula la homografía píxel->UTM DE UNA IMAGEN a partir de las varillas marcadas
 # en sus anotaciones (la calibración es por imagen, no por cámara). Devuelve el
@@ -1321,14 +1415,17 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
     # de la foto de origen).
     contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     area_m2 = 0.0
+    polygon_utm = None  # contorno cerrado del área seca, en UTM absolutas — para el GeoJSON
     if contours:
         largest_px = max(contours, key=cv2.contourArea).astype(np.float32)
         largest_utm = cv2.perspectiveTransform(largest_px, H).reshape(-1, 2).astype(np.float64)
+        polygon_utm = largest_utm.copy()
         # Recentrar en el origen ANTES del shoelace: las UTM absolutas rondan
         # las 7 cifras (ej. x≈706644) mientras el polígono mide decenas/cientos
         # de metros — hacer x*y con esas magnitudes directamente satura la
         # precisión de punto flotante y el área sale exactamente 0 por
-        # cancelación catastrófica, incluso en float64.
+        # cancelación catastrófica, incluso en float64. (polygon_utm conserva
+        # las coordenadas absolutas — el recentrado es solo para este cálculo).
         largest_utm -= largest_utm.mean(axis=0)
         x, y = largest_utm[:, 0], largest_utm[:, 1]
         area_m2 = float(abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))) / 2.0)
@@ -1354,30 +1451,51 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
     timestamp = _parse_capture_ts(target_file) or processed_at
 
     # 8. Generar GeoJSON con atributos estándar del proyecto (EPSG:25830)
-    feature = {
+    properties = {
+        "ID_Camara":    cam_id,
+        "Timestamp":    timestamp,
+        "Procesado":    processed_at,
+        "Imagen":       target_file,
+        "Confianza_IA": round(conf, 4),
+        "Area_Seca_m2": round(area_m2, 2),
+        "EPSG":         25830,
+    }
+    line_feature = {
         "type": "Feature",
-        "properties": {
-            "ID_Camara":    cam_id,
-            "Timestamp":    timestamp,
-            "Procesado":    processed_at,
-            "Imagen":       target_file,
-            "Confianza_IA": round(conf, 4),
-            "Area_Seca_m2": round(area_m2, 2),
-            "EPSG":         25830,
-        },
+        "properties": properties,
         "geometry": {
             "type": "LineString",
             "coordinates": pts_utm.tolist(),
         },
     }
-    fc = {"type": "FeatureCollection", "features": [feature]}
+    features = [line_feature]
+
+    # Polígono cerrado del área seca detectada, además de la línea de costa —
+    # mismo contorno que ya se usa para calcular area_m2 (#7), simplemente
+    # expuesto como geometría en vez de descartarlo tras el cálculo del área.
+    # Un anillo GeoJSON debe cerrar (primer punto == último) — findContours no
+    # repite el primer punto, así que se añade a mano si falta.
+    if polygon_utm is not None and len(polygon_utm) >= 3:
+        ring = polygon_utm.tolist()
+        if ring[0] != ring[-1]:
+            ring.append(ring[0])
+        features.append({
+            "type": "Feature",
+            "properties": properties,
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [ring],
+            },
+        })
+
+    fc = {"type": "FeatureCollection", "features": features}
 
     # Guardar resultado por cámara (#87) + histórico temporal — /api/geojson agrega
     # estos ficheros en caliente para el mapa global, así que no hace falta un
     # "latest_result.json" compartido aparte.
     with open(os.path.join(DATA_DIR, f"latest_result_cam{cam_id}.json"), "w") as f:
         json.dump(fc, f)
-    _append_history(cam_id, feature)
+    _append_history(cam_id, features)
 
     # Guardar imagen con línea dibujada para preview
     viz = draw_coastline(img.copy(), points_px)

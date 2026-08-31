@@ -13,6 +13,32 @@ const showKey = ref(false)
 
 const obscapeUsername = ref('')
 const obscapeApiKey = ref('')
+const dataDir = ref('')
+const calibrationDir = ref('')
+
+// ── Borrar imágenes y resultados (paso destructivo, con confirmación) ────────
+const CONFIRM_PHRASE = 'BORRAR'
+const resetConfirmText = ref('')
+const resetting = ref(false)
+const resetDone = ref(null) // resumen tras borrar, o null
+
+async function resetImages() {
+  if (resetConfirmText.value.trim().toUpperCase() !== CONFIRM_PHRASE) return
+  resetting.value = true
+  resetDone.value = null
+  try {
+    const res = await fetch(`${API}/api/settings/reset-images`, { method: 'POST' })
+    if (!res.ok) throw new Error('Error al borrar')
+    const data = await res.json()
+    resetDone.value = data
+    resetConfirmText.value = ''
+    emit('notify', 'Imágenes y resultados eliminados — calibración conservada', 'success')
+  } catch (err) {
+    emit('notify', 'Error al borrar imágenes y resultados', 'error')
+  } finally {
+    resetting.value = false
+  }
+}
 
 async function fetchSettings() {
   loading.value = true
@@ -22,6 +48,8 @@ async function fetchSettings() {
     obscapeUsername.value = data.obscape_username || ''
     obscapeApiKey.value = data.obscape_api_key || ''
     configured.value = data.configured
+    dataDir.value = data.data_dir || ''
+    calibrationDir.value = data.calibration_dir || ''
   } catch (err) {
     emit('notify', 'Error al cargar la configuración', 'error')
   } finally {
@@ -48,6 +76,15 @@ async function saveSettings() {
     emit('notify', 'Error al guardar la configuración', 'error')
   } finally {
     saving.value = false
+  }
+}
+
+async function copyPath(path) {
+  try {
+    await navigator.clipboard.writeText(path)
+    emit('notify', 'Ruta copiada', 'success')
+  } catch (err) {
+    emit('notify', 'No se pudo copiar — selecciónala a mano', 'error')
   }
 }
 
@@ -119,6 +156,57 @@ onMounted(fetchSettings)
           {{ testing ? 'Probando…' : 'Probar conexión' }}
         </button>
       </div>
+    </div>
+
+    <div v-if="!loading" class="card-standard p-4 space-y-3">
+      <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+        Ubicación de los datos
+      </div>
+      <p class="text-xs text-slate-500 leading-relaxed">
+        Dónde guarda esta aplicación las imágenes descargadas y los datos de calibración en este ordenador.
+      </p>
+      <div class="space-y-1">
+        <label class="text-[10px] font-semibold text-slate-500 uppercase">Imágenes</label>
+        <div class="flex items-center gap-2">
+          <input :value="dataDir" readonly class="w-full input-standard text-xs font-mono bg-slate-50">
+          <button @click="copyPath(dataDir)" class="btn-secondary text-[10px] uppercase shrink-0 px-2 py-1.5">Copiar</button>
+        </div>
+      </div>
+      <div class="space-y-1">
+        <label class="text-[10px] font-semibold text-slate-500 uppercase">Calibración</label>
+        <div class="flex items-center gap-2">
+          <input :value="calibrationDir" readonly class="w-full input-standard text-xs font-mono bg-slate-50">
+          <button @click="copyPath(calibrationDir)" class="btn-secondary text-[10px] uppercase shrink-0 px-2 py-1.5">Copiar</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="!loading" class="card-standard p-4 space-y-3 border-red-200">
+      <div class="text-[10px] font-semibold text-red-500 uppercase tracking-wider">
+        Borrar imágenes y resultados
+      </div>
+      <p class="text-xs text-slate-500 leading-relaxed">
+        Elimina las imágenes descargadas, sus varillas marcadas y el histórico de línea de costa
+        de las 6 cámaras. <strong class="text-slate-700">La calibración (homografías, RMSE) no se toca</strong> —
+        no hará falta volver a marcar varillas. Esta acción no se puede deshacer.
+      </p>
+
+      <div v-if="resetDone" class="bg-emerald-50 border border-emerald-200 rounded-md p-3 text-[11px] text-emerald-700">
+        Borrado: {{ resetDone.cameras_cleared }} cámara(s) con imágenes eliminadas,
+        {{ resetDone.history_files }} histórico(s) de línea de costa, {{ resetDone.latest_files }} resultado(s) reciente(s).
+      </div>
+
+      <div class="space-y-1">
+        <label class="text-[10px] font-semibold text-slate-500 uppercase">
+          Escribe <span class="font-mono text-red-600">{{ CONFIRM_PHRASE }}</span> para confirmar
+        </label>
+        <input v-model="resetConfirmText" class="w-full input-standard text-xs" :placeholder="CONFIRM_PHRASE" autocomplete="off">
+      </div>
+      <button @click="resetImages"
+              :disabled="resetting || resetConfirmText.trim().toUpperCase() !== CONFIRM_PHRASE"
+              class="text-xs uppercase font-semibold px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+        {{ resetting ? 'Borrando…' : 'Borrar imágenes y resultados' }}
+      </button>
     </div>
   </div>
 </template>

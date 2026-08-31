@@ -295,3 +295,104 @@
 {"time": "10:59:25", "date": "2026-08-31", "msg": "CSV de campo le\u00eddo: 49 varillas en 5 imagen(es) emparejada(s)", "type": "success"}
 {"time": "10:59:25", "date": "2026-08-31", "msg": "CSV de campo le\u00eddo: 61 varillas en 10 imagen(es) emparejada(s)", "type": "success"}
 {"time": "10:59:25", "date": "2026-08-31", "msg": "CSV de campo le\u00eddo: 69 varillas en 8 imagen(es) emparejada(s), 2 sesi\u00f3n(es) sin imagen coincidente", "type": "warning"}
+{"time": "12:09:32", "date": "2026-08-31", "msg": "Iniciando c\u00e1lculo homograf\u00eda para Cam 1", "type": "info"}
+{"time": "12:09:32", "date": "2026-08-31", "msg": "Homograf\u00eda Cam 1 (1779787800_20260526_093000_PTM61471.jpg) calculada. RMSE: 8.27px / 0.351m", "type": "success"}
+{"time": "12:09:32", "date": "2026-08-31", "msg": "Iniciando c\u00e1lculo homograf\u00eda para Cam 2", "type": "info"}
+{"time": "12:09:32", "date": "2026-08-31", "msg": "Homograf\u00eda Cam 2 (1778582700_20260512_104500_PTM61474.jpg) calculada. RMSE: 8.56px / 1.361m \u2014 \u26a0 geometr\u00eda de varillas inestable, ver detalle en Validaci\u00f3n", "type": "warning"}
+{"time": "12:09:32", "date": "2026-08-31", "msg": "Iniciando c\u00e1lculo homograf\u00eda para Cam 3", "type": "info"}
+{"time": "12:09:32", "date": "2026-08-31", "msg": "Homograf\u00eda Cam 3 (1777896000_20260504_120000_PTM61473.jpg) calculada. RMSE: 20.11px / 1.709m \u2014 1 varilla(s) sobre umbral de 30.0px", "type": "warning"}
+{"time": "12:09:32", "date": "2026-08-31", "msg": "Iniciando c\u00e1lculo homograf\u00eda para Cam 4", "type": "info"}
+{"time": "12:09:32", "date": "2026-08-31", "msg": "Homograf\u00eda Cam 4 (1777896000_20260504_120000_PTM61475.jpg) calculada. RMSE: 74.21px / 2.036m \u2014 6 varilla(s) sobre umbral de 30.0px", "type": "warning"}
+{"time": "12:09:32", "date": "2026-08-31", "msg": "Iniciando c\u00e1lculo homograf\u00eda para Cam 5", "type": "info"}
+{"time": "12:09:32", "date": "2026-08-31", "msg": "Homograf\u00eda Cam 5 (1778575500_20260512_084500_PTM61472.jpg) calculada. RMSE: 44.28px / 1.984m \u2014 3 varilla(s) sobre umbral de 30.0px", "type": "warning"}
+{"time": "12:09:32", "date": "2026-08-31", "msg": "Iniciando c\u00e1lculo homograf\u00eda para Cam 6", "type": "info"}
+{"time": "12:09:32", "date": "2026-08-31", "msg": "Homograf\u00eda Cam 6 (1778573700_20260512_081500_PTM61470.jpg) calculada. RMSE: 19.96px / 5.652m \u2014 2 varilla(s) sobre umbral de 30.0px", "type": "warning"}
+{"time": "12:10:00", "date": "2026-08-31", "msg": "Iniciando c\u00e1lculo homograf\u00eda para Cam 4", "type": "info"}
+{"time": "12:10:01", "date": "2026-08-31", "msg": "Homograf\u00eda Cam 4 (1778659200_20260513_080000_PTM61475.jpg) calculada. RMSE: 19.30px / 1.238m", "type": "success"}
+{"time": "12:10:01", "date": "2026-08-31", "msg": "Iniciando c\u00e1lculo homograf\u00eda para Cam 4", "type": "info"}
+{"time": "12:10:01", "date": "2026-08-31", "msg": "Cam 4: el RMSE ha empeorado respecto a la calibraci\u00f3n anterior (1.238 m \u2192 4.690 m) \u2014 revisar varillas/GCPs", "type": "warning"}
+{"time": "12:10:01", "date": "2026-08-31", "msg": "Homograf\u00eda Cam 4 (1778660100_20260513_081500_PTM61475.jpg) calculada. RMSE: 57.86px / 4.690m \u2014 7 varilla(s) sobre umbral de 30.0px", "type": "warning"}
+{"time": "12:10:01", "date": "2026-08-31", "msg": "Iniciando c\u00e1lculo homograf\u00eda para Cam 4", "type": "info"}
+{"time": "12:10:01", "date": "2026-08-31", "msg": "Homograf\u00eda Cam 4 (1778661000_20260513_083000_PTM61475.jpg) calculada. RMSE: 391.08px / 4.464m \u2014 2 varilla(s) sobre umbral de 30.0px", "type": "warning"}
+{"time": "12:10:01", "date": "2026-08-31", "msg": "Iniciando c\u00e1lculo homograf\u00eda para Cam 4", "type": "info"}
+{"time": "12:10:01", "date": "2026-08-31", "msg": "Homograf\u00eda Cam 4 (1779779400_20260526_071000_PTM61475.jpg) calculada. RMSE: 6.65px / 0.451m", "type": "success"}
+{"time": "12:10:01", "date": "2026-08-31", "msg": "Iniciando c\u00e1lculo homograf\u00eda para Cam 6", "type": "info"}
+{"time": "12:10:02", "date": "2026-08-31", "msg": "Cam 6: el RMSE ha empeorado respecto a la calibraci\u00f3n anterior (5.652 m \u2192 47.852 m) \u2014 revisar varillas/GCPs", "type": "warning"}
+{"time": "12:10:02", "date": "2026-08-31", "msg": "Homograf\u00eda Cam 6 (1778572800_20260512_080000_PTM61470.jpg) calculada. RMSE: 1542.89px / 47.852m \u2014 10 varilla(s) sobre umbral de 30.0px \u2014 \u26a0 geometr\u00eda de varillas inestable, ver detalle en Validaci\u00f3n", "type": "warning"}
+{"time": "12:10:02", "date": "2026-08-31", "msg": "Iniciando c\u00e1lculo homograf\u00eda para Cam 6", "type": "info"}
+{"time": "12:10:02", "date": "2026-08-31", "msg": "Homograf\u00eda Cam 6 (1778571900_20260512_074500_PTM61470.jpg) calculada. RMSE: 135.59px / 8.015m \u2014 3 varilla(s) sobre umbral de 30.0px \u2014 \u26a0 geometr\u00eda de varillas inestable, ver detalle en Validaci\u00f3n", "type": "warning"}
+{"time": "12:10:02", "date": "2026-08-31", "msg": "Iniciando c\u00e1lculo homograf\u00eda para Cam 6", "type": "info"}
+{"time": "12:10:02", "date": "2026-08-31", "msg": "Homograf\u00eda Cam 6 (1779782400_20260526_080000_PTM61470.jpg) calculada. RMSE: 17.51px / 2.613m \u2014 1 varilla(s) sobre umbral de 30.0px", "type": "warning"}
+{"time": "12:10:02", "date": "2026-08-31", "msg": "Iniciando c\u00e1lculo homograf\u00eda para Cam 6", "type": "info"}
+{"time": "12:10:02", "date": "2026-08-31", "msg": "Homograf\u00eda Cam 6 (1779783000_20260526_081000_PTM61470.jpg) calculada. RMSE: 15.12px / 0.387m \u2014 1 varilla(s) sobre umbral de 30.0px", "type": "warning"}
+{"time": "12:10:35", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "12:10:35", "date": "2026-08-31", "msg": "Cargando segmentador SAM desde sam_vit_h_4b8939.pth", "type": "info"}
+{"time": "12:10:44", "date": "2026-08-31", "msg": "SAM Segmenter cargado con \u00e9xito", "type": "success"}
+{"time": "12:10:44", "date": "2026-08-31", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:10:50", "date": "2026-08-31", "msg": "An\u00e1lisis finalizado Cam 1. 37 puntos UTM. Conf=0.59", "type": "success"}
+{"time": "12:10:50", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 2", "type": "info"}
+{"time": "12:10:50", "date": "2026-08-31", "msg": "Cam 2: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:10:57", "date": "2026-08-31", "msg": "Cam 2: rechazada por baja confianza (0.42 < 0.45)", "type": "error"}
+{"time": "12:10:57", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 3", "type": "info"}
+{"time": "12:10:57", "date": "2026-08-31", "msg": "Cam 3: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:11:03", "date": "2026-08-31", "msg": "Cam 3: rechazada por baja confianza (0.39 < 0.4)", "type": "error"}
+{"time": "12:11:03", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 4", "type": "info"}
+{"time": "12:11:03", "date": "2026-08-31", "msg": "Cam 4: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:11:10", "date": "2026-08-31", "msg": "An\u00e1lisis finalizado Cam 4. 86 puntos UTM. Conf=0.62", "type": "success"}
+{"time": "12:11:10", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 5", "type": "info"}
+{"time": "12:11:10", "date": "2026-08-31", "msg": "Cam 5: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:11:17", "date": "2026-08-31", "msg": "Cam 5: rechazada por baja confianza (0.37 < 0.45)", "type": "error"}
+{"time": "12:11:17", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 6", "type": "info"}
+{"time": "12:11:17", "date": "2026-08-31", "msg": "Cam 6: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:11:23", "date": "2026-08-31", "msg": "Cam 6: \u00e1rea calculada no fiable (15,015,630 m\u00b2 \u2014 homograf\u00eda mal condicionada fuera de las varillas de calibraci\u00f3n)", "type": "error"}
+{"time": "12:15:42", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "12:15:42", "date": "2026-08-31", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:15:49", "date": "2026-08-31", "msg": "An\u00e1lisis finalizado Cam 1. 37 puntos UTM. Conf=0.59", "type": "success"}
+{"time": "12:15:49", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 2", "type": "info"}
+{"time": "12:15:49", "date": "2026-08-31", "msg": "Cam 2: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:15:57", "date": "2026-08-31", "msg": "Cam 2: rechazada por baja confianza (0.42 < 0.45)", "type": "error"}
+{"time": "12:15:57", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 3", "type": "info"}
+{"time": "12:15:57", "date": "2026-08-31", "msg": "Cam 3: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:16:05", "date": "2026-08-31", "msg": "Cam 3: rechazada por baja confianza (0.39 < 0.4)", "type": "error"}
+{"time": "12:16:05", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 4", "type": "info"}
+{"time": "12:16:05", "date": "2026-08-31", "msg": "Cam 4: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:16:12", "date": "2026-08-31", "msg": "An\u00e1lisis finalizado Cam 4. 86 puntos UTM. Conf=0.62", "type": "success"}
+{"time": "12:16:12", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 5", "type": "info"}
+{"time": "12:16:12", "date": "2026-08-31", "msg": "Cam 5: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:16:19", "date": "2026-08-31", "msg": "Cam 5: rechazada por baja confianza (0.37 < 0.45)", "type": "error"}
+{"time": "12:16:19", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 6", "type": "info"}
+{"time": "12:16:19", "date": "2026-08-31", "msg": "Cam 6: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:16:27", "date": "2026-08-31", "msg": "Cam 6: \u00e1rea calculada no fiable (15,015,630 m\u00b2 \u2014 homograf\u00eda mal condicionada fuera de las varillas de calibraci\u00f3n)", "type": "error"}
+{"time": "12:16:44", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "12:16:44", "date": "2026-08-31", "msg": "Cargando segmentador SAM desde sam_vit_h_4b8939.pth", "type": "info"}
+{"time": "12:16:47", "date": "2026-08-31", "msg": "SAM Segmenter cargado con \u00e9xito", "type": "success"}
+{"time": "12:16:47", "date": "2026-08-31", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:16:55", "date": "2026-08-31", "msg": "An\u00e1lisis finalizado Cam 1. 37 puntos UTM. Conf=0.65", "type": "success"}
+{"time": "12:16:55", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 2", "type": "info"}
+{"time": "12:16:55", "date": "2026-08-31", "msg": "Cam 2: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:17:02", "date": "2026-08-31", "msg": "Cam 2: \u00e1rea calculada no fiable (910,885 m\u00b2 \u2014 homograf\u00eda mal condicionada fuera de las varillas de calibraci\u00f3n)", "type": "error"}
+{"time": "12:17:02", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 3", "type": "info"}
+{"time": "12:17:02", "date": "2026-08-31", "msg": "Cam 3: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:17:10", "date": "2026-08-31", "msg": "An\u00e1lisis finalizado Cam 3. 101 puntos UTM. Conf=0.57", "type": "success"}
+{"time": "12:17:10", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 4", "type": "info"}
+{"time": "12:17:10", "date": "2026-08-31", "msg": "Cam 4: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:17:17", "date": "2026-08-31", "msg": "An\u00e1lisis finalizado Cam 4. 86 puntos UTM. Conf=0.74", "type": "success"}
+{"time": "12:17:17", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 5", "type": "info"}
+{"time": "12:17:17", "date": "2026-08-31", "msg": "Cam 5: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:17:24", "date": "2026-08-31", "msg": "Cam 5: \u00e1rea calculada no fiable (1,246,913 m\u00b2 \u2014 homograf\u00eda mal condicionada fuera de las varillas de calibraci\u00f3n)", "type": "error"}
+{"time": "12:17:24", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 6", "type": "info"}
+{"time": "12:17:25", "date": "2026-08-31", "msg": "Cam 6: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:17:32", "date": "2026-08-31", "msg": "Cam 6: \u00e1rea calculada no fiable (15,015,630 m\u00b2 \u2014 homograf\u00eda mal condicionada fuera de las varillas de calibraci\u00f3n)", "type": "error"}
+{"time": "12:24:57", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 3", "type": "info"}
+{"time": "12:24:57", "date": "2026-08-31", "msg": "Cam 3: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "12:25:04", "date": "2026-08-31", "msg": "An\u00e1lisis finalizado Cam 3. 101 puntos UTM. Conf=0.57", "type": "success"}
+{"time": "15:19:00", "date": "2026-08-31", "msg": "Iniciando c\u00e1lculo homograf\u00eda para Cam 6", "type": "info"}
+{"time": "15:19:00", "date": "2026-08-31", "msg": "Cam 6: el RMSE ha empeorado respecto a la calibraci\u00f3n anterior (0.387 m \u2192 5.652 m) \u2014 revisar varillas/GCPs", "type": "warning"}
+{"time": "15:19:00", "date": "2026-08-31", "msg": "Homograf\u00eda Cam 6 (1778573700_20260512_081500_PTM61470.jpg) calculada. RMSE: 19.96px / 5.652m \u2014 12 varilla(s) sobre umbral de 5.0px", "type": "warning"}
+{"time": "15:19:15", "date": "2026-08-31", "msg": "Iniciando c\u00e1lculo homograf\u00eda para Cam 6", "type": "info"}
+{"time": "15:19:15", "date": "2026-08-31", "msg": "Homograf\u00eda Cam 6 (1779783000_20260526_081000_PTM61470.jpg) calculada. RMSE: 15.12px / 0.387m \u2014 4 varilla(s) sobre umbral de 5.0px", "type": "warning"}
+{"time": "16:45:06", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 1", "type": "info"}
+{"time": "16:45:06", "date": "2026-08-31", "msg": "Cargando segmentador SAM desde sam_vit_h_4b8939.pth", "type": "info"}
+{"time": "16:45:10", "date": "2026-08-31", "msg": "SAM Segmenter cargado con \u00e9xito", "type": "success"}
+{"time": "16:45:10", "date": "2026-08-31", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "16:45:17", "date": "2026-08-31", "msg": "An\u00e1lisis finalizado Cam 1. 37 puntos UTM. Conf=0.65", "type": "success"}

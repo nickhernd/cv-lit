@@ -149,12 +149,22 @@ function updateGeoJson(data) {
   if (!projected?.features?.length) return
   geoJsonLayer = L.geoJSON(projected, {
     // Cada feature puede traer su propio estilo en properties._style
-    // (lo usa el modo de evolución temporal para atenuar las líneas antiguas)
-    style: f => ({
-      color: f?.properties?._style?.color ?? '#2563eb',
-      weight: f?.properties?._style?.weight ?? 3,
-      opacity: f?.properties?._style?.opacity ?? 0.8,
-    }),
+    // (lo usa el modo de evolución temporal para atenuar las líneas antiguas).
+    // El polígono de área seca (mismo análisis que la línea, geometría
+    // distinta) se distingue con relleno translúcido en vez de un trazo
+    // sólido, para no confundirlo visualmente con la línea de costa.
+    style: f => {
+      const isPolygon = f?.geometry?.type === 'Polygon'
+      const color = f?.properties?._style?.color ?? (isPolygon ? '#c98f3e' : '#2563eb')
+      return {
+        color,
+        weight: f?.properties?._style?.weight ?? (isPolygon ? 1.5 : 3),
+        opacity: f?.properties?._style?.opacity ?? (isPolygon ? 0.6 : 0.8),
+        fill: isPolygon,
+        fillColor: color,
+        fillOpacity: isPolygon ? 0.2 : 0,
+      }
+    },
     // Puntos (p.ej. varillas GCP) como círculos propios en vez del icono por
     // defecto de Leaflet, que no resuelve sus imágenes con el bundler.
     // Color por defecto: ámbar — es el color real de las varillas en campo

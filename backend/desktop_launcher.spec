@@ -20,11 +20,29 @@ PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
 PROCES_DIR = os.path.join(PROJECT_ROOT, "proces_images")
 ACCES_API_DIR = os.path.join(PROJECT_ROOT, "acces_api")
 FRONTEND_DIST = os.path.join(PROJECT_ROOT, "frontend", "dist")
+CALIBRATION_DIR = os.path.join(PROJECT_ROOT, "calibration")
 
 if not os.path.isdir(FRONTEND_DIST):
     raise SystemExit(
         f"No existe {FRONTEND_DIST} — ejecuta 'npm run build' en frontend/ antes de empaquetar."
     )
+
+# Config de referencia (ROI recortado y máscaras de zonas estables por cámara):
+# valores fijos del encuadre físico real de las 6 cámaras, no algo que cada
+# usuario deba generar al abrir la app por primera vez. Se empaquetan aparte
+# como "semilla" (config.py los copia a CALIBRATION_DIR solo si aún no existen
+# ahí) — a propósito NO se empaqueta la carpeta calibration/ completa, porque
+# cam_N_H.npy/cam_N_profile.json son la calibración YA CALCULADA de este
+# despliegue de desarrollo, no una plantilla universal para cualquier instalación.
+_SEED_FILES = ("roi_config.json", "alignment_masks.json")
+_calibration_seed_datas = []
+for _seed_name in _SEED_FILES:
+    _seed_path = os.path.join(CALIBRATION_DIR, _seed_name)
+    if not os.path.isfile(_seed_path):
+        raise SystemExit(
+            f"No existe {_seed_path} — necesario para empaquetar la config de referencia."
+        )
+    _calibration_seed_datas.append((_seed_path, "calibration_seed"))
 
 a = Analysis(
     [os.path.join(BACKEND_DIR, "desktop_launcher.py")],
@@ -32,6 +50,7 @@ a = Analysis(
     binaries=[],
     datas=[
         (FRONTEND_DIST, "frontend_dist"),
+        *_calibration_seed_datas,
     ],
     hiddenimports=[
         # Importados dinámicamente en main.py con try/except ImportError —

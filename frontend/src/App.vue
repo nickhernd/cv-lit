@@ -139,7 +139,13 @@ onMounted(() => {
       </div>
 
       <div class="flex-1 overflow-y-auto p-5 relative">
-        <Transition name="fade" mode="out-in">
+        <!-- Sin <Transition>: con mode="out-in" el cambio de pantalla se
+             quedaba atascado indefinidamente en algunos casos reales (la
+             transición de salida arranca ya en opacity:0 — sin cambio real
+             que animar, "transitionend" nunca llega, y out-in espera ese
+             evento para montar la siguiente pantalla). El título de arriba
+             cambiaba pero el contenido se quedaba en la pantalla anterior.
+             Prioridad: navegación 100% fiable sobre un fundido cosmético de 0.1s. -->
           <Dashboard v-if="currentView === 'dashboard'"
                     @select-camera="goToCalibration"
                     @notify="notify" />
@@ -160,7 +166,6 @@ onMounted(() => {
                      @notify="notify" />
           <Settings v-else-if="currentView === 'settings'"
                      @notify="notify" />
-        </Transition>
       </div>
 
       <!-- Log Console Panel -->
@@ -207,8 +212,11 @@ onMounted(() => {
 </template>
 
 <style>
+/* Sin usar desde que se quitó <Transition name="fade"> del cambio de
+   pantalla principal (se quedaba atascada, ver comentario en el template).
 .fade-enter-active, .fade-leave-active { transition: opacity 0.1s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+*/
 
 .list-enter-active, .list-leave-active { transition: all 0.3s ease; }
 .list-enter-from { opacity: 0; transform: translateY(20px); }
