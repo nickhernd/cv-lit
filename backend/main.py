@@ -693,6 +693,84 @@ def update_profile_metadata(cam_id: int, meta: ProfileMetadata):
         json.dump(profile, f, indent=2)
     return {"status": "success", **update}
 
+# ── Configuración de la aplicación (Sistema → Configuración) ─────────────────
+# Credenciales de Obscape por usuario de la app instalada: en desarrollo se
+# leen de un .env en la raíz del repo, pero ese fichero no existe en el .exe
+# distribuido y cada persona que lo instale tiene su propia cuenta de
+# Obscape — de ahí esta pantalla, que guarda en CALIBRATION_DIR/app_settings.json
+# (fuera del repo, en la carpeta de datos del usuario) en vez de en el .env.
+# acces_api/obscape_api.py lee este mismo fichero (ver _resolve_credentials).
+
+def _settings_path() -> str:
+    return os.path.join(CALIBRATION_DIR, "app_settings.json")
+
+def _load_app_settings() -> dict:
+    path = _settings_path()
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+class AppSettings(BaseModel):
+    obscape_username: Optional[str] = None
+    obscape_api_key: Optional[str] = None
+
+@app.get("/api/settings")
+def get_settings():
+    data = _load_app_settings()
+    return {
+        "obscape_username": data.get("obscape_username"),
+        "obscape_api_key": data.get("obscape_api_key"),
+        "configured": bool(data.get("obscape_username") and data.get("obscape_api_key")),
+    }
+
+@app.put("/api/settings")
+def update_settings(settings: AppSettings):
+    existing = _load_app_settings()
+    update = {k: v for k, v in settings.model_dump().items() if v is not None}
+    existing.update(update)
+    os.makedirs(CALIBRATION_DIR, exist_ok=True)
+    with open(_settings_path(), "w") as f:
+        json.dump(existing, f, indent=2)
+    add_log("Configuración de la aplicación actualizada", "info")
+    return {
+        "status": "success",
+        "configured": bool(existing.get("obscape_username") and existing.get("obscape_api_key")),
+    }
+
+# DEBUG: prueba real de conexión contra la API de Obscape con las credenciales
+# YA GUARDADAS — feedback inmediato de "las escribí bien" en vez de descubrir
+# un typo la próxima vez que Auto Mode intente descargar imágenes.
+@app.post("/api/settings/test-connection")
+def test_obscape_connection():
+    # Mismo patrón que backend/auto_mode.py: en dev, acces_api/ no está en
+    # sys.path por defecto; en la app congelada, obscape_api ya es un
+    # hiddenimport directo del bundle (ver desktop_launcher.spec) y este
+    # bloque no hace falta ni se ejecuta.
+    if not getattr(sys, "frozen", False):
+        acces_api_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "acces_api")
+        if acces_api_dir not in sys.path:
+            sys.path.append(acces_api_dir)
+    try:
+        from obscape_api import ObscapeClient
+        client = ObscapeClient()
+        # DEBUG: NO se usa client.list_stations() a propósito — esa función
+        # se traga cualquier error (red, credenciales inválidas, lo que sea)
+        # y devuelve [] en silencio, pensada para no interrumpir una descarga
+        # en curso. Aquí es justo lo contrario de lo que hace falta: se
+        # necesita que un fallo de autenticación SÍ se propague, o "Probar
+        # conexión" diría "correcto" incluso con una clave inventada.
+        resp = client._get({})
+        resp.raise_for_status()
+        data = resp.json()
+        stations = [s for s in data if isinstance(s, dict) and s.get("name", "").upper().startswith("CAM")] if isinstance(data, list) else []
+        return {"status": "success", "stations_found": len(stations)}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
 # Calcula la homografía píxel->UTM DE UNA IMAGEN a partir de las varillas marcadas
 # en sus anotaciones (la calibración es por imagen, no por cámara). Devuelve el
 # residuo de reproyección por varilla (px y m) para que la UI pueda marcar las que

@@ -278,3 +278,20 @@
 {"time": "21:49:40", "date": "2026-08-11", "msg": "Cam 1: segmentaci\u00f3n con SAM", "type": "info"}
 {"time": "21:49:47", "date": "2026-08-11", "msg": "Cam 1: rechazada por baja confianza (0.44 < 0.45)", "type": "error"}
 {"time": "21:49:47", "date": "2026-08-11", "msg": "Auto Mode Cam 1: Completado: 26/88 im\u00e1genes analizadas correctamente", "type": "success"}
+{"time": "10:49:58", "date": "2026-08-31", "msg": "Iniciando segmentaci\u00f3n y georreferenciaci\u00f3n para Cam 4", "type": "info"}
+{"time": "10:49:58", "date": "2026-08-31", "msg": "Cargando segmentador SAM desde sam_vit_h_4b8939.pth", "type": "info"}
+{"time": "10:50:05", "date": "2026-08-31", "msg": "SAM Segmenter cargado con \u00e9xito", "type": "success"}
+{"time": "10:50:05", "date": "2026-08-31", "msg": "Cam 4: segmentaci\u00f3n con SAM", "type": "info"}
+{"time": "10:50:12", "date": "2026-08-31", "msg": "Cam 4: m\u00e1scara inv\u00e1lida \u2014 mascara_vacia:ratio=0.018<0.05", "type": "error"}
+{"time": "10:59:12", "date": "2026-08-31", "msg": "CSV de campo le\u00eddo: 51 varillas en 6 imagen(es) emparejada(s)", "type": "success"}
+{"time": "10:59:13", "date": "2026-08-31", "msg": "CSV de campo le\u00eddo: 39 varillas en 4 imagen(es) emparejada(s)", "type": "success"}
+{"time": "10:59:13", "date": "2026-08-31", "msg": "CSV de campo le\u00eddo: 49 varillas en 5 imagen(es) emparejada(s)", "type": "success"}
+{"time": "10:59:13", "date": "2026-08-31", "msg": "CSV de campo le\u00eddo: 49 varillas en 5 imagen(es) emparejada(s)", "type": "success"}
+{"time": "10:59:13", "date": "2026-08-31", "msg": "CSV de campo le\u00eddo: 61 varillas en 10 imagen(es) emparejada(s)", "type": "success"}
+{"time": "10:59:13", "date": "2026-08-31", "msg": "CSV de campo le\u00eddo: 69 varillas en 8 imagen(es) emparejada(s), 2 sesi\u00f3n(es) sin imagen coincidente", "type": "warning"}
+{"time": "10:59:24", "date": "2026-08-31", "msg": "CSV de campo le\u00eddo: 51 varillas en 6 imagen(es) emparejada(s)", "type": "success"}
+{"time": "10:59:25", "date": "2026-08-31", "msg": "CSV de campo le\u00eddo: 39 varillas en 4 imagen(es) emparejada(s)", "type": "success"}
+{"time": "10:59:25", "date": "2026-08-31", "msg": "CSV de campo le\u00eddo: 49 varillas en 5 imagen(es) emparejada(s)", "type": "success"}
+{"time": "10:59:25", "date": "2026-08-31", "msg": "CSV de campo le\u00eddo: 49 varillas en 5 imagen(es) emparejada(s)", "type": "success"}
+{"time": "10:59:25", "date": "2026-08-31", "msg": "CSV de campo le\u00eddo: 61 varillas en 10 imagen(es) emparejada(s)", "type": "success"}
+{"time": "10:59:25", "date": "2026-08-31", "msg": "CSV de campo le\u00eddo: 69 varillas en 8 imagen(es) emparejada(s), 2 sesi\u00f3n(es) sin imagen coincidente", "type": "warning"}

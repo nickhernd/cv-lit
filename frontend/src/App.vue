@@ -8,6 +8,7 @@ import ImageIngest from './components/ImageIngest.vue'
 import GeoJSONMap from './components/GeoJSONMap.vue'
 import Cameras from './components/Cameras.vue'
 import AutoMode from './components/AutoMode.vue'
+import Settings from './components/Settings.vue'
 
 const currentView = ref('dashboard')
 const selectedCamId = ref(null)
@@ -23,6 +24,7 @@ const VIEW_META = {
   calibration: { title: 'Calibración geométrica', sub: 'Estado por cámara · Módulo offline' },
   cameras: { title: 'Cámaras', sub: 'Configuración hardware · Lente, ROI, ubicación' },
   automode: { title: 'Modo automático', sub: 'Descarga, alineación y análisis por rango de fechas' },
+  settings: { title: 'Configuración', sub: 'Credenciales y ajustes de la aplicación' },
 }
 const viewMeta = computed(() => VIEW_META[currentView.value] || { title: '', sub: '' })
 
@@ -109,6 +111,10 @@ onMounted(() => {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M13 3 4 14h7l-1 7 9-11h-7z"/></svg>
           <span>Modo automático</span>
         </button>
+        <button @click="currentView = 'settings'" class="nav-item" :class="{ active: currentView === 'settings' }">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M10.3 3.3a1.94 1.94 0 0 1 3.4 0l.4.7a1.94 1.94 0 0 0 2.2 1l.8-.2a1.94 1.94 0 0 1 2.4 2.4l-.2.8a1.94 1.94 0 0 0 1 2.2l.7.4a1.94 1.94 0 0 1 0 3.4l-.7.4a1.94 1.94 0 0 0-1 2.2l.2.8a1.94 1.94 0 0 1-2.4 2.4l-.8-.2a1.94 1.94 0 0 0-2.2 1l-.4.7a1.94 1.94 0 0 1-3.4 0l-.4-.7a1.94 1.94 0 0 0-2.2-1l-.8.2a1.94 1.94 0 0 1-2.4-2.4l.2-.8a1.94 1.94 0 0 0-1-2.2l-.7-.4a1.94 1.94 0 0 1 0-3.4l.7-.4a1.94 1.94 0 0 0 1-2.2l-.2-.8a1.94 1.94 0 0 1 2.4-2.4l.8.2a1.94 1.94 0 0 0 2.2-1Z"/><circle cx="12" cy="12" r="3.25"/></svg>
+          <span>Configuración</span>
+        </button>
       </nav>
 
       <div class="px-4 py-3 border-t border-slate-200 flex items-center justify-between shrink-0">
@@ -151,6 +157,8 @@ onMounted(() => {
                      @notify="notify"
                      @calibrate-camera="goToCalibration" />
           <AutoMode v-else-if="currentView === 'automode'"
+                     @notify="notify" />
+          <Settings v-else-if="currentView === 'settings'"
                      @notify="notify" />
         </Transition>
       </div>

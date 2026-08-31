@@ -113,7 +113,7 @@ let pollInterval = null
 // ── Estado de revisión ──────────────────────────────────────────────────────
 const results       = ref([])   // array de { filename, status, inliers, mean_shift_px, approved }
 const selected      = ref(null) // filename actualmente en detalle
-const viewMode      = ref('diff') // 'original' | 'aligned' | 'diff' | 'blend'
+const viewMode      = ref('blend') // 'aligned' | 'blend' — 'diff' (mapa delta) quitado de la interfaz a petición del usuario
 
 // ── URLs de previsualización ────────────────────────────────────────────────
 const imgTs = ref(Date.now()) // cache-buster
@@ -132,8 +132,7 @@ const leftUrl = computed(() => {
 
 const rightUrl = computed(() => {
   if (!selected.value) return ''
-  const modeMap = { aligned: 'aligned', diff: 'diff', blend: 'blend' }
-  return previewUrl(modeMap[viewMode.value] || 'diff', selected.value)
+  return previewUrl(viewMode.value === 'aligned' ? 'aligned' : 'blend', selected.value)
 })
 
 // ── Helpers de estado ───────────────────────────────────────────────────────
@@ -170,7 +169,7 @@ function statusTooltip(r) {
     return msgs[r.fail_reason] || 'Alineación fallida'
   }
   const maskInfo = r.used_mask ? ' (zonas estables)' : ' (imagen completa)'
-  return `${r.inliers} de ${r.n_good_matches} puntos coincidentes usados · delta ${r.mean_shift_px}px${maskInfo}`
+  return `${r.inliers} de ${r.n_good_matches} puntos coincidentes usados${maskInfo}`
 }
 
 const approvedCount = computed(() =>
@@ -541,7 +540,6 @@ onUnmounted(() => clearInterval(pollInterval))
         <!-- Selector de modo -->
         <div class="flex space-x-1">
           <button v-for="m in [
-              { key: 'diff',    label: 'Mapa delta' },
               { key: 'blend',   label: 'Blend 50/50' },
               { key: 'aligned', label: 'Alineada' },
             ]"
@@ -562,14 +560,6 @@ onUnmounted(() => clearInterval(pollInterval))
               Puntos usados:
               <span class="font-semibold text-slate-800">{{ selectedResult.inliers }}</span>
               <span class="text-slate-400">/ {{ selectedResult.n_good_matches }}</span>
-            </div>
-            <div class="text-slate-500"
-                 title="Delta: desplazamiento medio en píxeles entre la imagen alineada y la referencia, tras aplicar la homografía. Más bajo es mejor; por encima de ~3px puede notarse un ligero desajuste visual.">
-              Delta:
-              <span class="font-semibold"
-                    :class="selectedResult.mean_shift_px > 3 ? 'text-amber-600' : 'text-emerald-600'">
-                {{ selectedResult.mean_shift_px === -1 ? 'N/A' : `${selectedResult.mean_shift_px} px` }}
-              </span>
             </div>
             <div v-if="selectedResult.status !== 'reference'" class="flex items-center space-x-1">
               <button @click="toggleApproval(selectedResult.filename)"
@@ -606,10 +596,8 @@ onUnmounted(() => clearInterval(pollInterval))
         <!-- Derecha: modo seleccionado -->
         <div class="flex-1 flex flex-col min-h-0">
           <div class="text-[9px] font-semibold uppercase tracking-wider px-2 py-1 bg-slate-800 shrink-0 flex items-center space-x-2">
-            <span :class="{ 'text-red-400': viewMode === 'diff', 'text-blue-400': viewMode === 'blend', 'text-emerald-400': viewMode === 'aligned', }">
-              {{ viewMode === 'diff' ? 'Mapa de delta (negro=OK · rojo=error · cian=bordes)' :
-                 viewMode === 'blend' ? 'Blend 50/50 escala de grises' :
-                 'Imagen alineada (staging)' }}
+            <span :class="{ 'text-blue-400': viewMode === 'blend', 'text-emerald-400': viewMode === 'aligned', }">
+              {{ viewMode === 'blend' ? 'Blend 50/50 escala de grises' : 'Imagen alineada (staging)' }}
             </span>
           </div>
           <div class="flex-1 overflow-hidden flex items-center justify-center bg-slate-900">
@@ -617,27 +605,6 @@ onUnmounted(() => clearInterval(pollInterval))
                  class="max-w-full max-h-full object-contain"
                  loading="lazy" />
           </div>
-        </div>
-      </div>
-
-      <!-- Leyenda del mapa delta -->
-      <div v-if="viewMode === 'diff'" class="card-standard px-4 py-2 flex items-center space-x-6 text-[10px] text-slate-600 shrink-0">
-        <span class="font-semibold text-slate-500 uppercase tracking-wider">Leyenda delta:</span>
-        <div class="flex items-center space-x-1.5">
-          <div class="w-3 h-3 rounded bg-black border border-slate-300"></div>
-          <span>Alineación perfecta</span>
-        </div>
-        <div class="flex items-center space-x-1.5">
-          <div class="w-3 h-3 rounded border border-slate-300" style="background:#ff4400"></div>
-          <span>Error de intensidad</span>
-        </div>
-        <div class="flex items-center space-x-1.5">
-          <div class="w-3 h-3 rounded border border-slate-300" style="background:#ffffff"></div>
-          <span>Error severo</span>
-        </div>
-        <div class="flex items-center space-x-1.5">
-          <div class="w-3 h-3 rounded border border-slate-300" style="background:#00ffff"></div>
-          <span>Bordes divergentes</span>
         </div>
       </div>
     </div>

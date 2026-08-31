@@ -54,12 +54,53 @@ def _load_dotenv(path: Path) -> None:
 
 _load_dotenv(BASE_DIR / ".env")
 
+
+def _calibration_dir() -> Path:
+    """Duplica (sin importar backend/config.py, para que este módulo siga
+    funcionando como script CLI suelto sin backend/ en sys.path) la misma
+    lógica de CALIBRATION_DIR: en la app empaquetada apunta a
+    %LOCALAPPDATA%, en desarrollo a calibration/ del repo."""
+    if getattr(sys, "frozen", False):
+        appdata = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        default = Path(appdata) / "LineaDeCosta" / "calibration"
+    else:
+        default = BASE_DIR / "calibration"
+    return Path(os.environ.get("CVLIT_CALIBRATION_DIR") or default)
+
+
+def _load_runtime_settings() -> dict:
+    """Credenciales guardadas desde la pantalla de Configuración de la app
+    (ver PUT /api/settings) — vive fuera del repo, en la misma carpeta que
+    los datos de calibración del usuario, para que cada persona que instale
+    el .exe pueda meter SU propia cuenta de Obscape sin tocar ningún .env
+    (que ni siquiera existe en la app distribuida)."""
+    path = _calibration_dir() / "app_settings.json"
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _resolve_credentials():
+    """Prioridad: ajustes guardados desde la interfaz > variables de entorno
+    (.env) — así la app instalada funciona sin .env, y en desarrollo el .env
+    de toda la vida se sigue respetando si no hay nada guardado desde la UI."""
+    settings = _load_runtime_settings()
+    username = settings.get("obscape_username") or os.environ.get("OBSCAPE_USERNAME")
+    api_key = settings.get("obscape_api_key") or os.environ.get("OBSCAPE_API_KEY")
+    return username, api_key
+
+
 # ── Configuracion ──────────────────────────────────────────────────────────────
-# Credenciales SIEMPRE desde entorno (variable real o .env local, nunca
-# hardcodeadas en el código — ver .env.example en la raíz del repo).
 API_URL  = "https://obscape.com/portal/api/v3/api"
-USERNAME = os.environ.get("OBSCAPE_USERNAME")
-API_KEY  = os.environ.get("OBSCAPE_API_KEY")
+# NOTA: estos dos son solo el valor de referencia al cargar el módulo (p.ej.
+# para `python obscape_api.py` sin argumentos) — ObscapeClient() por defecto
+# NO usa estas constantes directamente, resuelve credenciales frescas en cada
+# instancia vía _resolve_credentials() (ver __init__), para recoger sin
+# reiniciar la app un cambio guardado desde Configuración.
+USERNAME, API_KEY = _resolve_credentials()
 
 # Fecha de inicio del proyecto (limite para --all)
 PROJECT_START = "2026-01-01T00:00:00"
@@ -71,12 +112,17 @@ LOG_DIR  = BASE_DIR / "data" / "logs"
 # ── Cliente API ────────────────────────────────────────────────────────────────
 
 class ObscapeClient:
-    def __init__(self, username: str = USERNAME, api_key: str = API_KEY):
+    def __init__(self, username: str = None, api_key: str = None):
+        # Si no se pasan explícitas, se resuelven en el momento (no al cargar
+        # el módulo) — así un cambio guardado desde Configuración se recoge
+        # en la siguiente llamada, sin reiniciar la app.
+        if not username or not api_key:
+            username, api_key = _resolve_credentials()
         if not username or not api_key:
             raise RuntimeError(
-                "Faltan credenciales de Obscape: define OBSCAPE_USERNAME y "
-                "OBSCAPE_API_KEY (variables de entorno o en un .env en la raíz "
-                "del repo, ver .env.example)."
+                "Faltan credenciales de Obscape: configúralas en Sistema → "
+                "Configuración, o define OBSCAPE_USERNAME y OBSCAPE_API_KEY "
+                "(variables de entorno o un .env en la raíz del repo en desarrollo)."
             )
         self.username = username
         self.api_key  = api_key
