@@ -277,8 +277,6 @@ def _compute_diff_map(ref: np.ndarray, aligned: np.ndarray) -> np.ndarray:
     ref_f  = ref.astype(np.float32)
     ali_f  = aligned_r.astype(np.float32)
 
-
-
     # ── Capa 1: heatmap de diferencia absoluta por canal ────────────────────
     diff_abs = np.abs(ref_f - ali_f).mean(axis=2)  # (H, W) float
     diff_norm = np.clip(diff_abs * (255.0 / DIFF_MAX_INTENSITY), 0, 255).astype(np.uint8)
@@ -709,7 +707,8 @@ def _serve_image(path: Path) -> StreamingResponse:
     return StreamingResponse(io.BytesIO(buf.tobytes()), media_type="image/jpeg")
 
 
-# DEBUG:
+# DEBUG: sirve la captura tal cual está en disco, sin ninguna transformación —
+# referencia visual de "antes" para comparar contra /preview/aligned.
 @router.get("/{job_id}/preview/original/{filename}")
 def preview_original(job_id: str, filename: str):
     """Imagen original (sin transformar) desde la carpeta de la cámara."""
@@ -721,7 +720,8 @@ def preview_original(job_id: str, filename: str):
     return _serve_image(path)
 
 
-# DEBUG:
+# DEBUG: sirve el resultado de _align_to_reference() desde el staging temporal
+# (job.aligned_dir) — nunca los originales, coherente con el modelo no-destructivo.
 @router.get("/{job_id}/preview/aligned/{filename}")
 def preview_aligned(job_id: str, filename: str):
     """Imagen alineada en staging (no-destructiva)."""
@@ -731,7 +731,8 @@ def preview_aligned(job_id: str, filename: str):
     return _serve_image(job.aligned_dir / _safe_filename(filename))
 
 
-# DEBUG:
+# DEBUG: sirve el heatmap generado por _compute_diff_map() para que el usuario
+# juzgue visualmente la calidad de una alineación antes de aprobarla.
 @router.get("/{job_id}/preview/diff/{filename}")
 def preview_diff(job_id: str, filename: str):
     """Mapa de diferencias: negro=alineado, rojo/blanco=error, cian=bordes divergentes."""
@@ -741,7 +742,8 @@ def preview_diff(job_id: str, filename: str):
     return _serve_image(job.diff_dir / _safe_filename(filename))
 
 
-# DEBUG:
+# DEBUG: sirve el resultado de _blend_grayscale() — superposición 50/50 más
+# fácil de leer que el diff a color para detectar un desplazamiento fino.
 @router.get("/{job_id}/preview/blend/{filename}")
 def preview_blend(job_id: str, filename: str):
     """Blend 50/50 en escala de grises."""

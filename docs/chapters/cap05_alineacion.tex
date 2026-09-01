@@ -163,6 +163,15 @@ result.used_mask = False
 
 \section{Renderizado del mapa de delta}
 
+\begin{warnbox}[Sigue siendo código real --- ya no tiene botón propio en la interfaz]
+El backend descrito en esta sección (\texttt{\_compute\_diff\_map()}, endpoint
+\texttt{GET /\{id\}/preview/diff/\{fn\}}) sigue existiendo tal cual. Lo que cambió es la
+interfaz: el botón \texttt{[Mapa delta]} de \texttt{BatchAlignment.vue}
+(capítulo~\ref{ch:frontend}) se retiró a petición del cliente — \texttt{viewMode} solo admite
+hoy \texttt{'blend'} y \texttt{'aligned'}. La métrica escalar $\delta_\text{px}$
+(\S\ref{sec:delta}) sí se sigue mostrando en el filmstrip, sin necesidad de esa vista.
+\end{warnbox}
+
 El mapa de delta es una imagen compuesta de tres capas superpuestas que proporciona tanto
 información visual intuitiva como métricas cuantitativas.
 

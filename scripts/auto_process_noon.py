@@ -25,9 +25,13 @@ from pathlib import Path
 
 import requests
 
+import tempfile
+
 ROOT     = Path(__file__).parent.parent
 DATA_DIR = ROOT / "proces_images" / "data"
-LOG_FILE = Path("/tmp/cv_lit_noon.log")
+# "/tmp/..." no existe en Windows — este script data de antes del pivote a
+# app de escritorio Windows (ver docstring: pensado para crontab en Linux).
+LOG_FILE = Path(tempfile.gettempdir()) / "cv_lit_noon.log"
 
 logging.basicConfig(
     level=logging.INFO,

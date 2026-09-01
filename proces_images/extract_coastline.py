@@ -221,11 +221,16 @@ def draw_coastline(image: np.ndarray, points: list,
 
 
 if __name__ == "__main__":
-    import argparse, sys
+    import argparse, os, sys, tempfile
+    # Bug real detectado 2026-08-31 (mismo que en segmentation_sam.py): "/tmp/"
+    # como valor por defecto no existe en Windows, único SO objetivo de este
+    # proyecto — este CLI de depuración fallaba al guardar el resultado si se
+    # ejecutaba sin pasar --out explícito.
+    default_out = os.path.join(tempfile.gettempdir(), "coastline_debug.jpg")
     ap = argparse.ArgumentParser(description="Extrae linea de costa de una mascara binaria")
     ap.add_argument("--mask",  required=True, help="Mascara binaria PNG")
     ap.add_argument("--image", default=None,  help="Imagen original para visualizacion")
-    ap.add_argument("--out",   default="/tmp/coastline_debug.jpg")
+    ap.add_argument("--out",   default=default_out)
     args = ap.parse_args()
 
     mask = cv2.imread(args.mask, cv2.IMREAD_GRAYSCALE)

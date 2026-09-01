@@ -167,7 +167,7 @@ def align(img: np.ndarray, ref_gray: np.ndarray, ref_kp, ref_des,
     return aligned, {"status": "ok", "inliers": inliers, "H": H, "viz": diagnostics}
 
 
-def run(input_dir: Path, output_dir: Path, ref_path: Path | None):
+def run(input_dir: Path, output_dir: Path, ref_path: Path | None, cam_id: int | None = None):
     print("\n── Coastal Alignment Pipeline · Tech4D Lab ──\n")
 
     out_aligned = output_dir / "aligned"
@@ -187,9 +187,9 @@ def run(input_dir: Path, output_dir: Path, ref_path: Path | None):
     h_ref, w_ref = ref_gray.shape
 
     # Máscara de zonas estables (si --cam está disponible)
-    feat_mask = build_mask_for_cam(args.cam, h_ref, w_ref) if hasattr(args, 'cam') and args.cam else None
+    feat_mask = build_mask_for_cam(cam_id, h_ref, w_ref) if cam_id else None
     if feat_mask is not None:
-        print(f"  Máscara de alineación activa para CAM {args.cam}")
+        print(f"  Máscara de alineación activa para CAM {cam_id}")
 
     sift = cv2.SIFT_create(nfeatures=SIFT_FEATURES)
     ref_kp, ref_des = sift.detectAndCompute(ref_gray, feat_mask)
@@ -244,4 +244,4 @@ if __name__ == "__main__":
     ap.add_argument("--cam",    "-c", default=None,  type=int,
                     help="ID de cámara (1-6) para aplicar máscara de zonas estables")
     args = ap.parse_args()
-    run(args.input, args.output, args.ref)
+    run(args.input, args.output, args.ref, cam_id=args.cam)

@@ -1,0 +1,433 @@
+{
+  "points": [
+    {
+      "pixel": [
+        1480.0,
+        1685.0
+      ],
+      "utm": [
+        706386.377,
+        4218210.775
+      ],
+      "label": "GCP_21",
+      "type": "calib",
+      "rel": [
+        32.11805555555556,
+        62.826249067859806
+      ],
+      "confirmed": true,
+      "notes": "V"
+    },
+    {
+      "pixel": [
+        1672.0,
+        1932.0
+      ],
+      "utm": [
+        706376.327,
+        4218173.192
+      ],
+      "label": "GCP_22",
+      "type": "calib",
+      "rel": [
+        36.28472222222222,
+        72.03579418344519
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        2210.0,
+        1922.0
+      ],
+      "utm": [
+        706385.681,
+        4218172.833
+      ],
+      "label": "GCP_23",
+      "type": "calib",
+      "rel": [
+        47.96006944444444,
+        71.66293810589113
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        2560.0,
+        1915.0
+      ],
+      "utm": [
+        706392.422,
+        4218172.331
+      ],
+      "label": "GCP_24",
+      "type": "calib",
+      "rel": [
+        55.55555555555556,
+        71.40193885160329
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        3247.0,
+        2106.0
+      ],
+      "utm": [
+        706392.707,
+        4218156.852
+      ],
+      "label": "GCP_25",
+      "type": "calib",
+      "rel": [
+        70.46440972222221,
+        78.52348993288591
+      ],
+      "confirmed": true,
+      "notes": "V"
+    },
+    {
+      "pixel": [
+        2556.0,
+        2363.0
+      ],
+      "utm": [
+        706384.938,
+        4218148.399
+      ],
+      "label": "GCP_26",
+      "type": "calib",
+      "rel": [
+        55.46875,
+        88.10589112602536
+      ],
+      "confirmed": true,
+      "notes": "V"
+    },
+    {
+      "pixel": [
+        2483.0,
+        2092.0
+      ],
+      "utm": [
+        706382.402,
+        4218160.315
+      ],
+      "label": "GCP_27",
+      "type": "calib",
+      "rel": [
+        53.884548611111114,
+        78.00149142431022
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        3383.0,
+        2322.0
+      ],
+      "utm": [
+        706375.877,
+        4218150.189
+      ],
+      "label": "GCP_28",
+      "type": "calib",
+      "rel": [
+        73.41579861111111,
+        86.57718120805369
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        3911.0,
+        2297.0
+      ],
+      "utm": [
+        706392.331,
+        4218147.159
+      ],
+      "label": "GCP_29",
+      "type": "calib",
+      "rel": [
+        84.87413194444444,
+        85.64504101416853
+      ],
+      "confirmed": true,
+      "notes": "V"
+    }
+  ],
+  "calibration": {
+    "H": [
+      [
+        29.795348523086496,
+        -563.1722236091961,
+        706356.4465010274
+      ],
+      [
+        177.970036278348,
+        -3363.0779635316235,
+        4218090.574070422
+      ],
+      [
+        4.2191022028903505e-05,
+        -0.0007972929648944048,
+        1.0
+      ]
+    ],
+    "image": "1778661000_20260513_083000_PTM61475.jpg",
+    "rmse_px": 391.0824,
+    "rmse_m": 4.4637,
+    "mae_px": 190.7933,
+    "mae_m": 2.375,
+    "rmse_good_m": 2.0,
+    "geometry_warning": null,
+    "threshold_px": 30.0,
+    "gcps_used": 9,
+    "inliers_count": 7,
+    "excluded": [],
+    "residuals": [
+      {
+        "idx": 0,
+        "label": "GCP_21",
+        "error_px": 11.597,
+        "error_m": 0.3328,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          1480.0,
+          1685.0
+        ],
+        "utm": [
+          706386.377,
+          4218210.775
+        ],
+        "pixel_predicted": [
+          1491.55,
+          1686.03
+        ],
+        "utm_predicted": [
+          706386.146,
+          4218211.015
+        ]
+      },
+      {
+        "idx": 1,
+        "label": "GCP_22",
+        "error_px": 4.072,
+        "error_m": 0.2543,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          1672.0,
+          1932.0
+        ],
+        "utm": [
+          706376.327,
+          4218173.192
+        ],
+        "pixel_predicted": [
+          1668.76,
+          1934.47
+        ],
+        "utm_predicted": [
+          706376.466,
+          4218173.405
+        ]
+      },
+      {
+        "idx": 2,
+        "label": "GCP_23",
+        "error_px": 4.101,
+        "error_m": 0.3904,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          2210.0,
+          1922.0
+        ],
+        "utm": [
+          706385.681,
+          4218172.833
+        ],
+        "pixel_predicted": [
+          2207.72,
+          1925.41
+        ],
+        "utm_predicted": [
+          706385.909,
+          4218173.15
+        ]
+      },
+      {
+        "idx": 3,
+        "label": "GCP_24",
+        "error_px": 7.878,
+        "error_m": 0.7945,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          2560.0,
+          1915.0
+        ],
+        "utm": [
+          706392.422,
+          4218172.331
+        ],
+        "pixel_predicted": [
+          2563.9,
+          1921.85
+        ],
+        "utm_predicted": [
+          706392.829,
+          4218173.013
+        ]
+      },
+      {
+        "idx": 4,
+        "label": "GCP_25",
+        "error_px": 18.475,
+        "error_m": 0.2341,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          3247.0,
+          2106.0
+        ],
+        "utm": [
+          706392.707,
+          4218156.852
+        ],
+        "pixel_predicted": [
+          3265.3,
+          2108.56
+        ],
+        "utm_predicted": [
+          706392.574,
+          4218157.045
+        ]
+      },
+      {
+        "idx": 5,
+        "label": "GCP_26",
+        "error_px": 778.626,
+        "error_m": 9.3727,
+        "inlier": false,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          2556.0,
+          2363.0
+        ],
+        "utm": [
+          706384.938,
+          4218148.399
+        ],
+        "pixel_predicted": [
+          3332.84,
+          2310.33
+        ],
+        "utm_predicted": [
+          706375.581,
+          4218148.947
+        ]
+      },
+      {
+        "idx": 6,
+        "label": "GCP_27",
+        "error_px": 9.916,
+        "error_m": 0.2756,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          2483.0,
+          2092.0
+        ],
+        "utm": [
+          706382.402,
+          4218160.315
+        ],
+        "pixel_predicted": [
+          2474.12,
+          2087.59
+        ],
+        "utm_predicted": [
+          706382.354,
+          4218160.044
+        ]
+      },
+      {
+        "idx": 7,
+        "label": "GCP_28",
+        "error_px": 877.242,
+        "error_m": 9.5046,
+        "inlier": false,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          3383.0,
+          2322.0
+        ],
+        "utm": [
+          706375.877,
+          4218150.189
+        ],
+        "pixel_predicted": [
+          2505.77,
+          2326.19
+        ],
+        "utm_predicted": [
+          706385.099,
+          4218147.891
+        ]
+      },
+      {
+        "idx": 8,
+        "label": "GCP_29",
+        "error_px": 5.232,
+        "error_m": 0.2157,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          3911.0,
+          2297.0
+        ],
+        "utm": [
+          706392.331,
+          4218147.159
+        ],
+        "pixel_predicted": [
+          3915.05,
+          2293.69
+        ],
+        "utm_predicted": [
+          706392.136,
+          4218147.067
+        ]
+      }
+    ],
+    "date": "2026-08-31T12:10:01"
+  }
+}

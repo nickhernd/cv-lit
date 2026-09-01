@@ -1,6 +1,14 @@
 *.jpg
-# Ignorar metadatos de la API
-/proces_images/data/**/json/
+# Bug real detectado 2026-08-31: esta regla venía de cuando CAM_N/json/
+# solo guardaba metadatos crudos de la API (battery/rssi/invalid, ver
+# obscape_api.py::download_image() y quality_control.py) — descartables y
+# regenerables. Pero esa función ya NO la usa la app en vivo (usa
+# download_image_flat(), sin sidecar json); CAM_N/json/ ahora es donde
+# _annotations_path() guarda las varillas GCP marcadas/confirmadas y la
+# homografía calculada de cada imagen — el dato de calibración real,
+# irremplazable (verificado: los 38 ficheros en disco son de este tipo, no
+# metadata cruda). Con la regla antigua, git nunca los veía: todo el trabajo
+# de recalibración de esta sesión vivía solo en disco, sin red de seguridad.
 
 # Workspaces locales de start_dev.ps1 / start_demo.ps1
 /workspace/
@@ -45,3 +53,4 @@ __pycache__/
 *.lot
 *.out
 *.toc
+*.xdv

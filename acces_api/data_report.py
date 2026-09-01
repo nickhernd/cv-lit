@@ -38,6 +38,7 @@ def generate_report(data_dir):
     
     # Guardar reporte
     out_file = data_dir.parent / "logs" / f"report_{datetime.now().strftime('%Y%m%d')}.csv"
+    out_file.parent.mkdir(parents=True, exist_ok=True)  # to_csv no crea el directorio padre
     df.to_csv(out_file, index=False)
     print(f"\nReporte guardado en: {out_file}")
 

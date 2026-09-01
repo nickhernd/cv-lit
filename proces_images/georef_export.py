@@ -314,13 +314,17 @@ def validate_units(utm_coords: list) -> bool:
 
 
 if __name__ == "__main__":
-    import argparse, sys
+    import argparse, os, sys, tempfile
+    # Bug real detectado 2026-08-31 (mismo que en segmentation_sam.py y
+    # extract_coastline.py): "/tmp/" como valor por defecto no existe en
+    # Windows, único SO objetivo de este proyecto.
+    default_out = os.path.join(tempfile.gettempdir(), "coast.geojson")
     ap = argparse.ArgumentParser(description="Georreferencia y exporta linea de costa")
     ap.add_argument("--cam",        required=True,              help="ID camara (1-6)")
     ap.add_argument("--mask",       required=True,              help="Mascara binaria PNG")
     ap.add_argument("--coastline",  required=True,              help="JSON con lista de puntos [x,y]")
     ap.add_argument("--timestamp",  default=None,               help="ISO8601 (default: ahora)")
-    ap.add_argument("--out",        default="/tmp/coast.geojson")
+    ap.add_argument("--out",        default=default_out)
     args = ap.parse_args()
 
     import cv2

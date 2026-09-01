@@ -252,11 +252,15 @@ def _add_stats(img, inliers, outliers, ratio, clahe):
 
 
 if __name__ == "__main__":
+    import tempfile
+    # Bug real detectado 2026-08-31 (mismo patrón que en proces_images/): "/tmp/"
+    # no existe en Windows, único SO objetivo de este proyecto.
+    default_out = Path(tempfile.gettempdir()) / "debug_inliers"
     ap = argparse.ArgumentParser(description="Debug visual de inliers SIFT entre dos imágenes")
     ap.add_argument("--ref",      required=True,  type=Path, help="Imagen de referencia")
     ap.add_argument("--img",      required=True,  type=Path, help="Imagen nueva a comparar")
     ap.add_argument("--cam",      default=None,   type=int,  help="ID cámara (1-6) para aplicar máscara")
-    ap.add_argument("--out",      default="/tmp/debug_inliers", type=Path, help="Directorio de salida")
+    ap.add_argument("--out",      default=default_out, type=Path, help="Directorio de salida")
     ap.add_argument("--no-clahe", action="store_true", help="Desactivar CLAHE (para comparar el efecto)")
     args = ap.parse_args()
 

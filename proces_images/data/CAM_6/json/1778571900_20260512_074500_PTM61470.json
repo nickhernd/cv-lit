@@ -1,0 +1,389 @@
+{
+  "points": [
+    {
+      "pixel": [
+        1955.0,
+        1559.0
+      ],
+      "utm": [
+        706335.305,
+        4217124.135
+      ],
+      "label": "GCP_19",
+      "type": "calib",
+      "rel": [
+        42.42621527777778,
+        58.128262490678594
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        2027.0,
+        1568.0
+      ],
+      "utm": [
+        706337.019,
+        4217112.769
+      ],
+      "label": "GCP_20",
+      "type": "calib",
+      "rel": [
+        43.98871527777778,
+        58.463832960477255
+      ],
+      "confirmed": true,
+      "notes": "V"
+    },
+    {
+      "pixel": [
+        2104.0,
+        1581.0
+      ],
+      "utm": [
+        706338.461,
+        4217102.406
+      ],
+      "label": "GCP_21",
+      "type": "calib",
+      "rel": [
+        45.65972222222222,
+        58.94854586129754
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        2261.0,
+        1601.0
+      ],
+      "utm": [
+        706338.02,
+        4217084.426
+      ],
+      "label": "GCP_22",
+      "type": "calib",
+      "rel": [
+        49.06684027777778,
+        59.69425801640567
+      ],
+      "confirmed": true,
+      "notes": "V"
+    },
+    {
+      "pixel": [
+        2494.0,
+        1624.0
+      ],
+      "utm": [
+        706342.594,
+        4217066.288
+      ],
+      "label": "GCP_23",
+      "type": "calib",
+      "rel": [
+        54.123263888888886,
+        60.551826994780015
+      ],
+      "confirmed": true,
+      "notes": "V"
+    },
+    {
+      "pixel": [
+        2698.0,
+        1658.0
+      ],
+      "utm": [
+        706337.696,
+        4217050.717
+      ],
+      "label": "GCP_24",
+      "type": "calib",
+      "rel": [
+        58.55034722222222,
+        61.81953765846383
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        2968.0,
+        1711.0
+      ],
+      "utm": [
+        706332.24,
+        4217029.175
+      ],
+      "label": "GCP_25",
+      "type": "calib",
+      "rel": [
+        64.40972222222221,
+        63.795674869500374
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        3996.0,
+        1849.0
+      ],
+      "utm": [
+        706331.628,
+        4216995.261
+      ],
+      "label": "GCP_26",
+      "type": "calib",
+      "rel": [
+        86.71875,
+        68.94108873974646
+      ],
+      "confirmed": true,
+      "notes": "V"
+    }
+  ],
+  "calibration": {
+    "H": [
+      [
+        171.53568288460218,
+        -555.8202992953283,
+        706701.4011251476
+      ],
+      [
+        1023.8291281774101,
+        -3316.5929821771656,
+        4216970.601734905
+      ],
+      [
+        0.00024279357748980944,
+        -0.0007865001105323024,
+        1.0
+      ]
+    ],
+    "image": "1778571900_20260512_074500_PTM61470.jpg",
+    "rmse_px": 135.5918,
+    "rmse_m": 8.0148,
+    "mae_px": 64.9424,
+    "mae_m": 5.1569,
+    "rmse_good_m": 2.0,
+    "geometry_warning": "RANSAC solo encontr\u00f3 4 de 8 varillas mutuamente consistentes \u2014 este RMSE probablemente no refleja la calidad real de la calibraci\u00f3n. Revisa si alguna varilla tiene la UTM o el p\u00edxel mal introducidos, y si las varillas marcadas est\u00e1n casi todas en una sola l\u00ednea, a\u00f1ade alguna repartida en otra zona/profundidad de la imagen.",
+    "threshold_px": 30.0,
+    "gcps_used": 8,
+    "inliers_count": 4,
+    "excluded": [],
+    "residuals": [
+      {
+        "idx": 0,
+        "label": "GCP_19",
+        "error_px": 0.912,
+        "error_m": 0.1352,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          1955.0,
+          1559.0
+        ],
+        "utm": [
+          706335.305,
+          4217124.135
+        ],
+        "pixel_predicted": [
+          1954.1,
+          1558.87
+        ],
+        "utm_predicted": [
+          706335.313,
+          4217124.0
+        ]
+      },
+      {
+        "idx": 1,
+        "label": "GCP_20",
+        "error_px": 1.663,
+        "error_m": 0.2318,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          2027.0,
+          1568.0
+        ],
+        "utm": [
+          706337.019,
+          4217112.769
+        ],
+        "pixel_predicted": [
+          2028.65,
+          1568.22
+        ],
+        "utm_predicted": [
+          706337.0,
+          4217113.0
+        ]
+      },
+      {
+        "idx": 2,
+        "label": "GCP_21",
+        "error_px": 3.469,
+        "error_m": 3.8279,
+        "inlier": false,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          2104.0,
+          1581.0
+        ],
+        "utm": [
+          706338.461,
+          4217102.406
+        ],
+        "pixel_predicted": [
+          2103.02,
+          1577.67
+        ],
+        "utm_predicted": [
+          706335.065,
+          4217104.173
+        ]
+      },
+      {
+        "idx": 3,
+        "label": "GCP_22",
+        "error_px": 0.601,
+        "error_m": 0.0767,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          2261.0,
+          1601.0
+        ],
+        "utm": [
+          706338.02,
+          4217084.426
+        ],
+        "pixel_predicted": [
+          2261.6,
+          1601.07
+        ],
+        "utm_predicted": [
+          706338.0,
+          4217084.5
+        ]
+      },
+      {
+        "idx": 4,
+        "label": "GCP_23",
+        "error_px": 71.825,
+        "error_m": 9.752,
+        "inlier": false,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          2494.0,
+          1624.0
+        ],
+        "utm": [
+          706342.594,
+          4217066.288
+        ],
+        "pixel_predicted": [
+          2422.33,
+          1619.31
+        ],
+        "utm_predicted": [
+          706347.357,
+          4217057.778
+        ]
+      },
+      {
+        "idx": 5,
+        "label": "GCP_24",
+        "error_px": 67.765,
+        "error_m": 9.1684,
+        "inlier": false,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          2698.0,
+          1658.0
+        ],
+        "utm": [
+          706337.696,
+          4217050.717
+        ],
+        "pixel_predicted": [
+          2630.31,
+          1654.87
+        ],
+        "utm_predicted": [
+          706343.14,
+          4217043.34
+        ]
+      },
+      {
+        "idx": 6,
+        "label": "GCP_25",
+        "error_px": 2.754,
+        "error_m": 0.1753,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          2968.0,
+          1711.0
+        ],
+        "utm": [
+          706332.24,
+          4217029.175
+        ],
+        "pixel_predicted": [
+          2965.27,
+          1710.61
+        ],
+        "utm_predicted": [
+          706332.25,
+          4217029.0
+        ]
+      },
+      {
+        "idx": 7,
+        "label": "GCP_26",
+        "error_px": 370.549,
+        "error_m": 17.8878,
+        "inlier": false,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          3996.0,
+          1849.0
+        ],
+        "utm": [
+          706331.628,
+          4216995.261
+        ],
+        "pixel_predicted": [
+          3627.59,
+          1809.24
+        ],
+        "utm_predicted": [
+          706339.884,
+          4216979.392
+        ]
+      }
+    ],
+    "date": "2026-08-31T12:10:02"
+  }
+}

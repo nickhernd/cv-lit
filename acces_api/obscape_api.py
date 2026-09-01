@@ -107,7 +107,19 @@ PROJECT_START = "2026-01-01T00:00:00"
 
 # Directorios de salida
 OUT_DIR  = BASE_DIR / "proces_images" / "data"
-LOG_DIR  = BASE_DIR / "data" / "logs"
+# Bug real detectado 2026-08-31 (mismo patrón ya encontrado y arreglado en
+# segmentation_sam.py y batch_alignment.py): "BASE_DIR / ..." solo es válido
+# en desarrollo. En la app empaquetada, __file__ no apunta a una ruta real en
+# disco — BASE_DIR cae dentro del bundle de solo lectura de PyInstaller.
+# LOG_DIR se usa en CADA ObscapeClient() (también desde el backend: "Probar
+# conexión" en Configuración y la descarga de Modo automático), así que con
+# el cálculo antiguo LOG_DIR.mkdir() lanzaba PermissionError al instanciar el
+# cliente en el .exe — ambas funciones fallaban con un error de permisos que
+# nada tenía que ver con las credenciales reales.
+if getattr(sys, "frozen", False):
+    LOG_DIR = _calibration_dir().parent / "logs"
+else:
+    LOG_DIR = BASE_DIR / "data" / "logs"
 
 # ── Cliente API ────────────────────────────────────────────────────────────────
 

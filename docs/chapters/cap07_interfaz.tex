@@ -63,6 +63,16 @@ const viewMode = ref('diff')   // 'original' | 'aligned' | 'diff' | 'blend'
 
 \subsection{Layout de la fase reviewing}
 
+\begin{warnbox}[Mockup histórico --- el modo "Mapa delta" ya no está en la interfaz]
+El botón \texttt{[Mapa delta]} de este esquema se retiró de \texttt{BatchAlignment.vue} a
+petición del cliente: \texttt{viewMode} solo admite hoy \texttt{'blend'} (por defecto) y
+\texttt{'aligned'}. El backend que lo generaba (\texttt{\_compute\_diff\_map()}, endpoint
+\texttt{GET /\{id\}/preview/diff/\{fn\}}, \S\ref{sec:delta} más abajo) sigue existiendo y
+funcionando --- solo dejó de tener un botón dedicado en la interfaz web --- así que el resto de
+esta sección y de \S\ref{sec:delta} describe código real, solo desactualizado en cuántas
+pestañas hay.
+\end{warnbox}
+
 \begin{codebox}[Vista de revisión — esquema]
 \begin{minted}{text}
 +----------------------+--------------------------------------------------+

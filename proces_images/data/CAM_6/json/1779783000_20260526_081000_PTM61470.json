@@ -1,0 +1,257 @@
+{
+  "points": [
+    {
+      "pixel": [
+        2804.0,
+        1673.0
+      ],
+      "utm": [
+        706348.51,
+        4217045.878
+      ],
+      "label": "GCP_65",
+      "type": "calib",
+      "rel": [
+        60.85069444444444,
+        62.37882177479492
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        3105.0,
+        1700.0
+      ],
+      "utm": [
+        706350.49,
+        4217032.054
+      ],
+      "label": "GCP_66",
+      "type": "calib",
+      "rel": [
+        67.3828125,
+        63.3855331841909
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        3840.0,
+        1840.0
+      ],
+      "utm": [
+        706344.482,
+        4217000.205
+      ],
+      "label": "GCP_67",
+      "type": "calib",
+      "rel": [
+        83.33333333333334,
+        68.6055182699478
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        4360.0,
+        1910.0
+      ],
+      "utm": [
+        706345.759,
+        4216990.158
+      ],
+      "label": "GCP_68",
+      "type": "calib",
+      "rel": [
+        94.61805555555556,
+        71.21551081282624
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        2933.0,
+        2001.0
+      ],
+      "utm": [
+        706315.607,
+        4216990.205
+      ],
+      "label": "GCP_69",
+      "type": "calib",
+      "rel": [
+        63.650173611111114,
+        74.60850111856824
+      ],
+      "confirmed": true,
+      "notes": "V"
+    }
+  ],
+  "calibration": {
+    "H": [
+      [
+        -23.341889350462584,
+        -465.08389770240376,
+        706292.2902843142
+      ],
+      [
+        -139.31656754318095,
+        -2776.8377434764307,
+        4216919.366785391
+      ],
+      [
+        -3.3037457117084035e-05,
+        -0.0006584957566581513,
+        1.0
+      ]
+    ],
+    "image": "1779783000_20260526_081000_PTM61470.jpg",
+    "rmse_px": 15.125,
+    "rmse_m": 0.3869,
+    "mae_px": 11.6808,
+    "mae_m": 0.366,
+    "rmse_good_m": 2.0,
+    "geometry_warning": null,
+    "threshold_px": 5.0,
+    "gcps_used": 5,
+    "inliers_count": 5,
+    "excluded": [],
+    "residuals": [
+      {
+        "idx": 0,
+        "label": "GCP_65",
+        "error_px": 11.146,
+        "error_m": 0.4705,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          2804.0,
+          1673.0
+        ],
+        "utm": [
+          706348.51,
+          4217045.878
+        ],
+        "pixel_predicted": [
+          2815.13,
+          1672.42
+        ],
+        "utm_predicted": [
+          706348.04,
+          4217045.895
+        ]
+      },
+      {
+        "idx": 1,
+        "label": "GCP_66",
+        "error_px": 6.323,
+        "error_m": 0.376,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          3105.0,
+          1700.0
+        ],
+        "utm": [
+          706350.49,
+          4217032.054
+        ],
+        "pixel_predicted": [
+          3098.74,
+          1700.9
+        ],
+        "utm_predicted": [
+          706350.837,
+          4217032.199
+        ]
+      },
+      {
+        "idx": 2,
+        "label": "GCP_67",
+        "error_px": 30.13,
+        "error_m": 0.5287,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          3840.0,
+          1840.0
+        ],
+        "utm": [
+          706344.482,
+          4217000.205
+        ],
+        "pixel_predicted": [
+          3809.89,
+          1838.85
+        ],
+        "utm_predicted": [
+          706344.882,
+          4216999.859
+        ]
+      },
+      {
+        "idx": 3,
+        "label": "GCP_68",
+        "error_px": 2.813,
+        "error_m": 0.2658,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          4360.0,
+          1910.0
+        ],
+        "utm": [
+          706345.759,
+          4216990.158
+        ],
+        "pixel_predicted": [
+          4362.1,
+          1908.13
+        ],
+        "utm_predicted": [
+          706345.533,
+          4216990.018
+        ]
+      },
+      {
+        "idx": 4,
+        "label": "GCP_69",
+        "error_px": 7.993,
+        "error_m": 0.1888,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          2933.0,
+          2001.0
+        ],
+        "utm": [
+          706315.607,
+          4216990.205
+        ],
+        "pixel_predicted": [
+          2925.23,
+          1999.12
+        ],
+        "utm_predicted": [
+          706315.639,
+          4216990.019
+        ]
+      }
+    ],
+    "date": "2026-08-31T15:19:15"
+  }
+}

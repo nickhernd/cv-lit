@@ -12,3 +12,8 @@ matplotlib
 fpdf2
 pytest
 httpx
+# App de escritorio (desktop_launcher.py) y su empaquetado — faltaban aquí:
+# un "pip install -r requirements.txt" limpio no dejaba construir ni arrancar
+# la app de escritorio (ImportError: webview / pyinstaller no encontrado).
+pywebview
+pyinstaller

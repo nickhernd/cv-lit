@@ -105,15 +105,34 @@ async function deleteImage(filename) {
   } catch (e) { emit('notify', 'Error al eliminar imagen', 'error') }
 }
 
+const processing = ref(false)
+
+// Bug real detectado 2026-08-31: solo se analizaba la PRIMERA imagen
+// seleccionada (llamada única a analyze-roi) aunque el aviso decía
+// "Procesando N imagen(es)" y el botón muestra el total seleccionado —
+// las demás se descartaban en silencio. Se procesan una a una (analyze-roi
+// tarda varios segundos por imagen; SAM no admite lote) y se avisa de
+// cuántas terminaron bien de verdad.
 async function processSelection() {
   if (!selected.value.size) { emit('notify', 'Selecciona al menos una imagen', 'error'); return }
-  const first = [...selected.value][0]
-  try {
-    const res = await fetch(`${API}/api/cameras/${camId.value}/analyze-roi?filename=${encodeURIComponent(first)}`, { method: 'POST' })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    emit('notify', `Procesando ${selected.value.size} imagen(es) — ver Resultados`, 'success')
+  processing.value = true
+  const filenames = [...selected.value]
+  let ok = 0
+  let failed = 0
+  for (const filename of filenames) {
+    try {
+      const res = await fetch(`${API}/api/cameras/${camId.value}/analyze-roi?filename=${encodeURIComponent(filename)}`, { method: 'POST' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      ok++
+    } catch (e) { failed++ }
+  }
+  processing.value = false
+  if (ok) {
+    emit('notify', failed ? `${ok} imagen(es) procesada(s), ${failed} fallaron — ver Resultados` : `${ok} imagen(es) procesada(s) — ver Resultados`, failed ? 'error' : 'success')
     emit('go-resultados', camId.value)
-  } catch (e) { emit('notify', 'Error al procesar selección: ' + e.message, 'error') }
+  } else {
+    emit('notify', 'No se pudo procesar ninguna imagen', 'error')
+  }
 }
 
 const filteredImages = computed(() => {
@@ -138,8 +157,8 @@ onMounted(async () => {
 <template>
   <div class="space-y-4">
     <div class="flex justify-end">
-      <button @click="processSelection" class="btn-standard uppercase text-xs">
-        Procesar selección ({{ selected.size }})
+      <button @click="processSelection" :disabled="processing || !selected.size" class="btn-standard uppercase text-xs disabled:opacity-40 disabled:cursor-not-allowed">
+        {{ processing ? 'Procesando…' : `Procesar selección (${selected.size})` }}
       </button>
     </div>
 

@@ -49,33 +49,57 @@ ROI_FILE  = CALIB_DIR / "roi_config.json"
 # Fracciones [0-1] relativas al ROI de cada camara.
 # Cada entrada: lista de {point: [fx, fy], label: 1=fg/0=bg}
 # La zona baja-central del ROI corresponde a la arena seca en Guardamar.
+#
+# 3 puntos de arena (no 1) repartidos en horizontal a la misma altura: con un
+# solo punto, una persona o sombrilla justo encima de esa coordenada hace que
+# SAM pierda la referencia de "esto es arena" en toda la imagen (causa real
+# de confianza diluida en playas con gente, detectada 2026-08-31). Con 3
+# puntos separados, basta con que uno quede libre de obstáculos.
 CAM_PROMPTS = {
     "CAM_1": [
+        {"point": [0.25, 0.80], "label": 1},
         {"point": [0.50, 0.80], "label": 1},  # centro-bajo: arena seca
+        {"point": [0.75, 0.80], "label": 1},
         {"point": [0.50, 0.15], "label": 0},  # zona alta: agua/horizonte
     ],
     "CAM_2": [
+        {"point": [0.20, 0.78], "label": 1},
         {"point": [0.45, 0.78], "label": 1},
+        {"point": [0.70, 0.78], "label": 1},
         {"point": [0.50, 0.12], "label": 0},
     ],
     "CAM_3": [
+        {"point": [0.25, 0.82], "label": 1},
         {"point": [0.50, 0.82], "label": 1},
+        {"point": [0.75, 0.82], "label": 1},
         {"point": [0.50, 0.10], "label": 0},
     ],
     "CAM_4": [
+        {"point": [0.27, 0.80], "label": 1},
         {"point": [0.52, 0.80], "label": 1},
+        {"point": [0.77, 0.80], "label": 1},
         {"point": [0.50, 0.12], "label": 0},
     ],
     "CAM_5": [
+        {"point": [0.23, 0.75], "label": 1},
         {"point": [0.48, 0.75], "label": 1},
+        {"point": [0.73, 0.75], "label": 1},
         {"point": [0.50, 0.15], "label": 0},
     ],
     "CAM_6": [
+        {"point": [0.25, 0.78], "label": 1},
         {"point": [0.50, 0.78], "label": 1},
+        {"point": [0.75, 0.78], "label": 1},
         {"point": [0.50, 0.12], "label": 0},
     ],
 }
 
+# NOTA 2026-08-31: se probó añadir una caja genérica (CAM_BOX) acotando la
+# zona de arena junto a los puntos — verificado EN IMAGEN REAL que empeora el
+# resultado (cobertura 14% -> 7%, la máscara se encoge a una esquina) porque
+# la arena seca en estas cámaras es una franja diagonal alargada, no un
+# blob compacto tipo caja; SAM con prompt de caja tiende a buscar "el objeto
+# que llena ese rectángulo", no una franja fina que lo cruza. Descartada.
 
 def generate_probability_map(logits: np.ndarray) -> np.ndarray:
     """
@@ -345,11 +369,17 @@ class SAMSegmenter:
 
 def main():
     import argparse
+    import tempfile
+    # Bug real detectado 2026-08-31: "/tmp/..." como valor por defecto no
+    # existe en Windows (único SO objetivo de este proyecto, ver
+    # installer/cv-lit.iss) — este CLI de depuración fallaba al escribir la
+    # máscara si se ejecutaba sin pasar --out explícito.
+    default_out = os.path.join(tempfile.gettempdir(), "mask_debug.png")
     ap = argparse.ArgumentParser(description="SAM segmentation debug")
     ap.add_argument("--image", required=True, help="Ruta a la imagen")
     ap.add_argument("--cam",   required=True, help="ID camara (1-6)")
     ap.add_argument("--checkpoint", default=None, help="Ruta al checkpoint SAM")
-    ap.add_argument("--out",   default="/tmp/mask_debug.png")
+    ap.add_argument("--out",   default=default_out)
     args = ap.parse_args()
 
     img = cv2.imread(args.image)

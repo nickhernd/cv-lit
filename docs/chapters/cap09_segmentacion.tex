@@ -112,6 +112,16 @@ frontend) sin tener que parsear el URN — ambos apuntan al mismo sistema, EPSG:
 \section{Índice de confianza (\texttt{Confianza\_IA}) y una limitación conocida}
 \label{sec:confidence-index-limitation}
 
+\begin{warnbox}[Pesos históricos --- reequilibrados el 31 de agosto de 2026]
+Los pesos descritos a continuación (calibración~3, cobertura~1, SAM~2, costa~2) son los que
+causaban el problema de confianza baja diagnosticado en la limitación de más abajo, y ya no son
+los que usa el sistema. Los pesos actuales y el porqué del cambio están en
+\S\ref{sec:refinamiento-agosto31} (capítulo~\ref{ch:roadmap}). El ejemplo de GeoJSON de
+\S\ref{ch:segmentation} anterior tampoco es el que exporta la app real (esa función no está
+conectada al pipeline en producción) — el esquema real, con el polígono de área seca añadido en
+esa misma ronda, también está documentado allí.
+\end{warnbox}
+
 \texttt{confidence\_index()} (en \texttt{georef\_export.py}) combina cuatro señales en una
 media ponderada — nunca es un solo número aislado:
 

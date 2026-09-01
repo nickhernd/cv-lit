@@ -552,7 +552,11 @@ def get_dashboard():
         cam_folder = os.path.join(DATA_DIR, info["folder"])
         images_count = 0
         if os.path.exists(cam_folder):
-            images_count = len([f for f in os.listdir(cam_folder) if f.endswith(('.jpg', '.png'))])
+            # .lower() + IMAGE_EXTS (incluye .jpeg): consistente con
+            # list_cameras()/_latest_image_filename() — esta línea se había
+            # quedado con un filtro más estrecho (sin .jpeg, sensible a
+            # mayúsculas) y subcontaba imágenes reales con extensión .JPG.
+            images_count = len([f for f in os.listdir(cam_folder) if f.lower().endswith(IMAGE_EXTS)])
         images_processed += images_count
 
         cameras_status.append({
@@ -640,7 +644,7 @@ def list_cameras():
         images_count = 0
         last_modified = None
         if os.path.exists(cam_folder):
-            files = [f for f in os.listdir(cam_folder) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+            files = [f for f in os.listdir(cam_folder) if f.lower().endswith(IMAGE_EXTS)]
             images_count = len(files)
             if files:
                 last_modified = max(os.path.getmtime(os.path.join(cam_folder, f)) for f in files)
@@ -1700,7 +1704,7 @@ def list_camera_images(cam_id: int):
     
     images = []
     for f in sorted(os.listdir(cam_folder)):
-        if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+        if f.lower().endswith(IMAGE_EXTS):
             ann_path = _annotations_path(cam_id, f)
             annotated = False
             calibrated = False
@@ -1727,19 +1731,33 @@ def list_camera_images(cam_id: int):
 
 # DEBUG: elimina físicamente un archivo de imagen de la carpeta de una cámara. Acción
 # destructiva e irreversible sobre disco — no hay papelera ni confirmación server-side.
+# Bug real detectado 2026-08-31: solo borraba la captura original — la copia
+# alineada (aligned/<filename> + su sidecar .align.json) y la anotación de
+# varillas (CAM_{id}/json/<filename>.json) se quedaban huérfanas, apuntando a
+# una imagen que ya no existe. Se limpian aquí también.
 @app.delete("/api/cameras/{cam_id}/images/{filename}")
 def delete_camera_image(cam_id: int, filename: str):
     if cam_id not in CAMERAS: raise HTTPException(status_code=404, detail="Camera not found")
-    file_path = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"], _safe_filename(filename))
-    if os.path.exists(file_path):
-        try:
-            os.remove(file_path)
-            add_log(f"Imagen {filename} eliminada de Cam {cam_id}", "info")
-            return {"status": "success"}
-        except Exception as e:
-            add_log(f"Error al eliminar {filename} de Cam {cam_id}: {e}", "error")
-            raise HTTPException(status_code=500, detail="No se pudo eliminar el archivo")
-    raise HTTPException(status_code=404, detail="File not found")
+    safe_name = _safe_filename(filename)
+    file_path = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"], safe_name)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    try:
+        os.remove(file_path)
+        aligned_path = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"], "aligned", safe_name)
+        if os.path.exists(aligned_path):
+            os.remove(aligned_path)
+        sidecar_path = _alignment_sidecar_path(cam_id, safe_name)
+        if os.path.exists(sidecar_path):
+            os.remove(sidecar_path)
+        ann_path = _annotations_path(cam_id, safe_name)
+        if os.path.exists(ann_path):
+            os.remove(ann_path)
+        add_log(f"Imagen {filename} eliminada de Cam {cam_id}", "info")
+        return {"status": "success"}
+    except Exception as e:
+        add_log(f"Error al eliminar {filename} de Cam {cam_id}: {e}", "error")
+        raise HTTPException(status_code=500, detail="No se pudo eliminar el archivo")
 
 # ── Catálogo de varillas (coordenadas UTM topografiadas en campo) ─────────────
 # El CSV es flexible en cabeceras (español/inglés, con o sin unidades) y en

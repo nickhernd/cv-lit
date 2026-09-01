@@ -118,6 +118,16 @@ cd ..
         \S\ref{ch:setup}).
 \end{enumerate}
 
+\begin{warnbox}[Dos bugs reales de esta receta (corregidos el 31 de agosto de 2026)]
+Dos rutas del backend se calculaban con \texttt{sys.\_MEIPASS} cuando debían calcularse con
+\texttt{sys.executable} (o al revés) — el checkpoint de SAM nunca se encontraba en el
+\texttt{.exe} instalado, y \texttt{roi\_config.json}/\texttt{alignment\_masks.json} nunca se
+sembraban en una instalación nueva. Ambos con confianza baja como único síntoma visible, sin
+ningún error. El paso~2 de esta receta ya incluye el arreglo (bundle de
+\texttt{calibration\_seed/} + \texttt{EXE\_DIR} en \texttt{main.py}); el diagnóstico completo
+está en \S\ref{sec:refinamiento-agosto31} (capítulo~\ref{ch:roadmap}).
+\end{warnbox}
+
 \begin{warnbox}[No recompilar el frontend mientras el paso 2 está en marcha]
 Condición de carrera real detectada en 2026-08: si se relanza \texttt{npm run build} MIENTRAS
 PyInstaller todavía está empaquetando (por ejemplo, en otra terminal), los nombres de archivo

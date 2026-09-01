@@ -97,4 +97,119 @@ producción añadió, sin estar en el roadmap original:
         \ref{ch:batch}, \ref{ch:automode} y auditoría de coherencia del resto de capítulos).
 \end{itemize}
 
+\section{Ronda de refinamiento --- 31 de agosto de 2026}
+\label{sec:refinamiento-agosto31}
+
+Sesión centrada en diagnosticar por qué el \texttt{.exe} instalado seguía dando confianza baja
+pese a los ajustes de la ronda anterior, y en una auditoría línea por línea de todo el código
+(backend, frontend y scripts sueltos) buscando incoherencias. Los números de RMSE de la
+tabla~\ref{tab:calibration-results} y los pesos de \texttt{confidence\_index()} descritos en
+\S\ref{sec:confidence-index-limitation} corresponden a la campaña de junio 2026 y a la ronda de
+julio--agosto respectivamente: \textbf{ambos quedan obsoletos a partir de aquí} y se conservan
+solo como registro histórico.
+
+\subsection{La confianza baja tenía tres causas independientes, no una}
+
+\begin{warnbox}[Bug de empaquetado: el checkpoint de SAM nunca se encontraba en el \texttt{.exe}]
+\texttt{download\_sam.py} guarda el checkpoint de SAM junto al propio \texttt{.exe}
+(\texttt{os.path.dirname(sys.executable)}), pero \texttt{main.py} lo buscaba en
+\texttt{BASE\_DIR} (\texttt{sys.\_MEIPASS}) — en PyInstaller \emph{onedir} a partir de la
+versión~6, \texttt{sys.\_MEIPASS} apunta a la subcarpeta \texttt{\_internal/}, \textbf{no} a la
+carpeta donde vive el ejecutable. El resultado: \texttt{SAMSegmenter.\_\_init\_\_} no lanzaba
+ninguna excepción al no encontrar el fichero (se queda con \texttt{predictor=None} en
+silencio), así que el log decía enga\~nosamente ``SAM Segmenter cargado con éxito'' mientras la
+app caía sin avisar al respaldo de color/Otsu en \emph{todas} las imágenes del \texttt{.exe}
+instalado. Corregido con una constante \texttt{EXE\_DIR} nueva en \texttt{main.py}, distinta de
+\texttt{BASE\_DIR}, y con un log honesto que sí distingue "encontrado" de "no encontrado".
+Verificado extrayendo el bytecode compilado del \texttt{.exe} real (no solo el código fuente) y
+relanzando la app instalada: la confianza de cámara~1 pasó de 0,30 (rechazada) a 0,66.
+\end{warnbox}
+
+El mismo patrón —una ruta calculada con \texttt{sys.executable} en un sitio y con
+\texttt{sys.\_MEIPASS} en otro— apareció una segunda vez en \texttt{acces\_api/obscape\_api.py}
+(\texttt{LOG\_DIR}, usado por \emph{cada} \texttt{ObscapeClient()}, incluido el botón "Probar
+conexión" de Configuración y cada ejecución de Modo automático) y ya se había corregido antes,
+en la ronda anterior, para \texttt{roi\_config.json} (capítulo~\ref{ch:roi}) — sin ese fichero,
+SAM colocaba sus puntos de referencia sobre la imagen sin recortar. Las tres causas eran reales
+y ortogonales entre sí; arreglar solo una dejaba la confianza baja por las otras dos.
+
+\subsection{Un cuarto problema, específico de cámara 6: un punto de calibración con \texttt{utm=[0,0]}}
+
+Al verificar cámara~6 en el \texttt{.exe} real se encontró un RMSE de \textbf{1\,425\,242,98
+metros} — una homografía degenerada. La causa: entre las varillas confirmadas de la imagen de
+referencia activa había una, \texttt{VARILLA\_11}, con coordenada UTM \texttt{[0, 0]} (un valor
+de prueba que nunca se limpió, del mismo tipo que el ya documentado para cámara~2 en rondas
+anteriores). Se eliminó mediante la API real de anotaciones (no editando el JSON a mano) y el
+RMSE de cámara~6 bajó a 0,25~m — mejor que el resto de cámaras.
+
+\subsection{Reequilibrio de \texttt{confidence\_index()} (continuación de \S\ref{sec:confidence-index-limitation})}
+
+Diagnosticado con las 6 cámaras ya recalibradas con datos reales: el peso~3 de la calidad de
+calibración (caída exponencial dura) penalizaba dos veces cualquier RMSE "aceptable pero no
+excelente" que ya había pasado el umbral de aceptación por separado, y la probabilidad media de
+SAM (peso~2) se diluía con el agua/cielo de la ROI aunque la playa se detectara perfectamente.
+Pesos nuevos: calibración~1, cobertura de máscara~2 (la señal más fiable de las tres en los
+casos reales comprobados), probabilidad SAM~1, confianza de costa~2.
+
+\subsection{Otros arreglos reales de esta ronda}
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Prompt de SAM}: de 1 punto de arena a 3, repartidos en horizontal a la misma
+        altura — con un solo punto, una persona o sombrilla justo encima hacía perder la
+        referencia de "esto es arena" en toda la imagen. Se probó también añadir una caja
+        delimitadora junto a los puntos: \textbf{empeoraba} el resultado (la arena seca es una
+        franja diagonal alargada, no un objeto compacto tipo caja) y se descartó, verificado con
+        overlay visual antes/después.
+  \item \textbf{Polígono de área seca en el GeoJSON}: cada análisis exporta ahora, además de la
+        línea de costa, un polígono cerrado con el contorno completo de la máscara de arena
+        detectada — mismo dato que ya se usaba para calcular los m\textsuperscript{2}, ahora
+        también expuesto como geometría (relleno translúcido en el mapa, para distinguirlo de la
+        línea).
+  \item \textbf{Dashboard}: "Imágenes procesadas" y "Área seca media" estaban literalmente
+        hardcodeados en el backend (506 y "23\,480", fijos, nunca reflejaban los datos reales) —
+        ahora se calculan de verdad sobre el histórico.
+  \item \textbf{Borrado de una imagen} (\texttt{DELETE /api/cameras/\{id\}/images/\{filename\}})
+        dejaba huérfanas su copia alineada y su anotación de varillas; ahora limpia las tres
+        cosas.
+  \item \textbf{"Procesar selección" en Carga de imágenes} solo analizaba la primera imagen del
+        grupo marcado, aunque el botón mostraba el total seleccionado — ahora procesa todas.
+  \item \textbf{\texttt{.gitignore}} excluía \texttt{CAM\_N/json/} bajo una regla pensada para
+        cuando esa carpeta solo guardaba metadatos descartables de la API — esa carpeta es hoy
+        donde se guardan las varillas GCP confirmadas y la homografía calculada de cada imagen.
+        Con la regla vieja, git nunca veía ese trabajo: 38 ficheros de calibración real vivían
+        solo en disco, sin red de seguridad de control de versiones.
+  \item \texttt{backend/requirements.txt} no listaba \texttt{pywebview} ni \texttt{pyinstaller}
+        (instalados en el entorno de desarrollo pero ausentes del fichero) — un
+        \texttt{pip install} limpio no habría podido ni arrancar ni construir la app de
+        escritorio.
+  \item Depuración de imágenes sin respaldo en \texttt{GCP.csv}: cámara~1 conservó 6 de 95
+        (las 89 restantes eran capturas reales de monitorización horaria, movidas a una carpeta
+        de respaldo, no borradas) y cámara~5 conservó 10 de 11.
+\end{itemize}
+
+\subsection{Estado final de calibración de las 6 cámaras (verificado en el \texttt{.exe} real)}
+
+\begin{table}[H]
+\centering
+\caption{RMSE tras la ronda de refinamiento del 31 de agosto de 2026}
+\begin{tabular}{C{2cm} C{2.5cm} L{7cm}}
+\toprule
+\textbf{Cámara} & \textbf{RMSE (m)} & \textbf{Nota} \\
+\midrule
+CAM~1 & 0,24 & \textcolor{OliveGreen}{OK} \\
+CAM~2 & 1,37 & \textcolor{OliveGreen}{OK} en RMSE, pero se sigue rechazando por
+  \texttt{área\_no\_fiable} — necesita más varillas repartidas (dato de campo, no bug) \\
+CAM~3 & 0,86 & \textcolor{OliveGreen}{OK} \\
+CAM~4 & 0,34 & \textcolor{OliveGreen}{OK} \\
+CAM~5 & 0,72 & \textcolor{OliveGreen}{OK} \\
+CAM~6 & 0,25 & \textcolor{OliveGreen}{OK} --- antes crítica, corregida (\S anterior) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Las 6 cámaras quedan por debajo del objetivo \texttt{RMSE\_GOOD\_M}~=~2~m. Cámara~2 es el único
+caso pendiente real: su homografía es correcta pero el área detectada supera el umbral de
+plausibilidad porque las varillas topografiadas no cubren suficiente extensión de la playa —
+requiere una nueva sesión de campo, no un cambio de código.
+
 % ==============================================================

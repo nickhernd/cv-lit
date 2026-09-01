@@ -1,0 +1,829 @@
+{
+  "points": [
+    {
+      "pixel": [
+        1040.0,
+        1628.0
+      ],
+      "utm": [
+        706295.1,
+        4217070.673
+      ],
+      "label": "GCP_27",
+      "type": "calib",
+      "rel": [
+        22.569444444444446,
+        60.700969425801645
+      ],
+      "confirmed": true,
+      "notes": "V"
+    },
+    {
+      "pixel": [
+        1349.0,
+        1631.0
+      ],
+      "utm": [
+        706305.107,
+        4217070.47
+      ],
+      "label": "GCP_28",
+      "type": "calib",
+      "rel": [
+        29.27517361111111,
+        60.81282624906786
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        1563.0,
+        1630.0
+      ],
+      "utm": [
+        706312.397,
+        4217070.194
+      ],
+      "label": "GCP_29",
+      "type": "calib",
+      "rel": [
+        33.91927083333333,
+        60.77554064131245
+      ],
+      "confirmed": true,
+      "notes": "V"
+    },
+    {
+      "pixel": [
+        1756.0,
+        1631.0
+      ],
+      "utm": [
+        706319.248,
+        4217069.757
+      ],
+      "label": "GCP_30",
+      "type": "calib",
+      "rel": [
+        38.10763888888889,
+        60.81282624906786
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        1973.0,
+        1631.0
+      ],
+      "utm": [
+        706327.203,
+        4217068.927
+      ],
+      "label": "GCP_31",
+      "type": "calib",
+      "rel": [
+        42.81684027777778,
+        60.81282624906786
+      ],
+      "confirmed": true,
+      "notes": "V"
+    },
+    {
+      "pixel": [
+        1024.0,
+        1777.0
+      ],
+      "utm": [
+        706291.713,
+        4217024.898
+      ],
+      "label": "GCP_32",
+      "type": "calib",
+      "rel": [
+        22.22222222222222,
+        66.2565249813572
+      ],
+      "confirmed": true,
+      "notes": "V"
+    },
+    {
+      "pixel": [
+        1599.0,
+        1779.0
+      ],
+      "utm": [
+        706303.314,
+        4217022.995
+      ],
+      "label": "GCP_33",
+      "type": "calib",
+      "rel": [
+        34.70052083333333,
+        66.33109619686802
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        1929.0,
+        1774.0
+      ],
+      "utm": [
+        706310.822,
+        4217022.99
+      ],
+      "label": "GCP_34",
+      "type": "calib",
+      "rel": [
+        41.86197916666667,
+        66.14466815809098
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        2328.0,
+        1768.0
+      ],
+      "utm": [
+        706320.242,
+        4217021.854
+      ],
+      "label": "GCP_35",
+      "type": "calib",
+      "rel": [
+        50.520833333333336,
+        65.92095451155853
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        2675.0,
+        1741.0
+      ],
+      "utm": [
+        706330.512,
+        4217023.376
+      ],
+      "label": "GCP_36",
+      "type": "calib",
+      "rel": [
+        58.05121527777778,
+        64.91424310216256
+      ],
+      "confirmed": true,
+      "notes": "A"
+    },
+    {
+      "pixel": [
+        2130.0,
+        1959.0
+      ],
+      "utm": [
+        706305.618,
+        4216996.931
+      ],
+      "label": "GCP_37",
+      "type": "calib",
+      "rel": [
+        46.22395833333333,
+        73.04250559284117
+      ],
+      "confirmed": true,
+      "notes": "FIJO"
+    },
+    {
+      "pixel": [
+        95.0,
+        1910.0
+      ],
+      "utm": [
+        706278.429,
+        4217002.504
+      ],
+      "label": "GCP_38",
+      "type": "calib",
+      "rel": [
+        2.061631944444444,
+        71.21551081282624
+      ],
+      "confirmed": true,
+      "notes": "FIJO"
+    },
+    {
+      "pixel": [
+        783.0,
+        1581.0
+      ],
+      "utm": [
+        706287.491,
+        4217099.931
+      ],
+      "label": "GCP_39",
+      "type": "calib",
+      "rel": [
+        16.9921875,
+        58.94854586129754
+      ],
+      "confirmed": true,
+      "notes": "FIJO"
+    },
+    {
+      "pixel": [
+        1136.0,
+        1555.0
+      ],
+      "utm": [
+        706301.298,
+        4217109.608
+      ],
+      "label": "GCP_40",
+      "type": "calib",
+      "rel": [
+        24.65277777777778,
+        57.97912005965698
+      ],
+      "confirmed": true,
+      "notes": "FIJO"
+    },
+    {
+      "pixel": [
+        1028.0,
+        1581.0
+      ],
+      "utm": [
+        706296.063,
+        4217094.046
+      ],
+      "label": "GCP_41",
+      "type": "calib",
+      "rel": [
+        22.30902777777778,
+        58.94854586129754
+      ],
+      "confirmed": true,
+      "notes": "FIJO"
+    },
+    {
+      "pixel": [
+        1186.0,
+        1576.0
+      ],
+      "utm": [
+        706302.012,
+        4217094.306
+      ],
+      "label": "GCP_42",
+      "type": "calib",
+      "rel": [
+        25.73784722222222,
+        58.76211782252051
+      ],
+      "confirmed": true,
+      "notes": "FIJO"
+    },
+    {
+      "pixel": [
+        1249.0,
+        1539.0
+      ],
+      "utm": [
+        706310.548,
+        4217147.635
+      ],
+      "label": "GCP_43",
+      "type": "calib",
+      "rel": [
+        27.10503472222222,
+        57.38255033557047
+      ],
+      "confirmed": true,
+      "notes": "FIJO"
+    },
+    {
+      "pixel": [
+        1392.0,
+        1598.0
+      ],
+      "utm": [
+        706309.124,
+        4217088.933
+      ],
+      "label": "GCP_44",
+      "type": "calib",
+      "rel": [
+        30.208333333333332,
+        59.58240119313945
+      ],
+      "confirmed": true,
+      "notes": "FIJO"
+    }
+  ],
+  "calibration": {
+    "H": [
+      [
+        9.54058832875016,
+        -515.4889872457129,
+        706291.603605675
+      ],
+      [
+        56.99741351762928,
+        -3077.7709868467505,
+        4216925.171623258
+      ],
+      [
+        1.3515801264790688e-05,
+        -0.0007298573451669168,
+        1.0
+      ]
+    ],
+    "image": "1778573700_20260512_081500_PTM61470.jpg",
+    "rmse_px": 19.9578,
+    "rmse_m": 5.6522,
+    "mae_px": 13.5944,
+    "mae_m": 3.1437,
+    "rmse_good_m": 2.0,
+    "geometry_warning": null,
+    "threshold_px": 5.0,
+    "gcps_used": 18,
+    "inliers_count": 11,
+    "excluded": [],
+    "residuals": [
+      {
+        "idx": 0,
+        "label": "GCP_27",
+        "error_px": 3.598,
+        "error_m": 1.3947,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          1040.0,
+          1628.0
+        ],
+        "utm": [
+          706295.1,
+          4217070.673
+        ],
+        "pixel_predicted": [
+          1037.64,
+          1630.72
+        ],
+        "utm_predicted": [
+          706295.264,
+          4217072.058
+        ]
+      },
+      {
+        "idx": 1,
+        "label": "GCP_28",
+        "error_px": 3.417,
+        "error_m": 0.5303,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          1349.0,
+          1631.0
+        ],
+        "utm": [
+          706305.107,
+          4217070.47
+        ],
+        "pixel_predicted": [
+          1345.74,
+          1629.99
+        ],
+        "utm_predicted": [
+          706305.138,
+          4217069.941
+        ]
+      },
+      {
+        "idx": 2,
+        "label": "GCP_29",
+        "error_px": 2.227,
+        "error_m": 0.1594,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          1563.0,
+          1630.0
+        ],
+        "utm": [
+          706312.397,
+          4217070.194
+        ],
+        "pixel_predicted": [
+          1560.79,
+          1629.72
+        ],
+        "utm_predicted": [
+          706312.442,
+          4217070.041
+        ]
+      },
+      {
+        "idx": 3,
+        "label": "GCP_30",
+        "error_px": 1.709,
+        "error_m": 0.6668,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          1756.0,
+          1631.0
+        ],
+        "utm": [
+          706319.248,
+          4217069.757
+        ],
+        "pixel_predicted": [
+          1757.22,
+          1629.8
+        ],
+        "utm_predicted": [
+          706319.037,
+          4217069.124
+        ]
+      },
+      {
+        "idx": 4,
+        "label": "GCP_31",
+        "error_px": 7.711,
+        "error_m": 0.4551,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          1973.0,
+          1631.0
+        ],
+        "utm": [
+          706327.203,
+          4217068.927
+        ],
+        "pixel_predicted": [
+          1980.69,
+          1630.48
+        ],
+        "utm_predicted": [
+          706326.83,
+          4217068.667
+        ]
+      },
+      {
+        "idx": 5,
+        "label": "GCP_32",
+        "error_px": 10.041,
+        "error_m": 0.2753,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          1024.0,
+          1777.0
+        ],
+        "utm": [
+          706291.713,
+          4217024.898
+        ],
+        "pixel_predicted": [
+          1014.0,
+          1776.13
+        ],
+        "utm_predicted": [
+          706291.898,
+          4217024.694
+        ]
+      },
+      {
+        "idx": 6,
+        "label": "GCP_33",
+        "error_px": 7.977,
+        "error_m": 0.6666,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          1599.0,
+          1779.0
+        ],
+        "utm": [
+          706303.314,
+          4217022.995
+        ],
+        "pixel_predicted": [
+          1591.73,
+          1775.73
+        ],
+        "utm_predicted": [
+          706303.325,
+          4217022.328
+        ]
+      },
+      {
+        "idx": 7,
+        "label": "GCP_34",
+        "error_px": 4.782,
+        "error_m": 0.9199,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          1929.0,
+          1774.0
+        ],
+        "utm": [
+          706310.822,
+          4217022.99
+        ],
+        "pixel_predicted": [
+          1931.07,
+          1769.69
+        ],
+        "utm_predicted": [
+          706310.502,
+          4217022.127
+        ]
+      },
+      {
+        "idx": 8,
+        "label": "GCP_35",
+        "error_px": 19.084,
+        "error_m": 0.4652,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          2328.0,
+          1768.0
+        ],
+        "utm": [
+          706320.242,
+          4217021.854
+        ],
+        "pixel_predicted": [
+          2347.08,
+          1767.67
+        ],
+        "utm_predicted": [
+          706319.777,
+          4217021.858
+        ]
+      },
+      {
+        "idx": 9,
+        "label": "GCP_36",
+        "error_px": 42.215,
+        "error_m": 3.2504,
+        "inlier": false,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          2675.0,
+          1741.0
+        ],
+        "utm": [
+          706330.512,
+          4217023.376
+        ],
+        "pixel_predicted": [
+          2715.18,
+          1753.94
+        ],
+        "utm_predicted": [
+          706331.218,
+          4217026.549
+        ]
+      },
+      {
+        "idx": 10,
+        "label": "GCP_37",
+        "error_px": 1.717,
+        "error_m": 0.0371,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": false,
+        "pixel": [
+          2130.0,
+          1959.0
+        ],
+        "utm": [
+          706305.618,
+          4216996.931
+        ],
+        "pixel_predicted": [
+          2131.7,
+          1958.74
+        ],
+        "utm_predicted": [
+          706305.585,
+          4216996.914
+        ]
+      },
+      {
+        "idx": 11,
+        "label": "GCP_38",
+        "error_px": 59.701,
+        "error_m": 5.6893,
+        "inlier": false,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          95.0,
+          1910.0
+        ],
+        "utm": [
+          706278.429,
+          4217002.504
+        ],
+        "pixel_predicted": [
+          77.35,
+          1967.03
+        ],
+        "utm_predicted": [
+          706277.726,
+          4217008.15
+        ]
+      },
+      {
+        "idx": 12,
+        "label": "GCP_39",
+        "error_px": 8.255,
+        "error_m": 2.2182,
+        "inlier": false,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          783.0,
+          1581.0
+        ],
+        "utm": [
+          706287.491,
+          4217099.931
+        ],
+        "pixel_predicted": [
+          790.74,
+          1583.86
+        ],
+        "utm_predicted": [
+          706287.199,
+          4217102.13
+        ]
+      },
+      {
+        "idx": 13,
+        "label": "GCP_40",
+        "error_px": 20.194,
+        "error_m": 17.2802,
+        "inlier": false,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          1136.0,
+          1555.0
+        ],
+        "utm": [
+          706301.298,
+          4217109.608
+        ],
+        "pixel_predicted": [
+          1125.86,
+          1572.46
+        ],
+        "utm_predicted": [
+          706303.266,
+          4217126.776
+        ]
+      },
+      {
+        "idx": 14,
+        "label": "GCP_41",
+        "error_px": 11.749,
+        "error_m": 8.2875,
+        "inlier": false,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          1028.0,
+          1581.0
+        ],
+        "utm": [
+          706296.063,
+          4217094.046
+        ],
+        "pixel_predicted": [
+          1023.62,
+          1591.9
+        ],
+        "utm_predicted": [
+          706296.734,
+          4217102.306
+        ]
+      },
+      {
+        "idx": 15,
+        "label": "GCP_42",
+        "error_px": 17.121,
+        "error_m": 12.3943,
+        "inlier": false,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          1186.0,
+          1576.0
+        ],
+        "utm": [
+          706302.012,
+          4217094.306
+        ],
+        "pixel_predicted": [
+          1178.8,
+          1591.53
+        ],
+        "utm_predicted": [
+          706303.556,
+          4217106.604
+        ]
+      },
+      {
+        "idx": 16,
+        "label": "GCP_43",
+        "error_px": 11.027,
+        "error_m": 0.9795,
+        "inlier": false,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          1249.0,
+          1539.0
+        ],
+        "utm": [
+          706310.548,
+          4217147.635
+        ],
+        "pixel_predicted": [
+          1237.99,
+          1538.32
+        ],
+        "utm_predicted": [
+          706311.037,
+          4217146.786
+        ]
+      },
+      {
+        "idx": 17,
+        "label": "GCP_44",
+        "error_px": 12.176,
+        "error_m": 0.9167,
+        "inlier": true,
+        "excluded": false,
+        "pending": false,
+        "above_threshold": true,
+        "pixel": [
+          1392.0,
+          1598.0
+        ],
+        "utm": [
+          706309.124,
+          4217088.933
+        ],
+        "pixel_predicted": [
+          1379.87,
+          1599.03
+        ],
+        "utm_predicted": [
+          706309.708,
+          4217089.64
+        ]
+      }
+    ],
+    "date": "2026-08-31T15:19:00"
+  }
+}
