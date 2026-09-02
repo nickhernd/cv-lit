@@ -62,16 +62,42 @@ CAM_PROMPTS = {
         {"point": [0.75, 0.80], "label": 1},
         {"point": [0.50, 0.15], "label": 0},  # zona alta: agua/horizonte
     ],
+    # CAM_2: bug real detectado y verificado 2026-09-02 con el checkpoint SAM
+    # real y una foto real de esta cámara — CAM_2 no encuadra la playa de
+    # frente (como CAM_1/3/4/5/6), sino en fuerte oblicuo "mirando a lo largo
+    # de la costa": la arena seca no es una franja horizontal, es una cuña
+    # diagonal que ocupa el borde IZQUIERDO del ROI y se estrecha hacia
+    # arriba-derecha, con duna/vegetación a la izquierda de x≈0.15 y mar
+    # abierto a la derecha de x≈0.5 (variable según fila). La fila horizontal
+    # fija en y=0.78 que usan el resto de cámaras pone el 3er punto (x=0.70)
+    # DENTRO DEL MAR — verificado visualmente: SAM etiquetaba el mar entero
+    # como "arena seca" y dejaba casi toda la arena real fuera de la máscara
+    # (52% del ROI marcado como arena, la mayoría agua). Corregido siguiendo
+    # la diagonal real de la orilla; verificado con el checkpoint real: la
+    # máscara resultante ahora sigue la franja de arena visible, mar y duna
+    # excluidos correctamente.
     "CAM_2": [
-        {"point": [0.20, 0.78], "label": 1},
-        {"point": [0.45, 0.78], "label": 1},
-        {"point": [0.70, 0.78], "label": 1},
+        {"point": [0.20, 0.85], "label": 1},
+        {"point": [0.28, 0.65], "label": 1},
+        {"point": [0.38, 0.50], "label": 1},
         {"point": [0.50, 0.12], "label": 0},
     ],
+    # CAM_3: bug real detectado y verificado 2026-09-02 igual que CAM_2 —
+    # esta cámara tiene una hilera de sombrillas fija ocupando x≈[0.19,0.50]
+    # y un chiringuito + palmeras ocupando x≈[0.68,1.0] del ROI a la altura
+    # y=0.82; SON OBSTÁCULOS PERMANENTES (no transitorios como una persona o
+    # una sombrilla suelta), así que la fila de 3 puntos repartida al 25/50/75%
+    # que sí funciona en el resto de cámaras aquí clava 2 de los 3 puntos
+    # sobre sombrilla/palmera en TODAS las fotos de esta cámara, siempre.
+    # Verificado con el checkpoint real: con esos 3 puntos la máscara cubría
+    # solo el 1.8% del ROI (un fragmento junto al chiringuito); con los 2
+    # puntos de abajo, ambos en el único hueco de arena abierta sin
+    # obstáculo permanente, la máscara pasa a cubrir el 24.7% del ROI y sigue
+    # correctamente la franja completa de arena seca (sombrillas incluidas,
+    # que sí son arena por debajo).
     "CAM_3": [
-        {"point": [0.25, 0.82], "label": 1},
-        {"point": [0.50, 0.82], "label": 1},
-        {"point": [0.75, 0.82], "label": 1},
+        {"point": [0.50, 0.80], "label": 1},
+        {"point": [0.58, 0.85], "label": 1},
         {"point": [0.50, 0.10], "label": 0},
     ],
     "CAM_4": [

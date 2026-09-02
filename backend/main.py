@@ -250,6 +250,56 @@ def _annotations_path(cam_id: int, filename: str) -> str:
     base = _safe_filename(filename).rsplit(".", 1)[0] + ".json"
     return os.path.join(DATA_DIR, f"CAM_{cam_id}", "json", base)
 
+# Recorte de máscara al casco convexo de las varillas de calibración (bug
+# real detectado y verificado 2026-09-02 con datos reales): una homografía
+# ajustada con las varillas puede tener RMSE bajísimo EN esos puntos y aun
+# así extrapolar sin control fuera de ellos — sobre todo en píxeles cercanos
+# al horizonte, donde un pequeño error de fila se traduce en cientos/miles
+# de metros reales. Visto en real en CAM_2 (encuadre muy oblicuo, "mirando a
+# lo largo de la costa"): con la máscara de arena ya corregida y
+# perfectamente ajustada a la playa real, el polígono UTM resultante seguía
+# disparándose a ~25 km de rango en el eje Y. Las varillas de CAM_2/CAM_6
+# solo cubren la zona cercana a la cámara — fuera de su casco convexo en
+# píxeles, H interpola datos que nunca se han validado contra un punto real.
+# MAX_PLAUSIBLE_AREA_M2 (más abajo) ya actúa de red de seguridad para casos
+# extremos, pero solo dispara con áreas absurdas de varios órdenes de
+# magnitud — no evita que un área "moderadamente" inflada (como los ~24-89
+# mil m² vistos en CAM_2/CAM_6 frente a los ~1300-3500 m² reales de
+# CAM_1/3/4) pase colada. Recortar la máscara al casco (con un 15% de
+# margen, ver más abajo) antes de extraer línea/polígono ataja el problema
+# en origen en vez de solo detectar el síntoma más extremo.
+def _calibration_hull_mask(cam_id: int, image_shape: tuple) -> Optional[np.ndarray]:
+    """Máscara binaria (255 dentro / 0 fuera) del casco convexo, en píxeles,
+    de las varillas confirmadas de la última calibración de esta cámara.
+    None si no hay perfil, imagen calibrada o menos de 3 varillas confirmadas
+    — en ese caso el llamante debe seguir usando la máscara sin recortar."""
+    profile_path = os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_profile.json")
+    if not os.path.exists(profile_path):
+        return None
+    with open(profile_path, "r") as f:
+        calibrated_image = json.load(f).get("calibrated_image")
+    if not calibrated_image:
+        return None
+    ann_path = _annotations_path(cam_id, calibrated_image)
+    if not os.path.exists(ann_path):
+        return None
+    with open(ann_path, "r") as f:
+        ann = json.load(f)
+    pts = [p["pixel"] for p in ann.get("points", []) if p.get("confirmed", True)]
+    if len(pts) < 3:
+        return None
+    hull = cv2.convexHull(np.array(pts, dtype=np.float32)).reshape(-1, 2)
+    # Dilatar un 15% desde el centroide: las varillas marcan puntos discretos,
+    # no el límite exacto de la zona fiable — un margen pequeño evita recortar
+    # arena real justo en el borde del casco sin reabrir la extrapolación
+    # descontrolada que motiva este recorte.
+    centroid = hull.mean(axis=0)
+    hull_dilated = (centroid + (hull - centroid) * 1.15).astype(np.int32)
+    h, w = image_shape[:2]
+    hull_mask = np.zeros((h, w), dtype=np.uint8)
+    cv2.fillConvexPoly(hull_mask, hull_dilated, 255)
+    return hull_mask
+
 # Resuelve qué fichero de imagen usar para marcar/analizar una captura: la
 # versión alineada (calculada por el módulo de Alineación, batch_alignment.py,
 # y confirmada en /commit) si existe, o la captura original si no se ha
@@ -1390,6 +1440,17 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
             "timestamp": str(datetime.datetime.now()),
             "rejected": True, "reject_reason": f"low_confidence:{conf:.2f}",
         }
+
+    # 4b. Recortar al casco convexo de las varillas de calibración (ver
+    # _calibration_hull_mask) — solo afecta a línea/área, la confianza de
+    # arriba ya se calculó sobre la máscara completa.
+    hull_mask = _calibration_hull_mask(cam_id, mask.shape)
+    if hull_mask is not None:
+        mask_clipped = cv2.bitwise_and(mask, hull_mask)
+        if mask_clipped.sum() > 0:
+            mask = mask_clipped
+        else:
+            add_log(f"Cam {cam_id}: el casco de calibración no solapa con la arena detectada, no se recorta", "warning")
 
     # 5. Extraer línea de costa (píxeles)
     points_px = extract_coastline_from_mask(mask)

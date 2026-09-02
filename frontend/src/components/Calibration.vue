@@ -749,6 +749,48 @@ function downloadCalibrationPdf() {
   window.open(`${API}/api/cameras/${selectedCamId.value}/calibration-report.pdf`, '_blank')
 }
 
+function csvEscape(v) {
+  const s = v === null || v === undefined ? '' : String(v)
+  return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+// CSV de las varillas con toda la info por punto (píxel/UTM medidos y
+// predichos por la homografía, error, inlier) — para poder llevarlas a
+// Excel y contrastarlas contra el CSV/Excel de origen de las varillas.
+// Separador ';' (no ',') porque Excel en es-ES usa la coma como separador
+// decimal y con ',' como delimitador todo cae en una sola columna.
+function downloadCalibrationCsv() {
+  if (!calibResult.value) return
+  const rows = calibResult.value.residuals || []
+  const headers = [
+    'Varilla', 'Pixel X', 'Pixel Y', 'UTM X', 'UTM Y',
+    'Pixel X predicho', 'Pixel Y predicho', 'UTM X predicho', 'UTM Y predicho',
+    'Error (px)', 'Error (m)', 'Inlier RANSAC', 'Excluida', 'Pendiente',
+  ]
+  const lines = [headers.join(';')]
+  for (const r of rows) {
+    lines.push([
+      r.label,
+      r.pixel?.[0], r.pixel?.[1],
+      r.utm?.[0], r.utm?.[1],
+      r.pixel_predicted?.[0], r.pixel_predicted?.[1],
+      r.utm_predicted?.[0], r.utm_predicted?.[1],
+      r.error_px, r.error_m,
+      r.inlier === null ? '—' : (r.inlier ? 'Sí' : 'No'),
+      r.excluded ? 'Sí' : 'No',
+      r.pending ? 'Sí' : 'No',
+    ].map(csvEscape).join(';'))
+  }
+  // BOM UTF-8 para que Excel detecte bien la codificación (tildes/ñ) al abrir.
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `cv-lit_cam${selectedCamId.value}_varillas.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 async function fetchImageAnnotations() {
   if (!selectedCamId.value || !selectedImage.value) return
   try {
@@ -1501,14 +1543,22 @@ onMounted(() => {
             <div v-for="(gcp, idx) in currentProfile.gcps" :key="idx"
                  class="absolute -translate-x-1/2 -translate-y-1/2"
                  :style="gcpMarkerStyle(gcp)">
+              <!-- Con el punto ya seleccionado, el marcador deja de capturar clicks: si no,
+                   un click de corrección cerca (o justo encima) de su posición actual vuelve
+                   a caer en handleMarkerClick (@click.stop) y solo re-selecciona/deselecciona
+                   el punto en vez de reposicionarlo — el gesto más habitual al corregir (un
+                   ajuste fino, no un salto grande) es precisamente el que peor funcionaba. El
+                   click "atraviesa" el marcador y llega a la <img> de debajo, que ya sabe
+                   reposicionar el punto activo (handleImageClick). -->
               <div @click.stop="handleMarkerClick(idx)"
                    :class="[
                      gcp.confirmed === false
                        ? (selectedGcpIdx === idx ? 'bg-amber-400 scale-150 ring-4 ring-amber-400/50 border-dashed' : 'bg-amber-400/80 border-dashed animate-pulse')
-                       : (selectedGcpIdx === idx ? 'bg-emerald-500 scale-150 ring-4 ring-emerald-500/50' : 'bg-emerald-500 scale-100')
+                       : (selectedGcpIdx === idx ? 'bg-emerald-500 scale-150 ring-4 ring-emerald-500/50' : 'bg-emerald-500 scale-100'),
+                     selectedGcpIdx === idx ? 'pointer-events-none' : 'cursor-pointer'
                    ]"
                    :title="gcp.confirmed === false ? (gcp.reprojected_at ? 'Reproyectada por alineación — revisar' : 'Aproximado — pendiente de confirmar') : ''"
-                   class="w-4 h-4 rounded-full border-2 border-white cursor-pointer transition-all hover:scale-125 z-10 flex items-center justify-center">
+                   class="w-4 h-4 rounded-full border-2 border-white transition-all hover:scale-125 z-10 flex items-center justify-center">
                    <span class="text-[8px] font-semibold text-white">{{ gcp.confirmed === false ? '~' : idx + 1 }}</span>
               </div>
             </div>
@@ -1588,8 +1638,12 @@ onMounted(() => {
               <div v-else-if="currentProfile.gcps[selectedGcpIdx].confirmed === false" class="bg-amber-50 border border-amber-200 rounded-md p-3 text-[10px] text-amber-800 leading-relaxed">
                 Píxel aproximado (importado de CSV). Haz click sobre la imagen — apóyate en la lupa — para fijar el punto exacto y confirmarlo.
               </div>
-              <div v-else class="bg-blue-50 border border-blue-200 rounded-md p-3 text-[10px] text-blue-800 leading-relaxed">
-                ¿Está mal marcado? Con este punto seleccionado, haz click sobre la imagen (apóyate en la lupa) para moverlo a la posición correcta.
+              <div v-else class="bg-blue-50 border border-blue-200 rounded-md p-3 text-[10px] text-blue-800 leading-relaxed flex items-start gap-2">
+                <span class="mt-0.5">📍</span>
+                <span>
+                  <strong class="block uppercase tracking-wider text-[9px] mb-0.5">Modo reposicionar activo</strong>
+                  Haz click en cualquier parte de la foto — apóyate en la lupa — para mover este punto ahí, incluso si clicas justo sobre su posición actual. Ya no hace falta acertar sobre el círculo.
+                </span>
               </div>
               <div v-if="rods.length" class="space-y-1">
                 <label class="text-[10px] font-semibold text-slate-500 uppercase">Varilla del catálogo</label>
@@ -1949,6 +2003,7 @@ onMounted(() => {
         </div>
 
         <div class="card-standard p-4 flex flex-wrap gap-3 justify-end">
+          <button @click="downloadCalibrationCsv" class="btn-secondary text-xs uppercase">Descargar CSV</button>
           <button @click="downloadCalibrationJson" class="btn-secondary text-xs uppercase">Descargar JSON</button>
           <button @click="downloadCalibrationPdf" class="btn-secondary text-xs uppercase">Descargar informe PDF</button>
           <button @click="currentStep = 6" class="btn-secondary text-xs uppercase">← Volver a Cálculo</button>

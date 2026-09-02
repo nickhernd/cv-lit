@@ -54,3 +54,7 @@ __pycache__/
 *.out
 *.toc
 *.xdv
+
+# Notas de preparación para la defensa (preguntas/respuestas con detalles
+# internos del proyecto) — material privado, no para el repositorio.
+/defensa/
