@@ -181,6 +181,27 @@ onMounted(fetchSettings)
       </div>
     </div>
 
+    <div v-if="!loading" class="card-standard p-4 space-y-3 border-amber-200">
+      <div class="flex items-center gap-2">
+        <div class="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">
+          Entrenamiento línea húmeda (temporal)
+        </div>
+      </div>
+      <p class="text-xs text-slate-500 leading-relaxed">
+        Dónde se guardan las polilíneas marcadas a mano y las imágenes adicionales subidas
+        en la sección "Entrenamiento (temp.)" — una carpeta por cámara, se crea sola en
+        cuanto se guarda la primera anotación o se sube la primera imagen ahí.
+      </p>
+      <div class="space-y-1">
+        <label class="text-[10px] font-semibold text-slate-500 uppercase">Ruta (por cámara)</label>
+        <div class="flex items-center gap-2">
+          <input :value="dataDir ? `${dataDir}\\CAM_{n}\\training\\` : ''" readonly class="w-full input-standard text-xs font-mono bg-slate-50">
+          <button @click="copyPath(dataDir ? `${dataDir}\\CAM_{n}\\training\\` : '')" class="btn-secondary text-[10px] uppercase shrink-0 px-2 py-1.5">Copiar</button>
+        </div>
+        <p class="text-[10px] text-slate-400">Sustituye <span class="font-mono">{n}</span> por el número de cámara (1-6). Las imágenes adicionales van en <span class="font-mono">training_images\</span> dentro de la misma carpeta.</p>
+      </div>
+    </div>
+
     <div v-if="!loading" class="card-standard p-4 space-y-3 border-red-200">
       <div class="text-[10px] font-semibold text-red-500 uppercase tracking-wider">
         Borrar imágenes y resultados

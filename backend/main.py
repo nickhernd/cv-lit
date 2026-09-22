@@ -16,6 +16,7 @@ from typing import List, Optional
 import shutil
 import sys
 import datetime
+import threading
 
 from config import CAMERAS, DATA_DIR, CALIBRATION_DIR, _safe_filename
 from batch_alignment import router as batch_router
@@ -146,6 +147,13 @@ def add_log(msg: str, log_type: str = "info"):
 # DEBUG (INIT): instancia global del segmentador SAM, con lazy loading (None = aún no cargado).
 segmenter = None
 
+# Serializa TODO uso de la instancia SAM compartida (creación perezosa
+# incluida) — ver el comentario junto a su uso en analyze_roi() para el bug
+# real que motiva esto: SamPredictor no es reentrante, y sin este bloqueo dos
+# peticiones concurrentes a analyze_roi de cámaras distintas corrompen el
+# estado interno compartido.
+_SAM_LOCK = threading.Lock()
+
 # DEBUG (INIT): carga el modelo SAM (pesado, requiere checkpoint .pth) la primera vez que se
 # necesita, no al arrancar el servidor. Devuelve None en modo demo, False si falló la
 # carga (para no reintentar en cada request), o la instancia ya cargada. Se llama desde
@@ -158,23 +166,26 @@ def get_segmenter():
     if APP_MODE == "demo":
         return None
 
-    CHECKPOINT_SAM = os.path.join(EXE_DIR, "sam_vit_h_4b8939.pth")
-    add_log(f"Cargando segmentador SAM desde {os.path.basename(CHECKPOINT_SAM)}", "info")
-    try:
-        from segmentation_sam import SAMSegmenter
-        segmenter = SAMSegmenter(checkpoint_path=CHECKPOINT_SAM)
-        # SAMSegmenter.__init__ no lanza excepción si el checkpoint no existe
-        # (predictor se queda en None) — comprobar aquí para no registrar un
-        # "éxito" engañoso que oculte por qué la app cae a color_fallback.
-        if segmenter.predictor is not None:
-            add_log("SAM Segmenter cargado con éxito", "success")
-        else:
-            add_log(f"Checkpoint SAM no encontrado en {CHECKPOINT_SAM} — usando color_fallback", "warning")
+    with _SAM_LOCK:
+        if segmenter is not None:  # otro hilo ya lo cargó mientras esperábamos el lock
+            return segmenter
+        CHECKPOINT_SAM = os.path.join(EXE_DIR, "sam_vit_h_4b8939.pth")
+        add_log(f"Cargando segmentador SAM desde {os.path.basename(CHECKPOINT_SAM)}", "info")
+        try:
+            from segmentation_sam import SAMSegmenter
+            segmenter = SAMSegmenter(checkpoint_path=CHECKPOINT_SAM)
+            # SAMSegmenter.__init__ no lanza excepción si el checkpoint no existe
+            # (predictor se queda en None) — comprobar aquí para no registrar un
+            # "éxito" engañoso que oculte por qué la app cae a color_fallback.
+            if segmenter.predictor is not None:
+                add_log("SAM Segmenter cargado con éxito", "success")
+            else:
+                add_log(f"Checkpoint SAM no encontrado en {CHECKPOINT_SAM} — usando color_fallback", "warning")
+                segmenter = False
+        except Exception as e:
+            add_log(f"Fallo al inicializar SAM: {str(e)}", "error")
             segmenter = False
-    except Exception as e:
-        add_log(f"Fallo al inicializar SAM: {str(e)}", "error")
-        segmenter = False
-    return segmenter
+        return segmenter
 
 # DEBUG (INIT): habilita CORS abierto ("*") para que el frontend (Vite, otro origen/puerto)
 # pueda llamar a esta API sin bloqueos del navegador. allow_credentials=False
@@ -268,6 +279,11 @@ def _annotations_path(cam_id: int, filename: str) -> str:
 # CAM_1/3/4) pase colada. Recortar la máscara al casco (con un 15% de
 # margen, ver más abajo) antes de extraer línea/polígono ataja el problema
 # en origen en vez de solo detectar el síntoma más extremo.
+#
+# SIN USAR desde 2026-09-09: desactivada a petición explícita del usuario —
+# ver el comentario junto a su (única) llamada, ya comentada, en analyze_roi().
+# Se deja la función definida (no se borra) por si se retoma esta mitigación
+# más adelante de otra forma que no dependa de las varillas.
 def _calibration_hull_mask(cam_id: int, image_shape: tuple) -> Optional[np.ndarray]:
     """Máscara binaria (255 dentro / 0 fuera) del casco convexo, en píxeles,
     de las varillas confirmadas de la última calibración de esta cámara.
@@ -1389,11 +1405,23 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
     roi = {"x_min": 0, "y_min": int(h_orig * 0.4), "x_max": w_orig, "y_max": h_orig}
     prob_map = None
 
+    # Bug real detectado y verificado 2026-09-10 (reproducido en local con dos
+    # llamadas concurrentes a analyze_roi de cámaras distintas): SAMSegmenter
+    # es una única instancia compartida (get_segmenter() cachea un singleton),
+    # y SamPredictor.set_image()+predict() NO son reentrantes — si dos
+    # peticiones lo usan a la vez (FastAPI ejecuta los endpoints síncronos en
+    # threads separados), la segunda pisa el estado interno de la primera a
+    # mitad de camino y explota con un error de formas incompatibles entre
+    # las dimensiones de ROI de una cámara y otra ("could not broadcast...").
+    # _SAM_LOCK serializa el uso de SAM entre peticiones — más lento si dos
+    # análisis coinciden, pero correcto siempre, en vez de rápido y roto a
+    # veces. No afecta a color_fallback/Otsu (no comparten estado).
     s = get_segmenter()
     if s and s is not False:
         add_log(f"Cam {cam_id}: segmentación con SAM", "info")
         try:
-            mask, prob_map = s.segment_dry_sand(img, str(cam_id), return_prob_map=True)
+            with _SAM_LOCK:
+                mask, prob_map = s.segment_dry_sand(img, str(cam_id), return_prob_map=True)
         except Exception as e:
             add_log(f"Cam {cam_id}: SAM falló ({e}), usando color_fallback", "warning")
             mask = None
@@ -1411,6 +1439,19 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
         _, mask = cv2.threshold(hsv[:, :, 2], 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         mask[:int(h_orig * 0.4), :] = 0  # excluir cielo/horizonte
         add_log(f"Cam {cam_id}: Otsu como fallback de segmentación", "warning")
+
+    # Excluir la barra gris de fecha/hora/cámara que Obscape superpone al pie
+    # de CADA foto (bug real detectado 2026-09-10 con foto real de CAM_6: SAM
+    # a veces la incluye como "arena" — es una franja sólida, gris, sin
+    # textura, pegada al borde inferior, y no siempre hay un contraste fuerte
+    # con la arena real justo encima). Medido en fotos reales de 3 cámaras
+    # distintas: empieza siempre ~51px antes del borde inferior (a 2682px de
+    # alto) — se recorta con margen (2.5% de la altura, ~67px) y de forma
+    # proporcional para no depender de la resolución exacta. Se aplica AQUÍ,
+    # después de los tres métodos de segmentación (SAM, color_fallback,
+    # Otsu), para cubrir cualquiera de los tres sin repetir el recorte en
+    # cada uno.
+    mask[int(h_orig * 0.975):, :] = 0
 
     # Validar área de la máscara con umbrales por cámara (#80)
     mask_valid, mask_reason = validate_mask(mask, cam_id, img.shape[:2])
@@ -1441,16 +1482,23 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
             "rejected": True, "reject_reason": f"low_confidence:{conf:.2f}",
         }
 
-    # 4b. Recortar al casco convexo de las varillas de calibración (ver
-    # _calibration_hull_mask) — solo afecta a línea/área, la confianza de
-    # arriba ya se calculó sobre la máscara completa.
-    hull_mask = _calibration_hull_mask(cam_id, mask.shape)
-    if hull_mask is not None:
-        mask_clipped = cv2.bitwise_and(mask, hull_mask)
-        if mask_clipped.sum() > 0:
-            mask = mask_clipped
-        else:
-            add_log(f"Cam {cam_id}: el casco de calibración no solapa con la arena detectada, no se recorta", "warning")
+    # 4b. Recorte al casco de varillas — DESACTIVADO a petición explícita del
+    # usuario (2026-09-09): las varillas son solo para calibración y no deben
+    # ser una referencia para la segmentación/área en ningún caso, ni
+    # siquiera indirectamente vía este recorte — aunque mitigaba un problema
+    # real (la homografía extrapola sin control fuera del casco de varillas,
+    # ver _calibration_hull_mask más arriba), el efecto práctico era recortar
+    # arena real detectada correctamente solo porque caía fuera de donde
+    # había varillas puestas (ej. CAM_6, con pocas varillas cerca de la
+    # cámara). MAX_PLAUSIBLE_AREA_M2 (más abajo) se mantiene como única red
+    # de seguridad — no depende de varillas, solo descarta áreas absurdas.
+    # hull_mask = _calibration_hull_mask(cam_id, mask.shape)
+    # if hull_mask is not None:
+    #     mask_clipped = cv2.bitwise_and(mask, hull_mask)
+    #     if mask_clipped.sum() > 0:
+    #         mask = mask_clipped
+    #     else:
+    #         add_log(f"Cam {cam_id}: el casco de calibración no solapa con la arena detectada, no se recorta", "warning")
 
     # 5. Extraer línea de costa (píxeles)
     points_px = extract_coastline_from_mask(mask)
@@ -1472,6 +1520,24 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
     pts_array = np.array(points_px, dtype=np.float32).reshape(-1, 1, 2)
     pts_utm = cv2.perspectiveTransform(pts_array, H).reshape(-1, 2)
     pts_utm = _smooth_polyline(pts_utm)
+
+    # 6b. Transectos (anchura de playa) — ver comentario junto a
+    # _compute_transect_distances más abajo en este archivo. Vacío si la
+    # cámara no tiene ninguno marcado todavía (funcionalidad opcional, no
+    # bloquea el análisis normal).
+    transects = _compute_transect_distances(cam_id, H, pts_utm)
+
+    # 6c. Versión simplificada EN PÍXELES de la línea detectada, para la
+    # edición manual (#nuevo 2026-09-14, pedido en la reunión: "permite editar
+    # manualmente las segmentaciones automáticas... conservar las
+    # correcciones como datos de entrenamiento"). points_px es la línea
+    # cruda píxel a píxel ("sale dentada", ver _smooth_polyline) — cientos de
+    # puntos, inmanejable como puntos arrastrables uno a uno. approxPolyDP la
+    # reduce a un puñado de puntos de control que siguen la misma forma, algo
+    # que SÍ se puede corregir a mano con comodidad. epsilon proporcional al
+    # ancho de la imagen para no depender de la resolución de origen.
+    px_arr = np.array(points_px, dtype=np.float32).reshape(-1, 1, 2)
+    points_px_simplified = cv2.approxPolyDP(px_arr, epsilon=w_orig * 0.004, closed=False).reshape(-1, 2).tolist()
 
     # 7. Calcular área seca en m²: proyectar el CONTORNO de la máscara a UTM con
     # la homografía y aplicar la fórmula shoelace — no un factor fijo de m²/píxel,
@@ -1523,6 +1589,8 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
         "Imagen":       target_file,
         "Confianza_IA": round(conf, 4),
         "Area_Seca_m2": round(area_m2, 2),
+        "Transectos":   transects,
+        "Puntos_Px":    points_px_simplified,
         "EPSG":         25830,
     }
     line_feature = {
@@ -1562,9 +1630,16 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
         json.dump(fc, f)
     _append_history(cam_id, features)
 
-    # Guardar imagen con línea dibujada para preview
+    # Guardar imagen con línea dibujada para preview — TANTO la genérica
+    # "latest" (compatibilidad con lo que ya la usaba) COMO una copia propia
+    # por imagen (bug real detectado 2026-09-11: sin esto, cada vez que se
+    # quería volver a VER el resultado de una foto ya analizada —p.ej. con
+    # las flechas de Resultados— había que analizarla otra vez desde cero,
+    # aunque no hubiera cambiado nada; SAM tarda varios segundos por foto,
+    # así que no tiene sentido repetirlo solo para mirar lo ya calculado).
     viz = draw_coastline(img.copy(), points_px)
     cv2.imwrite(os.path.join(DATA_DIR, f"latest_analysis_cam{cam_id}.jpg"), viz)
+    cv2.imwrite(_analysis_preview_path(cam_id, target_file), viz)
 
     add_log(f"Análisis finalizado Cam {cam_id}. {len(pts_utm)} puntos UTM. Conf={conf:.2f}", "success")
     return {
@@ -1572,6 +1647,8 @@ def analyze_roi(cam_id: int, filename: Optional[str] = None):
         "confidence":   round(conf, 4),
         "timestamp":    timestamp,
         "points_utm":   len(pts_utm),
+        "transects":    transects,
+        "points_px":    points_px_simplified,
         "rejected":     False,
     }
 
@@ -1719,13 +1796,290 @@ def get_coastline_history(cam_id: int):
             return json.load(f)
     return {"type": "FeatureCollection", "features": []}
 
+# Ruta de la imagen de previsualización (línea de costa dibujada) GUARDADA
+# POR IMAGEN — ver el comentario en analyze_roi() sobre por qué hace falta
+# esto y no solo la "latest" genérica de antes.
+def _analysis_preview_path(cam_id: int, filename: str) -> str:
+    base = _safe_filename(filename).rsplit(".", 1)[0]
+    return os.path.join(DATA_DIR, f"analysis_cam{cam_id}_{base}.jpg")
+
 # DEBUG: sirve la imagen con la línea de costa dibujada (generada por analyze_roi
-# vía draw_coastline); si no existe aún, cae a la imagen original de la cámara.
+# vía draw_coastline). Con ?file=<nombre> sirve el resultado GUARDADO de esa
+# imagen concreta (sin volver a analizarla); sin él, cae al comportamiento de
+# siempre (el último análisis hecho, sea de la imagen que sea) para no romper
+# nada que ya lo use así. Si no hay preview guardada para ese fichero, cae a
+# la imagen original (sin segmentación) en vez de dar 404 — el frontend usa
+# esto también para enseñar la miniatura antes de analizar por primera vez.
 @app.get("/api/cameras/{cam_id}/analysis-result")
-def get_analysis_result(cam_id: int):
+def get_analysis_result(cam_id: int, file: Optional[str] = None):
+    if file:
+        path = _analysis_preview_path(cam_id, file)
+        if os.path.exists(path): return FileResponse(path)
+        return get_camera_image(cam_id, file=file)
     path = os.path.join(DATA_DIR, f"latest_analysis_cam{cam_id}.jpg")
     if os.path.exists(path): return FileResponse(path)
     return get_camera_image(cam_id)
+
+# Resultado YA CALCULADO de una imagen concreta, leído del histórico
+# (coastline_history_cam{id}.json) SIN volver a ejecutar el análisis — para
+# las flechas de Resultados (#nuevo 2026-09-11): pasar de una imagen a otra
+# ya analizada debe ser instantáneo, no relanzar SAM otra vez sobre una foto
+# que no ha cambiado. Devuelve la misma forma que analyze_roi() para que el
+# frontend pueda tratarlas igual; found=False si esa imagen concreta no
+# tiene ningún análisis ACEPTADO guardado todavía (nunca se analizó, o se
+# rechazó — los rechazos no se guardan en el histórico, así que no se puede
+# distinguir un caso del otro solo con esto).
+@app.get("/api/cameras/{cam_id}/images/{filename}/cached-result")
+def get_cached_analysis_result(cam_id: int, filename: str):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    safe_name = _safe_filename(filename)
+    history_path = _history_path(cam_id)
+    if os.path.exists(history_path):
+        try:
+            with open(history_path, "r") as f:
+                history = json.load(f)
+            for feature in history.get("features", []):
+                props = feature.get("properties", {})
+                if props.get("Imagen") != safe_name:
+                    continue
+                if feature.get("geometry", {}).get("type") != "LineString":
+                    continue  # el polígono repite las mismas propiedades, ya vale con la línea
+                return {
+                    "found": True,
+                    "dry_area_m2": props.get("Area_Seca_m2"),
+                    "confidence": props.get("Confianza_IA"),
+                    "timestamp": props.get("Timestamp"),
+                    "points_utm": len(feature.get("geometry", {}).get("coordinates", [])),
+                    "transects": props.get("Transectos", []),
+                    "points_px": props.get("Puntos_Px", []),
+                    "rejected": False,
+                }
+        except (json.JSONDecodeError, OSError):
+            pass
+    return {"found": False}
+
+# ── Sección temporal de entrenamiento de polilíneas (#nuevo 2026-09-13) ──────
+# Pedido en reunión de equipo (11/09/2026): antes de poder automatizar dónde
+# está la "línea húmeda" real (el objetivo de segmentación pasa de "toda la
+# arena seca" a esto), el equipo de campo necesita marcar A MANO, sobre ~20
+# imágenes reales por cámara, dónde debería estar esa línea — esos datos son
+# los que luego se usarán para entrenar/ajustar la segmentación. Se guarda
+# UN fichero por imagen (no uno por cámara) para poder editar o descartar
+# una anotación suelta sin tocar las demás, igual que se hace ya con las
+# varillas de calibración (_annotations_path) pero en su propia carpeta,
+# porque esto no tiene nada que ver con el calibrado geométrico.
+def _training_polyline_path(cam_id: int, filename: str) -> str:
+    base = _safe_filename(filename).rsplit(".", 1)[0] + ".json"
+    return os.path.join(DATA_DIR, f"CAM_{cam_id}", "training", base)
+
+# Carpeta de imágenes ADICIONALES para entrenamiento (#nuevo 2026-09-14):
+# pedido explícito del usuario — esta sección no tiene por qué limitarse a
+# las fotos ya cargadas de la cámara (Carga de Imágenes); el equipo puede
+# querer marcar fotos propias, sueltas, que nunca pasan por el flujo normal
+# de captura/análisis. Carpeta separada de CAMERAS[id]["folder"] a propósito,
+# para no mezclarlas con las capturas reales ni que cuenten como
+# pendientes/analizadas en otras pantallas (Carga de Imágenes, Resultados).
+def _training_images_dir(cam_id: int) -> str:
+    return os.path.join(DATA_DIR, f"CAM_{cam_id}", "training_images")
+
+def _resolve_training_image_path(cam_id: int, filename: str) -> Optional[str]:
+    safe_name = _safe_filename(filename)
+    cam_path = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"], safe_name)
+    if os.path.exists(cam_path):
+        return cam_path
+    extra_path = os.path.join(_training_images_dir(cam_id), safe_name)
+    if os.path.exists(extra_path):
+        return extra_path
+    return None
+
+class TrainingPolyline(BaseModel):
+    points: List[List[float]]  # [[x_px, y_px], ...] sobre la imagen ORIGINAL, sin recortar/escalar
+
+# Descarte "blando" de imágenes en la sección de entrenamiento (#nuevo
+# 2026-09-14, pieza "revisar/descartar antes de procesar" de la reunión):
+# a diferencia de borrar una imagen de la cámara (destructivo, afecta a toda
+# la app — Carga de Imágenes, Resultados...), aquí "descartar" solo la saca
+# de la cola de anotación de ESTA pantalla — igual que descartar una varilla
+# de calibración no borra el punto, solo lo excluye del cálculo. Reversible
+# en cualquier momento. Un único fichero por cámara (lista de nombres), no
+# uno por imagen — es solo un flag, no hace falta más.
+def _training_excluded_path(cam_id: int) -> str:
+    return os.path.join(DATA_DIR, f"CAM_{cam_id}", "training", "_excluded.json")
+
+def _load_training_excluded(cam_id: int) -> set:
+    path = _training_excluded_path(cam_id)
+    if not os.path.exists(path):
+        return set()
+    try:
+        with open(path, "r") as f:
+            return set(json.load(f).get("excluded", []))
+    except (json.JSONDecodeError, OSError):
+        return set()
+
+def _save_training_excluded(cam_id: int, excluded: set):
+    path = _training_excluded_path(cam_id)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump({"excluded": sorted(excluded)}, f, indent=2)
+
+@app.get("/api/training/cameras/{cam_id}/images")
+def list_training_images(cam_id: int):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    images = []
+    excluded = _load_training_excluded(cam_id)
+    cam_folder = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"])
+    if os.path.exists(cam_folder):
+        for f in sorted(os.listdir(cam_folder)):
+            if f.lower().endswith(IMAGE_EXTS):
+                images.append({
+                    "filename": f,
+                    "captured_at": _parse_capture_ts(f),
+                    "annotated": os.path.exists(_training_polyline_path(cam_id, f)),
+                    "source": "camera",
+                    "excluded": f in excluded,
+                })
+    extra_dir = _training_images_dir(cam_id)
+    if os.path.exists(extra_dir):
+        for f in sorted(os.listdir(extra_dir)):
+            if f.lower().endswith(IMAGE_EXTS):
+                images.append({
+                    "filename": f,
+                    "captured_at": _parse_capture_ts(f),
+                    "annotated": os.path.exists(_training_polyline_path(cam_id, f)),
+                    "source": "additional",
+                    "excluded": f in excluded,
+                })
+    return images
+
+@app.post("/api/training/cameras/{cam_id}/images/{filename}/exclude")
+def exclude_training_image(cam_id: int, filename: str):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    safe_name = _safe_filename(filename)
+    excluded = _load_training_excluded(cam_id)
+    excluded.add(safe_name)
+    _save_training_excluded(cam_id, excluded)
+    add_log(f"Cam {cam_id}: imagen {safe_name} descartada del entrenamiento", "info")
+    return {"excluded": True}
+
+@app.delete("/api/training/cameras/{cam_id}/images/{filename}/exclude")
+def include_training_image(cam_id: int, filename: str):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    safe_name = _safe_filename(filename)
+    excluded = _load_training_excluded(cam_id)
+    excluded.discard(safe_name)
+    _save_training_excluded(cam_id, excluded)
+    return {"excluded": False}
+
+# Sirve la imagen (de la carpeta normal de la cámara O de las adicionales
+# subidas para entrenamiento) — el endpoint genérico /api/cameras/{id}/image
+# no busca en training_images/, así que esta pantalla necesita el suyo propio.
+@app.get("/api/training/cameras/{cam_id}/image")
+def get_training_image(cam_id: int, file: str):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    path = _resolve_training_image_path(cam_id, file)
+    if not path:
+        raise HTTPException(status_code=404, detail="Imagen no encontrada")
+    return FileResponse(path)
+
+# Sube imágenes ADICIONALES (no capturadas por la cámara) para marcarlas en
+# esta sección — misma validación de tamaño que upload_images (MAX_UPLOAD_BYTES,
+# definido más abajo en este archivo; Python resuelve el nombre en tiempo de
+# llamada, así que el orden de definición no importa).
+@app.post("/api/training/cameras/{cam_id}/upload-images")
+async def upload_training_images(cam_id: int, files: List[UploadFile] = File(...)):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    dest = _training_images_dir(cam_id)
+    os.makedirs(dest, exist_ok=True)
+    saved = []
+    for f in files:
+        if not f.filename.lower().endswith(IMAGE_EXTS):
+            continue
+        safe_name = _safe_filename(f.filename)
+        contents = await f.read()
+        if len(contents) > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail=f"{safe_name} supera el tamaño máximo permitido")
+        with open(os.path.join(dest, safe_name), "wb") as out:
+            out.write(contents)
+        saved.append(safe_name)
+    add_log(f"Cam {cam_id}: {len(saved)} imagen(es) adicional(es) subida(s) para entrenamiento", "success")
+    return {"saved": saved}
+
+@app.delete("/api/training/cameras/{cam_id}/additional-images/{filename}")
+def delete_training_additional_image(cam_id: int, filename: str):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    safe_name = _safe_filename(filename)
+    path = os.path.join(_training_images_dir(cam_id), safe_name)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Imagen no encontrada")
+    os.remove(path)
+    poly_path = _training_polyline_path(cam_id, safe_name)
+    if os.path.exists(poly_path):
+        os.remove(poly_path)
+    add_log(f"Cam {cam_id}: imagen adicional de entrenamiento {filename} eliminada", "info")
+    return {"deleted": True}
+
+@app.get("/api/training/cameras/{cam_id}/images/{filename}/polyline")
+def get_training_polyline(cam_id: int, filename: str):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    path = _training_polyline_path(cam_id, filename)
+    if not os.path.exists(path):
+        return {"found": False, "points": []}
+    with open(path, "r") as f:
+        data = json.load(f)
+    return {"found": True, "points": data.get("points", []), "updated_at": data.get("updated_at")}
+
+@app.post("/api/training/cameras/{cam_id}/images/{filename}/polyline")
+def save_training_polyline(cam_id: int, filename: str, payload: TrainingPolyline):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    safe_name = _safe_filename(filename)
+    if len(payload.points) < 2:
+        raise HTTPException(status_code=400, detail="Una polilínea necesita al menos 2 puntos")
+    path = _training_polyline_path(cam_id, safe_name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump({
+            "image": safe_name,
+            "points": payload.points,
+            "updated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        }, f, indent=2)
+    add_log(f"Cam {cam_id}: polilínea de entrenamiento guardada para {safe_name} ({len(payload.points)} puntos)", "success")
+    return {"found": True, "points": payload.points}
+
+@app.delete("/api/training/cameras/{cam_id}/images/{filename}/polyline")
+def delete_training_polyline(cam_id: int, filename: str):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    path = _training_polyline_path(cam_id, _safe_filename(filename))
+    if os.path.exists(path):
+        os.remove(path)
+        add_log(f"Cam {cam_id}: polilínea de entrenamiento de {filename} descartada", "info")
+    return {"deleted": True}
+
+# Exporta TODAS las polilíneas de entrenamiento de una cámara en un único
+# JSON (petición del equipo: "que se exporte todo en json mediante las
+# imágenes que ellos quieren que usemos") — el frontend lo descarga como
+# fichero, igual que ya hace con el GeoJSON de resultados en CoastlineAnalysis.vue.
+@app.get("/api/training/cameras/{cam_id}/export")
+def export_training_polylines(cam_id: int):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    training_dir = os.path.join(DATA_DIR, f"CAM_{cam_id}", "training")
+    entries = []
+    if os.path.exists(training_dir):
+        for f in sorted(os.listdir(training_dir)):
+            if f.endswith(".json"):
+                with open(os.path.join(training_dir, f), "r") as jf:
+                    entries.append(json.load(jf))
+    return {"cam_id": cam_id, "camera": CAMERAS[cam_id].get("name"), "annotations": entries}
 
 # Límite de tamaño por fichero subido (imagen o CSV) — evita que un cliente
 # agote el disco con un solo POST; generoso para fotos 4K sin comprimir.
@@ -1762,7 +2116,25 @@ def list_camera_images(cam_id: int):
     cam_folder = os.path.join(DATA_DIR, CAMERAS[cam_id]["folder"])
     if not os.path.exists(cam_folder):
         return []
-    
+
+    # Nombres de fichero ya analizados con éxito (área seca aceptada) — para
+    # el botón "Analizar todas las pendientes" del frontend, que necesita
+    # distinguir qué imágenes ya tienen un resultado en el histórico de las
+    # que todavía no se han procesado nunca. Se lee UNA vez por cámara, no
+    # por imagen dentro del bucle de abajo.
+    analyzed_filenames = set()
+    history_path = _history_path(cam_id)
+    if os.path.exists(history_path):
+        try:
+            with open(history_path, "r") as hf:
+                history = json.load(hf)
+            for feature in history.get("features", []):
+                img_name = feature.get("properties", {}).get("Imagen")
+                if img_name:
+                    analyzed_filenames.add(img_name)
+        except (json.JSONDecodeError, OSError):
+            pass
+
     images = []
     for f in sorted(os.listdir(cam_folder)):
         if f.lower().endswith(IMAGE_EXTS):
@@ -1787,6 +2159,7 @@ def list_camera_images(cam_id: int):
                 "calibrated": calibrated,
                 "aligned": bool(align_info),
                 "align_inliers": align_info.get("inliers") if align_info else None,
+                "analyzed": f in analyzed_filenames,
             })
     return images
 
@@ -1814,6 +2187,9 @@ def delete_camera_image(cam_id: int, filename: str):
         ann_path = _annotations_path(cam_id, safe_name)
         if os.path.exists(ann_path):
             os.remove(ann_path)
+        preview_path = _analysis_preview_path(cam_id, safe_name)
+        if os.path.exists(preview_path):
+            os.remove(preview_path)
         add_log(f"Imagen {filename} eliminada de Cam {cam_id}", "info")
         return {"status": "success"}
     except Exception as e:
@@ -2061,6 +2437,96 @@ def update_rods(cam_id: int, payload: RodsUpdatePayload):
     add_log(f"Catálogo de varillas corregido manualmente para Cam {cam_id} ({len(payload.rods)} varillas)", "success")
     return {"status": "success", "count": len(payload.rods), "rods": out["rods"]}
 
+# ── Transectos: anchura de playa (#nuevo 2026-09-14) ──────────────────────────
+# Pedido explícito en la reunión de equipo (11/09/2026): el área en m² no es
+# fiable ("olvidaros de la cuestión de los cálculos de áreas"); en su lugar,
+# un transecto — un punto de referencia FIJO (p.ej. la valla de la duna) +
+# la distancia hasta la línea de costa detectada — da un indicador de
+# "anchura de playa" mucho más entendible y estable en el tiempo.
+#
+# Se marca UNA VEZ por cámara (el punto, en píxeles, sobre una imagen de
+# referencia) y se reutiliza en TODOS los análisis siguientes — se recalcula
+# su UTM con la homografía VIGENTE en cada análisis (no se cachea), así que
+# sigue siendo válido aunque la cámara se recalibre más adelante. La cámara
+# es fija (o casi — ver debate en la reunión sobre viento/limpieza), así que
+# el mismo píxel de referencia vale para cualquier imagen suya.
+def _transects_path(cam_id: int) -> str:
+    return os.path.join(CALIBRATION_DIR, f"cam_{cam_id}_transects.json")
+
+class TransectPoint(BaseModel):
+    label: str
+    pixel: List[float]  # [x_px, y_px] sobre la imagen de referencia, sin escalar
+
+class TransectsUpdate(BaseModel):
+    transects: List[TransectPoint]
+
+@app.get("/api/cameras/{cam_id}/transects")
+def get_transects(cam_id: int):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    path = _transects_path(cam_id)
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            return json.load(f)
+    return {"cam_id": cam_id, "transects": []}
+
+@app.put("/api/cameras/{cam_id}/transects")
+def update_transects(cam_id: int, payload: TransectsUpdate):
+    if cam_id not in CAMERAS:
+        raise HTTPException(status_code=404, detail="Cámara no encontrada")
+    for t in payload.transects:
+        if not t.label.strip():
+            raise HTTPException(status_code=400, detail="Todos los transectos necesitan una etiqueta")
+        if len(t.pixel) != 2:
+            raise HTTPException(status_code=400, detail=f"El transecto '{t.label}' necesita un píxel [X, Y]")
+    out = {
+        "cam_id": cam_id,
+        "edited_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        "transects": [t.dict() for t in payload.transects],
+    }
+    os.makedirs(CALIBRATION_DIR, exist_ok=True)
+    with open(_transects_path(cam_id), "w") as f:
+        json.dump(out, f, indent=2)
+    add_log(f"Cam {cam_id}: {len(payload.transects)} transecto(s) guardado(s)", "success")
+    return out
+
+def _distance_point_to_polyline(point: np.ndarray, polyline: np.ndarray) -> float:
+    """Distancia mínima (en las mismas unidades que polyline, aquí metros UTM)
+    de `point` al segmento MÁS CERCANO de `polyline` — no a un vértice
+    concreto. Para un punto de referencia fijo mirando hacia el mar (p.ej. la
+    valla de la duna), esto equivale en la práctica a la distancia
+    perpendicular que se mediría a mano con una cinta métrica, sin necesidad
+    de que el usuario marque también un ángulo."""
+    best = None
+    for i in range(len(polyline) - 1):
+        a, b = polyline[i], polyline[i + 1]
+        ab = b - a
+        ab_len2 = float(np.dot(ab, ab))
+        t = 0.0 if ab_len2 == 0 else float(np.clip(np.dot(point - a, ab) / ab_len2, 0.0, 1.0))
+        proj = a + t * ab
+        d = float(np.linalg.norm(point - proj))
+        if best is None or d < best:
+            best = d
+    return best
+
+def _compute_transect_distances(cam_id: int, H: np.ndarray, pts_utm: np.ndarray) -> list:
+    path = _transects_path(cam_id)
+    if not os.path.exists(path) or len(pts_utm) < 2:
+        return []
+    with open(path, "r") as f:
+        transects = json.load(f).get("transects", [])
+    if not transects:
+        return []
+    pixels = np.array([t["pixel"] for t in transects], dtype=np.float32).reshape(-1, 1, 2)
+    utm_pts = cv2.perspectiveTransform(pixels, H).reshape(-1, 2)
+    out = []
+    for t, p_utm in zip(transects, utm_pts):
+        out.append({
+            "label": t["label"],
+            "distance_m": round(_distance_point_to_polyline(p_utm, pts_utm), 2),
+        })
+    return out
+
 # ── Frontend estático (app de escritorio) ─────────────────────────────────────
 # Sirve frontend/dist/ (generado con `npm run build`) desde el propio backend,
 # para que la app empaquetada sea UN solo proceso en vez de necesitar el dev
@@ -2074,5 +2540,31 @@ if FROZEN:
 else:
     FRONTEND_DIST = os.path.join(BASE_DIR, "frontend", "dist")
 
+# Bug real detectado y verificado 2026-09-10: la app de escritorio abre su
+# ventana con WebView2 (pywebview en Windows), que usa un perfil PERSISTENTE
+# entre arranques (no es una pestaña de navegador que el usuario pueda
+# refrescar a mano) — StaticFiles por defecto no manda ningún Cache-Control,
+# así que WebView2 puede quedarse sirviendo el index.html en caché
+# indefinidamente, con las referencias a assets/index-<hash>.js de la
+# versión ANTERIOR, aunque el .exe ya se haya reinstalado con el código
+# nuevo. Los assets con hash en el nombre (assets/index-XXXX.js/.css) sí
+# pueden cachearse sin problema — si cambia el contenido, cambia el nombre
+# del fichero — el único que NO debe cachearse nunca es el propio
+# index.html, que es el que decide qué hash cargar.
+class _NoCacheHTMLStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        # OJO: StaticFiles.get_path() normaliza la ruta interna de la raíz a
+        # "." (os.path.normpath de una cadena vacía), NO a "index.html" —
+        # comparar contra path aquí nunca coincide (bug real en el primer
+        # intento de este fix, detectado al verificar en vivo que la
+        # cabecera no llegaba). Comparar contra la URL real de la petición
+        # es robusto de verdad: esta app no tiene más páginas HTML que la
+        # raíz (sin vue-router), así que "/" identifica sin ambigüedad al
+        # index.html que hay que revalidar siempre.
+        if scope.get("path") == "/":
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+
 if os.path.isdir(FRONTEND_DIST):
-    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
+    app.mount("/", _NoCacheHTMLStaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")

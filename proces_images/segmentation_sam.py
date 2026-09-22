@@ -95,9 +95,16 @@ CAM_PROMPTS = {
     # obstáculo permanente, la máscara pasa a cubrir el 24.7% del ROI y sigue
     # correctamente la franja completa de arena seca (sombrillas incluidas,
     # que sí son arena por debajo).
+    # 2026-09-10: verificado con foto real que, incluso con el relleno de
+    # huecos (fill_small_gaps), quedaba sin cubrir una plaza de arena real y
+    # abierta más allá del chiringuito/palmeras (junto a unas carpas
+    # blancas, lejos de la cámara) — NO es un hueco cerrado (no lo detecta
+    # fill_small_gaps), es que la propia máscara de SAM no llegaba tan
+    # lejos. Añadido un 3er punto ahí (0.858, 0.309, en fracción del ROI).
     "CAM_3": [
         {"point": [0.50, 0.80], "label": 1},
         {"point": [0.58, 0.85], "label": 1},
+        {"point": [0.858, 0.309], "label": 1},
         {"point": [0.50, 0.10], "label": 0},
     ],
     "CAM_4": [
@@ -223,6 +230,116 @@ def remove_false_detections(mask: np.ndarray, image: np.ndarray) -> np.ndarray:
     result = cv2.morphologyEx(result, cv2.MORPH_OPEN, kernel)
 
     return result
+
+
+# Umbral de relleno de huecos: fracción máxima del área de arena ya
+# detectada que puede ocupar un hueco/objeto para considerarse "sobre la
+# arena" y rellenarse, en vez de una laguna/charco real grande. Calibrado con
+# datos reales el 2026-09-09: la plaza de arena de CAM_3 (real, verificada
+# visualmente — ver comentario de fill_small_gaps) mide un 5.61% del área de
+# arena de esa cámara; se deja margen por encima (8%) sin acercarse a
+# "tragarse media playa".
+MAX_GAP_AREA_RATIO = 0.08
+
+# Radio (px, a la resolución nativa de la cámara ~4608px de ancho) de
+# reconstrucción morfológica — ver fill_small_gaps. Calibrado con datos
+# reales el 2026-09-09: 101px corta con margen los "hilos" de sombra de
+# sombrillas/palmeras (unos pocos px de ancho) sin fusionar la arena con el
+# mar en ninguna de las 5 cámaras probadas (CAM_1/2/3/4/6, todas con foto
+# real).
+GAP_FILL_KERNEL_PX = 101
+
+def fill_small_gaps(
+    mask: np.ndarray,
+    max_gap_area_ratio: float = MAX_GAP_AREA_RATIO,
+    kernel_px: int = GAP_FILL_KERNEL_PX,
+) -> np.ndarray:
+    """
+    Rellena huecos de arena seca ocupados por objetos, SIN usar las varillas
+    de calibración como referencia en ningún caso (a petición explícita del
+    usuario 2026-09-09 — ver también el recorte al casco de varillas, ya
+    desactivado, en backend/main.py::analyze_roi).
+
+    Una persona, sombrilla o palmera sobre la arena interrumpe localmente la
+    detección de SAM justo ahí, dejando un "agujero" de "no arena" — la
+    arena que SÍ hay debajo/alrededor del objeto no desaparece porque haya
+    algo encima. Sin este relleno: (a) resta cobertura real a
+    confidence_index() sin motivo (usa mask.sum() en bruto), y (b) si el
+    objeto está pegado al borde de la orilla, mella artificialmente la línea
+    de costa extraída justo en ese tramo.
+
+    Primera versión (2026-09-03): un hueco se rellenaba solo si su
+    componente conexo en el COMPLEMENTO de la máscara no tocaba ningún borde
+    de la imagen (mar/cielo/exterior del ROI siempre tocan alguno). Bug real
+    detectado y verificado 2026-09-09 con fotos reales de CAM_2 y CAM_3: casi
+    ningún objeto real está de verdad "cerrado" — su sombra suele conectar,
+    por un hilo de solo 1-2px, con el mar o con otra zona de fondo que sí
+    toca el borde, así que ese criterio los trataba a TODOS como "exterior"
+    y no rellenaba nada (comprobado: 0 huecos detectados pese a sombrillas y
+    troncos de palmera claramente visibles en las fotos).
+
+    Solución (apertura por reconstrucción morfológica): erosionar el
+    complemento con un elemento de radio kernel_px ANTES de decidir qué toca
+    el borde corta esos hilos finos — la sombra de una sombrilla no sobrevive
+    a la erosión, pero el mar (una región ancha de verdad) sí. A partir de
+    los componentes erosionados que aún tocan el borde ("semillas" de fondo
+    real), se reconstruye su extensión completa creciendo la semilla DENTRO
+    DEL COMPLEMENTO YA EROSIONADO (no del original — si se creciera sin esa
+    restricción, la dilatación acabaría atravesando el mismo hilo fino que
+    la erosión debía cortar, porque la conectividad es una propiedad
+    topológica: si existe cualquier camino, por fino que sea, tarde o
+    temprano se encuentra) y dilatando el resultado de vuelta para
+    recuperar su tamaño real. Todo lo que queda en el complemento original y
+    NO forma parte de ese fondo reconstruido es un hueco/objeto — se rellena
+    si su tamaño no supera max_gap_area_ratio del área de arena (protección
+    extra: una laguna real que por algún motivo quedara aislada no se traga
+    sin más).
+
+    Verificado con fotos reales (checkpoint SAM real, 2026-09-09): cubre
+    correctamente sombrillas sueltas, troncos de palmera y una plaza de
+    arena completa junto a un chiringuito (CAM_3) sin fusionar la máscara
+    con el mar en ninguna de las 5 cámaras probadas.
+    """
+    if mask is None:
+        return mask
+    binary = (mask > 0).astype(np.uint8)
+    sand_area = int(binary.sum())
+    if sand_area == 0:
+        return mask
+
+    inverse = 1 - binary
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_px, kernel_px))
+    eroded_inverse = cv2.erode(inverse, kernel)
+
+    n_labels, labels = cv2.connectedComponents(eroded_inverse, connectivity=8)
+    border_labels = (
+        set(labels[0, :].tolist()) | set(labels[-1, :].tolist())
+        | set(labels[:, 0].tolist()) | set(labels[:, -1].tolist())
+    )
+    border_labels.discard(0)
+    seed = np.isin(labels, list(border_labels)).astype(np.uint8) if border_labels else np.zeros_like(binary)
+
+    # Reconstrucción: crecer la semilla dentro del complemento EROSIONADO
+    # (ver docstring) hasta estabilizarse.
+    prev = seed
+    for _ in range(300):
+        grown = cv2.bitwise_and(cv2.dilate(prev, kernel), eroded_inverse)
+        if np.array_equal(grown, prev):
+            break
+        prev = grown
+    # Deshacer la erosión inicial para recuperar la extensión real del fondo.
+    background = cv2.bitwise_and(cv2.dilate(prev, kernel), inverse)
+
+    holes = (inverse.astype(bool) & ~background.astype(bool)).astype(np.uint8)
+    n_holes, hole_labels = cv2.connectedComponents(holes, connectivity=8)
+    max_gap_px = max_gap_area_ratio * sand_area
+    filled = binary.copy()
+    for label in range(1, n_holes):
+        component = hole_labels == label
+        if int(component.sum()) <= max_gap_px:
+            filled[component] = 1
+
+    return (filled * 255).astype(np.uint8)
 
 
 def check_temporal_consistency(
@@ -387,6 +504,14 @@ class SAMSegmenter:
         # Filtro de falsas detecciones (#48)
         if remove_false:
             full_mask = remove_false_detections(full_mask, image)
+
+        # Relleno de huecos pequeños (personas/objetos sobre la arena, ver
+        # fill_small_gaps) — DESPUÉS de remove_false_detections a propósito:
+        # ese filtro puede él mismo abrir pequeños huecos nuevos (p.ej. al
+        # quitar un reflejo puntual sobre arena mojada), así que el relleno
+        # tiene que ser el último paso para limpiar el resultado final, no
+        # uno intermedio que luego otro filtro vuelva a agujerear.
+        full_mask = fill_small_gaps(full_mask)
 
         if return_prob_map:
             return full_mask, prob_map

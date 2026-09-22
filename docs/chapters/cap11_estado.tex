@@ -212,4 +212,34 @@ caso pendiente real: su homografía es correcta pero el área detectada supera e
 plausibilidad porque las varillas topografiadas no cubren suficiente extensión de la playa —
 requiere una nueva sesión de campo, no un cambio de código.
 
+\section{Ronda de funcionalidades nuevas --- reunión de equipo, 11 de septiembre de 2026}
+\label{sec:reunion-septiembre11}
+
+Reunión de demostración con Alejandro Triviño, Andrés Fuster Guilló y Jorge Azorín López: se
+mostró la versión desarrollada de la aplicación y se recogieron los puntos de acción para la
+siguiente iteración (guía de uso completa en el capítulo~\ref{ch:ops}).
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Métricas basadas en transectos} (\S\ref{sec:transectos}): el área en
+        m\textsuperscript{2} se consideró poco fiable como indicador (``olvidaros de la
+        cuestión de los cálculos de áreas'') — se sustituye en prioridad por la anchura de
+        playa medida desde un punto de referencia fijo hasta la línea de costa detectada.
+  \item \textbf{Sección temporal de entrenamiento} (\S\ref{sec:entrenamiento}): antes de poder
+        automatizar dónde está la ``línea húmeda'' real (objetivo final de la segmentación,
+        \S\ref{sec:linea-humeda-pendiente}), el equipo de campo necesita marcar a mano, sobre
+        $\sim$20 imágenes por cámara, dónde debería estar esa línea.
+  \item \textbf{Edición manual de la segmentación automática} (\S\ref{sec:edicion-manual}):
+        poder corregir a mano la línea que da SAM cuando se equivoca, conservando la corrección
+        como dato de entrenamiento — unificado con el punto anterior en el mismo almacén.
+  \item \textbf{Revisar/descartar antes de procesar}: tanto en \textit{Carga de imágenes}
+        (visor de previsualización a tamaño completo) como en \textit{Entrenamiento} (descarte
+        blando y reversible, igual que descartar una varilla de calibración).
+\end{itemize}
+
+Las cuatro piezas quedaron implementadas, compiladas en el \texttt{.exe} y verificadas contra la
+app real (incluyendo un análisis SAM real end-to-end para transectos y edición manual). Queda
+pendiente, a propósito, el punto que la propia reunión dejó abierto: cambiar el objetivo real de
+segmentación de ``arena seca'' a ``línea húmeda'' — depende de los datos que salgan de la
+sección de Entrenamiento, no es un cambio de código que se pueda hacer a ciegas.
+
 % ==============================================================

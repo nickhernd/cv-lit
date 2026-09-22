@@ -34,6 +34,22 @@ Ago 2026 & Auto Mode & Exportación automática de GeoJSON, panel de estado por 
 Ago 2026 & Empaquetado & Instalador de escritorio para Windows
   (\texttt{LineaDeCosta-Setup.exe}, PyInstaller + Inno Setup) \\
 Ago 2026 & Tests & \texttt{test\_auto\_mode.py}, \texttt{test\_geometry\_warning.py} \\
+Sep 2026 & Resultados & Caché de resultado por imagen (flechas de navegación ya no relanzan
+  SAM) + \texttt{\_SAM\_LOCK}: corrige un fallo real de concurrencia (\texttt{SamPredictor} no
+  es reentrante) \\
+Sep 2026 & Segmentación & \texttt{fill\_small\_gaps()} reescrito con reconstrucción morfológica;
+  prompts de CAM~2/3 ajustados; recorte universal de la franja gris de fecha/hora \\
+Sep 2026 & Entrenamiento & Sección temporal nueva (\texttt{TrainingAnnotation.vue}): marcado
+  manual de la línea húmeda por polilíneas, zoom/lupa/flechas de precisión, imágenes
+  adicionales, revisar/descartar, exportación JSON por cámara \\
+Sep 2026 & Transectos & Pantalla nueva (\texttt{Transects.vue}) + \texttt{\_compute\_transect\_}
+  \texttt{distances()}: anchura de playa por punto de referencia fijo, sustituye al área en
+  fiabilidad (pedido en reunión de equipo, 11/09/2026) \\
+Sep 2026 & Resultados & Edición manual de la línea detectada por SAM (arrastrar/añadir/borrar
+  puntos), guardada como dato de entrenamiento en el mismo almacén que
+  \texttt{TrainingAnnotation.vue} \\
+Sep 2026 & Carga de imágenes & Visor de previsualización a tamaño completo antes de
+  procesar/descartar una imagen \\
 \bottomrule
 \end{tabular}
 \end{table}

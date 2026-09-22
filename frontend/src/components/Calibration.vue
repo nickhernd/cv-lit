@@ -69,16 +69,37 @@ const importGroupsNeedAttention = computed(() =>
   pendingGcps.value.length > 0
 )
 
-// Paso 5 (Marcación): la imagen se pinta con object-contain, así que si su
-// proporción no coincide con la del panel quedan bandas (letterbox) a los
-// lados o arriba/abajo. Guardamos el tamaño real renderizado de la imagen
-// (no el del contenedor) para dibujar cada punto sobre su píxel real y para
-// recalcular en cuanto cambie el tamaño de la ventana — si no, los puntos se
-// quedan flotando separados de la imagen en vez de moverse con ella.
+// Paso 5 (Marcación): markStageRef es un lienzo interior dimensionado EXACTAMENTE
+// como la imagen renderizada (sin bandas de letterbox) — la imagen y los
+// marcadores viven dentro de él, y es la única referencia que se usa tanto
+// para convertir un click en píxel real como para dibujar cada marcador, así
+// que ambos cálculos usan siempre exactamente el mismo rectángulo (ver
+// eventToImagePixel). stagePanelRef es el visor que lo contiene: con scroll
+// propio, para poder mostrar el lienzo más grande que el hueco disponible en
+// modo "doble zoom" sin perder precisión de click en los bordes.
+const markStageRef = ref(null)
+const stagePanelRef = ref(null)
 const markImgRef = ref(null)
 const imgNatural = ref({ width: 0, height: 0 })
-const stageSize = ref({ width: 0, height: 0 })
+const panelSize = ref({ width: 0, height: 0 })
+// 'fit' = imagen completa ajustada al visor (como antes); 'x2' = el doble de
+// ese tamaño, con scroll — para poder marcar con más precisión en fotos de
+// varios miles de píxeles sin depender solo de la lupa.
+const imageZoomMode = ref('fit')
 let stageResizeObserver = null
+
+// Tamaño real (px) al que se pinta el lienzo interior — ajustado al hueco
+// disponible del visor (modo 'fit', igual que el object-contain de antes) o
+// al doble de ese tamaño (modo 'x2'). Con esto, el visor solo necesita
+// centrar su contenido (cuando cabe) o dejar que se desplace (cuando no).
+const stageDisplaySize = computed(() => {
+  const { width: natW, height: natH } = imgNatural.value
+  const { width: boxW, height: boxH } = panelSize.value
+  if (!natW || !natH || !boxW || !boxH) return { width: 0, height: 0 }
+  const fitScale = Math.min(boxW / natW, boxH / natH)
+  const scale = imageZoomMode.value === 'x2' ? fitScale * 2 : fitScale
+  return { width: natW * scale, height: natH * scale }
+})
 
 // Alineación de la imagen activa (paso 5): si esta imagen viene del módulo de
 // Alineación, currentAlignH guarda la H (captura original -> imagen alineada)
@@ -153,15 +174,24 @@ function drawLoupe() {
 // Convierte un evento de ratón sobre la foto en (a) coordenadas de píxel
 // nativas de la imagen y (b) porcentaje relativo — la misma lógica que
 // necesita tanto el click (fijar un punto) como el hover (mover la lupa).
+// SIEMPRE se mide contra markStageRef (el lienzo, exactamente del tamaño de
+// la imagen renderizada) en vez de event.currentTarget: antes, el click
+// (escuchado en la propia <img>) y el hover de la lupa (escuchado en el div
+// contenedor, con su propio borde de 1px vía .card-standard) medían desde
+// dos cajas ligeramente distintas — un desvío real, pequeño pero
+// sistemático (arriba-izquierda), entre lo que mostraba la lupa y dónde
+// caía el click. Con una única referencia para los dos, el desvío
+// desaparece por construcción, venga el evento de donde venga.
 function eventToImagePixel(event) {
-  const r = imageRect.value
-  if (!r.width || !r.height) return null
-  const box = event.currentTarget.getBoundingClientRect()
-  const x = event.clientX - box.left - r.offsetX
-  const y = event.clientY - box.top - r.offsetY
-  if (x < 0 || y < 0 || x > r.width || y > r.height) return null
-  const relX = (x / r.width) * 100
-  const relY = (y / r.height) * 100
+  const el = markStageRef.value
+  if (!el) return null
+  const box = el.getBoundingClientRect()
+  if (!box.width || !box.height) return null
+  const x = event.clientX - box.left
+  const y = event.clientY - box.top
+  if (x < 0 || y < 0 || x > box.width || y > box.height) return null
+  const relX = (x / box.width) * 100
+  const relY = (y / box.height) * 100
   return {
     relX, relY,
     pixelX: (relX / 100) * imgNatural.value.width,
@@ -175,65 +205,100 @@ function onStageMouseMove(event) {
   if (!p) { loupeVisible.value = false; return }
   loupeNaturalPos = { x: p.pixelX, y: p.pixelY }
   loupeVisible.value = true
-  // Posicionar la lupa cerca del cursor pero sin taparlo, y sin salirse del panel.
-  const stageBox = event.currentTarget.getBoundingClientRect()
-  let left = event.clientX - stageBox.left + 24
-  let top = event.clientY - stageBox.top - LOUPE_SIZE - 24
-  if (left + LOUPE_SIZE > stageBox.width) left = event.clientX - stageBox.left - LOUPE_SIZE - 24
-  if (top < 0) top = event.clientY - stageBox.top + 24
+  // Posicionar la lupa cerca del cursor pero dentro del VISOR (stagePanelRef,
+  // el hueco visible) y no del lienzo interior — en modo doble zoom el
+  // lienzo puede ser mucho más grande que el visor y estar desplazado por el
+  // scroll, así que posicionar contra él dejaría la lupa fuera de la pantalla.
+  const panelBox = stagePanelRef.value.getBoundingClientRect()
+  let left = event.clientX - panelBox.left + 24
+  let top = event.clientY - panelBox.top - LOUPE_SIZE - 24
+  if (left + LOUPE_SIZE > panelBox.width) left = event.clientX - panelBox.left - LOUPE_SIZE - 24
+  if (top < 0) top = event.clientY - panelBox.top + 24
   loupeScreenPos.value = { left, top }
   requestAnimationFrame(drawLoupe)
 }
 
 function onStageMouseLeave() { loupeVisible.value = false }
 
-function updateStageSize() {
-  if (!markImgRef.value) return
-  stageSize.value = { width: markImgRef.value.clientWidth, height: markImgRef.value.clientHeight }
+function updatePanelSize() {
+  if (!stagePanelRef.value) return
+  panelSize.value = { width: stagePanelRef.value.clientWidth, height: stagePanelRef.value.clientHeight }
 }
 
 function onMarkImageLoad(e) {
   imgNatural.value = { width: e.target.naturalWidth, height: e.target.naturalHeight }
-  updateStageSize()
 }
 
-// Rectángulo que ocupa REALMENTE la imagen dentro de su contenedor (con
-// object-contain puede haber bandas). Clicks, píxeles guardados y posición de
-// los puntos se calculan siempre contra este rectángulo, nunca contra el
-// contenedor completo.
-const imageRect = computed(() => {
-  const { width: natW, height: natH } = imgNatural.value
-  const { width: boxW, height: boxH } = stageSize.value
-  if (!natW || !natH || !boxW || !boxH) return { offsetX: 0, offsetY: 0, width: 0, height: 0 }
-  const scale = Math.min(boxW / natW, boxH / natH)
-  const width = natW * scale
-  const height = natH * scale
-  return { offsetX: (boxW - width) / 2, offsetY: (boxH - height) / 2, width, height }
-})
-
-function gcpMarkerStyle(gcp) {
-  const r = imageRect.value
-  if (!r.width || !r.height) return { left: gcp.rel[0] + '%', top: gcp.rel[1] + '%' }
-  return {
-    left: (r.offsetX + (gcp.rel[0] / 100) * r.width) + 'px',
-    top: (r.offsetY + (gcp.rel[1] / 100) * r.height) + 'px'
-  }
-}
-
-// El <img> del paso 5 se monta/desmonta al cambiar de paso (v-if), así que
-// el ResizeObserver se (re)conecta cada vez que aparece el elemento real.
-watch(markImgRef, (el) => {
+// El visor del paso 5 se monta/desmonta al cambiar de paso o de modo de vista
+// (v-if), así que el ResizeObserver se (re)conecta cada vez que aparece el
+// elemento real — se observa el VISOR (tamaño de hueco disponible), no el
+// lienzo interior (que cambia de tamaño con el propio zoom que este cálculo
+// alimenta, y entraría en bucle).
+watch(stagePanelRef, (el) => {
   if (stageResizeObserver) { stageResizeObserver.disconnect(); stageResizeObserver = null }
   if (el) {
-    updateStageSize()
-    stageResizeObserver = new ResizeObserver(updateStageSize)
+    updatePanelSize()
+    stageResizeObserver = new ResizeObserver(updatePanelSize)
     stageResizeObserver.observe(el)
   }
 })
 
 onBeforeUnmount(() => {
   if (stageResizeObserver) stageResizeObserver.disconnect()
+  window.removeEventListener('keydown', handleMarkKeydown)
 })
+
+// Navegación/ajuste fino del punto seleccionado con el teclado (paso 5):
+// acertar el píxel exacto con el ratón es difícil en fotos de varios miles
+// de píxeles — las flechas desplazan el punto activo 1px (10px con Shift,
+// para cruzar distancias más grandes sin soltar el teclado) sin tener que
+// volver a apuntar con el ratón. Se ignora si el foco está en un campo de
+// texto/número (p.ej. editando UTM X/Y), donde las flechas deben mover el
+// cursor de texto, no la varilla.
+const NUDGE_STEP = 1
+const NUDGE_STEP_FAST = 10
+let nudgeSaveTimer = null
+
+function nudgeSelectedGcp(dx, dy) {
+  if (selectedGcpIdx.value === null || !imgNatural.value.width) return
+  const gcp = currentProfile.value.gcps[selectedGcpIdx.value]
+  if (!gcp) return
+  const maxX = imgNatural.value.width, maxY = imgNatural.value.height
+  const px = Math.min(Math.max(gcp.pixel[0] + dx, 0), maxX)
+  const py = Math.min(Math.max(gcp.pixel[1] + dy, 0), maxY)
+  gcp.pixel = [px, py]
+  gcp.rel = [(px / maxX) * 100, (py / maxY) * 100]
+  gcp.confirmed = true
+  gcp.aligned_H = currentAlignInfo.value?.H || gcp.aligned_H
+  // Mismo criterio que un click de reposicionamiento manual (ver
+  // handleImageClick): ajustar a mano el punto ya deja de considerarse
+  // "recién creado", para que el siguiente click en la foto vuelva a añadir
+  // varillas nuevas en vez de seguir moviendo esta.
+  if (justCreatedIdx.value === selectedGcpIdx.value) justCreatedIdx.value = null
+  loupeNaturalPos = { x: px, y: py }
+  loupeVisible.value = true
+  requestAnimationFrame(drawLoupe)
+  // Guardado con un pequeño retardo: mantener pulsada una flecha dispara
+  // muchos ajustes seguidos, y guardar (+ notificar) en cada uno saturaría
+  // la API y el aviso de "Anotaciones guardadas" sin ninguna utilidad.
+  clearTimeout(nudgeSaveTimer)
+  nudgeSaveTimer = setTimeout(saveAnnotations, 500)
+}
+
+const NUDGE_KEYS = {
+  ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0],
+}
+
+function handleMarkKeydown(event) {
+  if (currentStep.value !== 5 || selectedGcpIdx.value === null) return
+  const tag = document.activeElement?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+  const dir = NUDGE_KEYS[event.key]
+  if (!dir) return
+  event.preventDefault()
+  const step = event.shiftKey ? NUDGE_STEP_FAST : NUDGE_STEP
+  nudgeSelectedGcp(dir[0] * step, dir[1] * step)
+}
 
 // Vista de mapa en el paso de Marcación: sitúa las varillas marcadas (UTM)
 // sobre un mapa real para comprobar de un vistazo que las coordenadas caen
@@ -1048,6 +1113,7 @@ watch(selectedImage, () => {
     selectedGcpIdx.value = null
     lastReposition.value = null
     mapFitSignal.value++
+    imageZoomMode.value = 'fit'
   }
 })
 
@@ -1059,6 +1125,7 @@ onMounted(() => {
     fetchRods()
     currentStep.value = 2
   }
+  window.addEventListener('keydown', handleMarkKeydown)
 })
 </script>
 
@@ -1527,6 +1594,13 @@ onMounted(() => {
               </div>
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
+              <span class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Vista</span>
+              <div class="segmented-light">
+                <button @click="imageZoomMode = 'fit'" :class="{ active: imageZoomMode === 'fit' }" title="Imagen completa ajustada al panel">Completa</button>
+                <button @click="imageZoomMode = 'x2'" :class="{ active: imageZoomMode === 'x2' }" title="El doble de tamaño — usa scroll para llegar a cada zona">Doble zoom</button>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
               <span class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Zoom lupa</span>
               <button @click="zoomFactor = Math.max(2, zoomFactor - 1)" class="w-5 h-5 flex items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-50 text-xs leading-none">−</button>
               <span class="text-[10px] font-mono text-slate-600 w-6 text-center">×{{ zoomFactor }}</span>
@@ -1535,35 +1609,50 @@ onMounted(() => {
           </div>
 
        <div class="relative flex gap-3 min-h-[600px]">
-          <!-- Panel foto: visible en modo 'photo' y 'both' -->
-          <div v-if="viewMode !== 'map'" class="card-standard overflow-hidden bg-slate-900 relative flex-1"
-               @mousemove="onStageMouseMove" @mouseleave="onStageMouseLeave">
-            <img ref="markImgRef" :src="imageUrl" @click="handleImageClick" @load="onMarkImageLoad" class="absolute inset-0 w-full h-full object-contain cursor-crosshair select-none">
+          <!-- Panel foto: visible en modo 'photo' y 'both'. Es el VISOR (viewport)
+               con scroll propio — en modo "Doble zoom" el lienzo interior
+               (markStageRef) es más grande que este hueco y hay que desplazarse
+               para llegar a cada zona; en modo "Completa" el lienzo cabe entero y
+               flex centra lo mismo que hacía object-contain antes. -->
+          <div v-if="viewMode !== 'map'" ref="stagePanelRef"
+               class="card-standard overflow-auto stage-viewport bg-slate-900 relative flex-1 flex items-center justify-center">
+            <!-- Lienzo: EXACTAMENTE del tamaño de la imagen renderizada (sin
+                 bandas) — única referencia para click/hover (eventToImagePixel)
+                 y para la posición de cada marcador (rel% directo, sin offsets). -->
+            <div ref="markStageRef" class="relative shrink-0 cursor-crosshair"
+                 :style="{ width: stageDisplaySize.width + 'px', height: stageDisplaySize.height + 'px' }"
+                 @click="handleImageClick" @mousemove="onStageMouseMove" @mouseleave="onStageMouseLeave">
+              <img ref="markImgRef" :src="imageUrl" @load="onMarkImageLoad" draggable="false"
+                   class="absolute inset-0 w-full h-full select-none">
 
-            <div v-for="(gcp, idx) in currentProfile.gcps" :key="idx"
-                 class="absolute -translate-x-1/2 -translate-y-1/2"
-                 :style="gcpMarkerStyle(gcp)">
-              <!-- Con el punto ya seleccionado, el marcador deja de capturar clicks: si no,
-                   un click de corrección cerca (o justo encima) de su posición actual vuelve
-                   a caer en handleMarkerClick (@click.stop) y solo re-selecciona/deselecciona
-                   el punto en vez de reposicionarlo — el gesto más habitual al corregir (un
-                   ajuste fino, no un salto grande) es precisamente el que peor funcionaba. El
-                   click "atraviesa" el marcador y llega a la <img> de debajo, que ya sabe
-                   reposicionar el punto activo (handleImageClick). -->
-              <div @click.stop="handleMarkerClick(idx)"
-                   :class="[
-                     gcp.confirmed === false
-                       ? (selectedGcpIdx === idx ? 'bg-amber-400 scale-150 ring-4 ring-amber-400/50 border-dashed' : 'bg-amber-400/80 border-dashed animate-pulse')
-                       : (selectedGcpIdx === idx ? 'bg-emerald-500 scale-150 ring-4 ring-emerald-500/50' : 'bg-emerald-500 scale-100'),
-                     selectedGcpIdx === idx ? 'pointer-events-none' : 'cursor-pointer'
-                   ]"
-                   :title="gcp.confirmed === false ? (gcp.reprojected_at ? 'Reproyectada por alineación — revisar' : 'Aproximado — pendiente de confirmar') : ''"
-                   class="w-4 h-4 rounded-full border-2 border-white transition-all hover:scale-125 z-10 flex items-center justify-center">
-                   <span class="text-[8px] font-semibold text-white">{{ gcp.confirmed === false ? '~' : idx + 1 }}</span>
+              <div v-for="(gcp, idx) in currentProfile.gcps" :key="idx"
+                   class="absolute -translate-x-1/2 -translate-y-1/2"
+                   :style="{ left: gcp.rel[0] + '%', top: gcp.rel[1] + '%' }">
+                <!-- Con el punto ya seleccionado, el marcador deja de capturar clicks: si no,
+                     un click de corrección cerca (o justo encima) de su posición actual vuelve
+                     a caer en handleMarkerClick (@click.stop) y solo re-selecciona/deselecciona
+                     el punto en vez de reposicionarlo — el gesto más habitual al corregir (un
+                     ajuste fino, no un salto grande) es precisamente el que peor funcionaba. El
+                     click "atraviesa" el marcador y llega al lienzo de debajo, que ya sabe
+                     reposicionar el punto activo (handleImageClick). -->
+                <div @click.stop="handleMarkerClick(idx)"
+                     :class="[
+                       gcp.confirmed === false
+                         ? (selectedGcpIdx === idx ? 'bg-amber-400 scale-150 ring-4 ring-amber-400/50 border-dashed' : 'bg-amber-400/80 border-dashed animate-pulse')
+                         : (selectedGcpIdx === idx ? 'bg-emerald-500 scale-150 ring-4 ring-emerald-500/50' : 'bg-emerald-500 scale-100'),
+                       selectedGcpIdx === idx ? 'pointer-events-none' : 'cursor-pointer'
+                     ]"
+                     :title="gcp.confirmed === false ? (gcp.reprojected_at ? 'Reproyectada por alineación — revisar' : 'Aproximado — pendiente de confirmar') : ''"
+                     class="w-4 h-4 rounded-full border-2 border-white transition-all hover:scale-125 z-10 flex items-center justify-center">
+                     <span class="text-[8px] font-semibold text-white">{{ gcp.confirmed === false ? '~' : idx + 1 }}</span>
+                </div>
               </div>
             </div>
 
-            <!-- Lupa: recorte ampliado alrededor del cursor para fijar el píxel exacto -->
+            <!-- Lupa: recorte ampliado alrededor del cursor para fijar el píxel
+                 exacto. Vive FUERA del lienzo (que hace scroll/zoom) y se
+                 posiciona contra el visor, para no perderse fuera de la
+                 pantalla cuando el lienzo es más grande que el hueco visible. -->
             <div v-show="loupeVisible" class="absolute z-30 rounded-md overflow-hidden border-2 border-white/80 shadow-xl pointer-events-none"
                  :style="{ left: loupeScreenPos.left + 'px', top: loupeScreenPos.top + 'px', width: LOUPE_SIZE + 'px', height: LOUPE_SIZE + 'px' }">
               <canvas ref="loupeCanvasRef" :width="LOUPE_SIZE" :height="LOUPE_SIZE" class="block bg-black"></canvas>

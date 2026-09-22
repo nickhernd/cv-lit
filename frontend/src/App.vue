@@ -9,6 +9,8 @@ import GeoJSONMap from './components/GeoJSONMap.vue'
 import Cameras from './components/Cameras.vue'
 import AutoMode from './components/AutoMode.vue'
 import Settings from './components/Settings.vue'
+import TrainingAnnotation from './components/TrainingAnnotation.vue'
+import Transects from './components/Transects.vue'
 
 const currentView = ref('dashboard')
 const selectedCamId = ref(null)
@@ -25,6 +27,8 @@ const VIEW_META = {
   cameras: { title: 'Cámaras', sub: 'Configuración hardware · Lente, ROI, ubicación' },
   automode: { title: 'Modo automático', sub: 'Descarga, alineación y análisis por rango de fechas' },
   settings: { title: 'Configuración', sub: 'Credenciales y ajustes de la aplicación' },
+  training: { title: 'Entrenamiento línea húmeda', sub: 'Sección temporal · Marcado manual para entrenar la segmentación' },
+  transects: { title: 'Transectos', sub: 'Anchura de playa · Punto de referencia + distancia a la línea de costa' },
 }
 const viewMeta = computed(() => VIEW_META[currentView.value] || { title: '', sub: '' })
 
@@ -98,10 +102,19 @@ onMounted(() => {
           <span>Mapa GeoJSON</span>
         </button>
 
+        <button @click="currentView = 'training'" class="nav-item" :class="{ active: currentView === 'training' }">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M4 19 9 9l4 5 3-4 4 9"/><circle cx="9" cy="9" r="1.4" fill="currentColor" stroke="none"/><circle cx="13" cy="14" r="1.4" fill="currentColor" stroke="none"/><circle cx="16" cy="10" r="1.4" fill="currentColor" stroke="none"/></svg>
+          <span>Entrenamiento (temp.)</span>
+        </button>
+
         <div class="px-5 pt-3.5 pb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Sistema</div>
         <button @click="goToCalibration()" class="nav-item" :class="{ active: currentView === 'calibration' }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="8.25"/><circle cx="12" cy="12" r="3.25"/><path stroke-linecap="round" d="M12 2.75v2.5M12 18.75v2.5M21.25 12h-2.5M5.25 12h-2.5"/></svg>
           <span>Calibración</span>
+        </button>
+        <button @click="currentView = 'transects'" class="nav-item" :class="{ active: currentView === 'transects' }">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="6" cy="18" r="2"/><path stroke-linecap="round" d="M8 16.5 18 6M18 6h-5M18 6v5"/></svg>
+          <span>Transectos</span>
         </button>
         <button @click="currentView = 'cameras'" class="nav-item" :class="{ active: currentView === 'cameras' }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 0 1 2-2h.9a2 2 0 0 0 1.7-.9l.8-1.2A2 2 0 0 1 10.1 4h3.8a2 2 0 0 1 1.7.9l.8 1.2a2 2 0 0 0 1.7.9H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><circle cx="12" cy="13" r="3"/></svg>
@@ -165,6 +178,10 @@ onMounted(() => {
           <AutoMode v-else-if="currentView === 'automode'"
                      @notify="notify" />
           <Settings v-else-if="currentView === 'settings'"
+                     @notify="notify" />
+          <TrainingAnnotation v-else-if="currentView === 'training'"
+                     @notify="notify" />
+          <Transects v-else-if="currentView === 'transects'"
                      @notify="notify" />
       </div>
 

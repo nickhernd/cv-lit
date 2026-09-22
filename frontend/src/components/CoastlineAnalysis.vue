@@ -30,6 +30,52 @@ async function fetchImages() {
 
 watch(camId, fetchImages, { immediate: true })
 
+// ── Flechas para pasar entre imágenes (#nuevo 2026-09-11) ────────────────────
+// Sugerencia del usuario: tras analizar (una o todas), poder ir viendo la
+// segmentación de cada imagen sin volver a abrir el desplegable cada vez.
+const currentIndex = computed(() => imageList.value.findIndex(i => i.filename === selectedFile.value))
+const hasPrev = computed(() => currentIndex.value > 0)
+const hasNext = computed(() => currentIndex.value >= 0 && currentIndex.value < imageList.value.length - 1)
+
+// Bug real detectado 2026-09-11 (aviso del propio usuario): la primera
+// versión de esto volvía a analizar con SAM CADA VEZ que se pasaba de
+// imagen con las flechas, aunque esa foto ya se hubiera analizado hace un
+// segundo (p.ej. justo después de "Analizar todas") — SAM tarda varios
+// segundos por foto, no tiene sentido repetirlo solo para volver a MIRAR
+// algo ya calculado. Ahora, antes de analizar, se comprueba si ya hay un
+// resultado ACEPTADO guardado para esa imagen concreta
+// (GET .../cached-result, lee el histórico sin tocar SAM) — si lo hay, se
+// muestra al instante; si no (nunca se analizó, o se rechazó), se analiza
+// de verdad, igual que con el botón "Analizar imagen".
+async function loadOrAnalyze(filename) {
+  if (!filename) return
+  loading.value = true
+  try {
+    const r = await fetch(`${API}/api/cameras/${camId.value}/images/${encodeURIComponent(filename)}/cached-result`)
+    if (r.ok) {
+      const cached = await r.json()
+      if (cached.found) {
+        result.value = cached
+        imgTs.value = Date.now()
+        loading.value = false
+        return
+      }
+    }
+  } catch (e) { /* si falla la comprobación, se cae al análisis real de abajo */ }
+  await analyze()
+}
+
+async function goPrev() {
+  if (!hasPrev.value) return
+  selectedFile.value = imageList.value[currentIndex.value - 1].filename
+  await loadOrAnalyze(selectedFile.value)
+}
+async function goNext() {
+  if (!hasNext.value) return
+  selectedFile.value = imageList.value[currentIndex.value + 1].filename
+  await loadOrAnalyze(selectedFile.value)
+}
+
 // ── Análisis ─────────────────────────────────────────────────────────────────
 async function analyze() {
   if (!selectedFile.value) {
@@ -60,6 +106,48 @@ async function analyze() {
   }
 }
 
+// ── Analizar TODAS las imágenes de la cámara seleccionada (#nuevo 2026-09-11) ─
+// Esta pantalla ("Resultados") es donde se ve la segmentación de una imagen
+// suelta, pero hasta ahora solo dejaba analizar de una en una — para ver la
+// evolución temporal del área seca hacía falta ir a otra pantalla (Carga de
+// Imágenes) a buscar el botón de análisis en lote, cosa nada obvia si es
+// aquí donde se mira el resultado. Mismo patrón que ImageIngest.vue
+// (analyze-roi no admite lote, se procesa una a una en secuencia); al
+// terminar deja seleccionada y mostrada la última imagen procesada.
+const batchProcessing = ref(false)
+const batchProgress = ref({ done: 0, total: 0 })
+
+async function analyzeAllImages() {
+  if (!imageList.value.length) {
+    emit('notify', 'No hay imágenes en esta cámara', 'error')
+    return
+  }
+  batchProcessing.value = true
+  batchProgress.value = { done: 0, total: imageList.value.length }
+  let ok = 0, failed = 0
+  for (const img of imageList.value) {
+    try {
+      const r = await fetch(
+        `${API}/api/cameras/${camId.value}/analyze-roi?filename=${encodeURIComponent(img.filename)}`,
+        { method: 'POST' }
+      )
+      if (!r.ok) throw new Error(`HTTP ${r.status}`)
+      const data = await r.json()
+      if (!data.rejected) ok++; else failed++
+      // Deja a la vista el resultado de la última imagen procesada (misma
+      // lógica que analyze(), para que el panel central se actualice según avanza).
+      selectedFile.value = img.filename
+      result.value = data
+      imgTs.value = Date.now()
+    } catch (e) {
+      failed++
+    }
+    batchProgress.value = { ...batchProgress.value, done: batchProgress.value.done + 1 }
+  }
+  batchProcessing.value = false
+  emit('notify', `Lote terminado: ${ok} aceptada(s), ${failed} rechazada(s)/con error de ${imageList.value.length} imagen(es)`, failed && !ok ? 'error' : 'success')
+}
+
 // ── Exportar GeoJSON ─────────────────────────────────────────────────────────
 async function exportGeoJSON() {
   try {
@@ -86,7 +174,7 @@ async function exportGeoJSON() {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const resultImageUrl = computed(() => {
   if (!result.value || result.value.rejected) return ''
-  return `${API}/api/cameras/${camId.value}/analysis-result?t=${imgTs.value}`
+  return `${API}/api/cameras/${camId.value}/analysis-result?file=${encodeURIComponent(selectedFile.value)}&t=${imgTs.value}`
 })
 
 const confidenceColor = computed(() => {
@@ -101,6 +189,106 @@ const confidencePct = computed(() => {
   if (!result.value || result.value.confidence == null) return 0
   return Math.round(result.value.confidence * 100)
 })
+
+// ── Edición manual de la línea detectada (#nuevo 2026-09-14, pedido en la
+// reunión: "permite editar manualmente las segmentaciones automáticas...
+// conservar las correcciones como datos de entrenamiento"). Reutiliza el
+// MISMO endpoint que la sección de Entrenamiento
+// (/api/training/.../polyline) — una corrección hecha aquí y una polilínea
+// marcada a mano en Entrenamiento acaban en el mismo sitio, un único
+// conjunto de datos de entrenamiento en vez de dos separados. Empieza
+// precargada con result.points_px (la línea que dio SAM, simplificada a
+// puntos de control editables — ver approxPolyDP en analyze_roi/main.py),
+// así que corregir es mover/borrar/añadir puntos sobre lo ya detectado, no
+// dibujar desde cero. ─────────────────────────────────────────────────────
+const editing = ref(false)
+const editPoints = ref([])
+const savingCorrection = ref(false)
+const editImgEl = ref(null)
+const editNaturalW = ref(0)
+const editNaturalH = ref(0)
+const draggingIdx = ref(null)
+
+const editImageUrl = computed(() => {
+  if (!selectedFile.value) return ''
+  return `${API}/api/cameras/${camId.value}/image?file=${encodeURIComponent(selectedFile.value)}`
+})
+const editSvgPoints = computed(() => editPoints.value.map(p => p.join(',')).join(' '))
+
+function startEditing() {
+  if (!result.value) return
+  editPoints.value = (result.value.points_px || []).map(p => [...p])
+  editing.value = true
+}
+function cancelEditing() {
+  editing.value = false
+  editPoints.value = []
+  draggingIdx.value = null
+}
+// Cambiar de imagen (flechas, selector, nuevo análisis) sale del modo edición
+// — los puntos son de UNA imagen concreta, seguir editando tras cambiar de
+// foto movería puntos de la línea de otra imagen sin que se note.
+watch(selectedFile, cancelEditing)
+function onEditImgLoad(e) {
+  editNaturalW.value = e.target.naturalWidth
+  editNaturalH.value = e.target.naturalHeight
+}
+function editEventToPixel(event) {
+  const el = editImgEl.value
+  if (!el) return null
+  const rect = el.getBoundingClientRect()
+  return {
+    x: ((event.clientX - rect.left) / rect.width) * editNaturalW.value,
+    y: ((event.clientY - rect.top) / rect.height) * editNaturalH.value,
+  }
+}
+function onEditStageClick(event) {
+  if (draggingIdx.value !== null) return  // el mouseup de un drag no debe añadir un punto nuevo
+  const p = editEventToPixel(event)
+  if (!p) return
+  editPoints.value.push([Math.round(p.x), Math.round(p.y)])
+}
+function startDrag(idx) { draggingIdx.value = idx }
+function onEditStageMouseMove(event) {
+  if (draggingIdx.value === null) return
+  const p = editEventToPixel(event)
+  if (!p) return
+  editPoints.value[draggingIdx.value] = [Math.round(p.x), Math.round(p.y)]
+}
+function endDrag() {
+  // pequeño retardo: si no, el click sintético que sigue al mouseup (mismo
+  // gesto) llega con draggingIdx ya a null y añade un punto de más justo
+  // donde se soltó el arrastre.
+  setTimeout(() => { draggingIdx.value = null }, 0)
+}
+function deletePoint(idx) {
+  editPoints.value.splice(idx, 1)
+}
+
+async function saveCorrection() {
+  if (editPoints.value.length < 2) {
+    emit('notify', 'Marca al menos 2 puntos para guardar la corrección', 'error')
+    return
+  }
+  savingCorrection.value = true
+  try {
+    const r = await fetch(
+      `${API}/api/training/cameras/${camId.value}/images/${encodeURIComponent(selectedFile.value)}/polyline`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ points: editPoints.value }),
+      }
+    )
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    emit('notify', 'Corrección guardada como dato de entrenamiento', 'success')
+    editing.value = false
+  } catch (e) {
+    emit('notify', 'Error guardando la corrección: ' + e.message, 'error')
+  } finally {
+    savingCorrection.value = false
+  }
+}
 
 const CAMS = [1, 2, 3, 4, 5, 6]
 </script>
@@ -152,6 +340,24 @@ const CAMS = [1, 2, 3, 4, 5, 6]
         {{ loading ? 'Analizando…' : 'Analizar imagen' }}
       </button>
 
+      <!-- Analizar TODAS las imágenes de esta cámara (#nuevo 2026-09-11):
+           para ver la evolución temporal del área seca sin salir de esta
+           pantalla ni ir imagen a imagen. -->
+      <button
+        @click="analyzeAllImages"
+        :disabled="loading || batchProcessing || !imageList.length"
+        title="Analiza de golpe TODAS las imágenes de esta cámara (aunque ya tuvieran un resultado antes) — para actualizar el histórico completo, por ejemplo tras una mejora del análisis."
+        class="btn-secondary w-full justify-center py-2.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
+        <svg v-if="!batchProcessing" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        <svg v-else class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+        </svg>
+        {{ batchProcessing ? `Analizando ${batchProgress.done}/${batchProgress.total}…` : `Analizar todas (${imageList.length})` }}
+      </button>
+
       <!-- Métricas (#86) -->
       <div v-if="result" class="card-standard overflow-hidden">
         <div class="card-header">Métricas</div>
@@ -175,6 +381,18 @@ const CAMS = [1, 2, 3, 4, 5, 6]
             <div class="w-full bg-slate-100 rounded-full h-1.5">
               <div :class="confidenceColor" class="h-1.5 rounded-full transition-all duration-500"
                    :style="`width:${confidencePct}%`"></div>
+            </div>
+          </div>
+
+          <!-- Transectos: anchura de playa (#nuevo 2026-09-14) — indicador
+               principal pedido en la reunión, sustituye al área en fiabilidad;
+               el área se deja visible debajo por si sigue siendo útil como
+               referencia, no se ha quitado nada. -->
+          <div v-if="result.transects && result.transects.length" class="space-y-1.5">
+            <span class="text-xs text-slate-500">Anchura de playa (transectos)</span>
+            <div v-for="t in result.transects" :key="t.label" class="flex justify-between items-center pl-1">
+              <span class="text-[11px] text-slate-600">{{ t.label }}</span>
+              <span class="text-sm font-mono font-semibold text-emerald-700">{{ t.distance_m?.toLocaleString('es-ES') }} m</span>
             </div>
           </div>
 
@@ -216,10 +434,40 @@ const CAMS = [1, 2, 3, 4, 5, 6]
           Línea de costa — CAM {{ camId }}
           <span v-if="selectedFile" class="font-normal text-slate-400 ml-2 text-xs font-mono">{{ selectedFile }}</span>
         </h2>
-        <span v-if="result && !result.rejected" class="badge badge-ok">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-          Segmentación activa
-        </span>
+        <div class="flex items-center gap-3">
+          <!-- Flechas para pasar entre imágenes viendo su segmentación
+               (#nuevo 2026-09-11) — reanalizan la imagen anterior/siguiente
+               de la lista, no solo cambian de foto. -->
+          <div v-if="imageList.length" class="flex items-center gap-1">
+            <button @click="goPrev" :disabled="!hasPrev || loading || batchProcessing"
+                    title="Imagen anterior" class="w-6 h-6 flex items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <span class="text-[10px] font-mono text-slate-400 w-12 text-center">{{ currentIndex + 1 }} / {{ imageList.length }}</span>
+            <button @click="goNext" :disabled="!hasNext || loading || batchProcessing"
+                    title="Imagen siguiente" class="w-6 h-6 flex items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+          <template v-if="result && !result.rejected && !editing">
+            <button @click="startEditing" :disabled="!result.points_px || !result.points_px.length"
+                    title="Corrige a mano la línea detectada — la corrección se guarda como dato de entrenamiento"
+                    class="btn-secondary text-[10px] uppercase py-1 px-2 disabled:opacity-40 disabled:cursor-not-allowed">
+              Editar línea manualmente
+            </button>
+            <span class="badge badge-ok">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              Segmentación activa
+            </span>
+          </template>
+          <template v-if="editing">
+            <span class="text-[10px] text-amber-600 font-semibold uppercase">{{ editPoints.length }} puntos · clic: añadir · arrastrar: mover · doble clic: borrar</span>
+            <button @click="cancelEditing" class="btn-secondary text-[10px] uppercase py-1 px-2">Cancelar</button>
+            <button @click="saveCorrection" :disabled="savingCorrection || editPoints.length < 2" class="btn-standard text-[10px] uppercase py-1 px-2 disabled:opacity-40 disabled:cursor-not-allowed">
+              {{ savingCorrection ? 'Guardando…' : 'Guardar corrección' }}
+            </button>
+          </template>
+        </div>
       </div>
 
       <div class="flex-1 flex items-center justify-center bg-slate-50 p-4">
@@ -251,6 +499,25 @@ const CAMS = [1, 2, 3, 4, 5, 6]
           </div>
           <p class="text-sm font-semibold text-red-600">Imagen rechazada</p>
           <p class="text-xs text-red-400 mt-1 font-mono">{{ result.reject_reason }}</p>
+        </div>
+
+        <!-- Edición manual de la línea (#nuevo 2026-09-14): imagen ORIGINAL
+             (sin la línea ya "quemada" en el JPG, como en resultImageUrl) +
+             overlay editable — clic para añadir, arrastrar para mover, doble
+             clic para borrar un punto. -->
+        <div v-else-if="editing" class="relative inline-block" style="cursor: crosshair;">
+          <img ref="editImgEl" :src="editImageUrl" @load="onEditImgLoad" draggable="false"
+               @click="onEditStageClick" @mousemove="onEditStageMouseMove" @mouseup="endDrag" @mouseleave="endDrag"
+               class="max-w-full max-h-[70vh] object-contain rounded-md block select-none" alt="Imagen original para corregir la línea" />
+          <svg v-if="editNaturalW" class="absolute top-0 left-0 w-full h-full" style="pointer-events:none"
+               :viewBox="`0 0 ${editNaturalW} ${editNaturalH}`" preserveAspectRatio="none">
+            <polyline :points="editSvgPoints" fill="none" stroke="#f43f5e" stroke-width="6" />
+            <circle v-for="(p, i) in editPoints" :key="i"
+                    @mousedown.stop="startDrag(i)" @dblclick.stop="deletePoint(i)"
+                    :cx="p[0]" :cy="p[1]" :r="draggingIdx === i ? 15 : 10"
+                    fill="#f43f5e" stroke="white" stroke-width="3"
+                    style="pointer-events:auto; cursor:grab" />
+          </svg>
         </div>
 
         <!-- Imagen resultado con segmentación + línea de costa superpuesta (#84, #85) -->

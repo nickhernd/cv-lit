@@ -14,6 +14,8 @@
 # Construir con:  pyinstaller desktop_launcher.spec
 
 import os
+import glob
+from PyInstaller.utils.hooks import collect_dynamic_libs
 
 BACKEND_DIR = os.path.abspath(SPECPATH)  # SPECPATH ya es la carpeta que contiene el .spec
 PROJECT_ROOT = os.path.dirname(BACKEND_DIR)
@@ -44,10 +46,36 @@ for _seed_name in _SEED_FILES:
         )
     _calibration_seed_datas.append((_seed_path, "calibration_seed"))
 
+# Bug real detectado y verificado 2026-09-03: torchvision NO importa su
+# extensión nativa (_C_stable.pyd, que registra operadores como
+# "torchvision::nms") con un `import` normal — la carga en tiempo de
+# ejecución con torch.ops.load_library() (ver
+# torchvision/extension.py::_load_library), así que el análisis estático de
+# PyInstaller nunca la detecta como dependencia y NO la empaqueta. El fallo
+# es silencioso en torchvision (excepción capturada, _has_ops() se queda en
+# False) pero revienta un poco más tarde, al importar
+# torchvision/_meta_registrations.py, con "RuntimeError: operator
+# torchvision::nms does not exist" — reproducido en local ejecutando
+# directamente el .exe recién compilado, no solo reportado por el usuario en
+# otra máquina. collect_dynamic_libs('torchvision') sí encuentra los .dll
+# (libpng16.dll, etc.) pero NO los .pyd (mismo motivo: no son "dynamic libs"
+# para PyInstaller, son módulos de extensión que se esperaría importar,
+# cosa que aquí tampoco ocurre) — se añaden a mano los dos .pyd de
+# torchvision (_C_stable y image_stable) junto al resto de binarios.
+_torchvision_pyd = [
+    (p, "torchvision")
+    for p in glob.glob(os.path.join(BACKEND_DIR, "..", "venv", "Lib", "site-packages", "torchvision", "*.pyd"))
+]
+if not _torchvision_pyd:
+    raise SystemExit(
+        "No se encontraron los .pyd de torchvision en venv/Lib/site-packages/torchvision — "
+        "revisa que el venv esté activo y torchvision instalado antes de empaquetar."
+    )
+
 a = Analysis(
     [os.path.join(BACKEND_DIR, "desktop_launcher.py")],
     pathex=[BACKEND_DIR, PROCES_DIR, ACCES_API_DIR],
-    binaries=[],
+    binaries=[*collect_dynamic_libs("torchvision"), *_torchvision_pyd],
     datas=[
         (FRONTEND_DIST, "frontend_dist"),
         *_calibration_seed_datas,

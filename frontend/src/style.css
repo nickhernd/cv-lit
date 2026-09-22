@@ -165,6 +165,29 @@
 .segmented-dark button.active { @apply bg-blue-600 text-white; }
 .segmented-dark button:not(.active):hover { @apply bg-white/10; }
 
+/* Misma barra de alternancia, para usar sobre fondo claro (dentro de una card-standard) */
+.segmented-light {
+  @apply inline-flex bg-slate-100 border border-slate-200 rounded-md overflow-hidden;
+}
+.segmented-light button {
+  @apply px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-slate-500 transition-colors;
+}
+.segmented-light button.active { @apply bg-blue-600 text-white; }
+.segmented-light button:not(.active):hover { @apply bg-slate-200; }
+
+/* Visor de la foto en Marcación (paso 5, Calibration.vue): reserva SIEMPRE
+   el hueco de la barra de scroll, aunque no haga falta, en vez de solo
+   cuando el contenido desborda (overflow: auto normal). Sin esto, activar
+   "Doble zoom" entra en un bucle real: aparece la barra -> el ancho útil
+   del visor se reduce -> se recalcula el zoom con ese ancho menor -> el
+   contenido ya no desborda -> la barra desaparece -> el ancho vuelve a
+   crecer -> vuelve a desbordar... — comprobado en vivo: el bucle satura el
+   hilo de renderizado y cuelga la pestaña por completo. Con el hueco
+   siempre reservado, el ancho medido no cambia nunca por la propia barra. */
+.stage-viewport {
+  scrollbar-gutter: stable both-edges;
+}
+
 .input-standard {
   @apply bg-white border border-slate-300 rounded px-2.5 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500/25 outline-none transition-colors;
 }

@@ -30,6 +30,12 @@
 /Linea de costa-6/
 Linea de costa-6.zip
 /mocks/
+/assets/mocks.pdf
+
+# Memoria técnica "backend" independiente (documento aparte, con su propio
+# preámbulo LaTeX) — superada por docs/memoria.tex, que ya cubre arquitectura
+# y guía de uso completas. Un único PDF de memoria en el repo: docs/memoria.pdf.
+/docs/technical_memory/
 
 node_modules/
 
@@ -43,6 +49,11 @@ __pycache__/
 # Vídeos de referencia sueltos, sin relación con el código
 *.mp4
 
+# Animación de depuración del pipeline (proces_images/README_pipeline.md) —
+# 17 MB, con diferencia el fichero más pesado del repo; se regenera con el
+# propio pipeline de depuración, no hace falta llevarla en git.
+/proces_images/output/analisis_costa.gif
+
 # Basura de compilación LaTeX (docs/memoria.tex, docs/technical_memory/) —
 # se conservan los .pdf finales, no los artefactos intermedios de latexmk
 *.aux
@@ -54,6 +65,11 @@ __pycache__/
 *.out
 *.toc
 *.xdv
+
+# Caché de resaltado de sintaxis del paquete minted (docs/memoria.tex usa
+# minted para los bloques de código) - cambia en CADA compilación aunque el
+# .tex no cambie nada, puro ruido de build, nunca contenido versionable.
+/docs/_minted/
 
 # Notas de preparación para la defensa (preguntas/respuestas con detalles
 # internos del proyecto) — material privado, no para el repositorio.
