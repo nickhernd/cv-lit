@@ -13,6 +13,14 @@
 # Workspaces locales de start_dev.ps1 / start_demo.ps1
 /workspace/
 
+# Dataset YOLO exportado (scripts/export_yolo_dataset.py) y resultados de
+# entrenamiento (scripts/train_yolo_segmentation.py, vía ultralytics) — todo
+# regenerable a partir de las polilíneas de Entrenamiento + el modelo base
+# descargado; ni las imágenes/pesos pertenecen al repo de código.
+/training_dataset/
+/runs/
+*.pt
+
 /frontend/node_modules
 /backend/node_modules
 /frontend/dist

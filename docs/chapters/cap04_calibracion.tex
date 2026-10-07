@@ -270,44 +270,59 @@ paso Marcación de la interfaz web.
 \section{Imágenes de diagnóstico}
 
 Las imágenes de la figura~\ref{fig:diagnostics} muestran la reproyección de GCPs sobre las
-imágenes de referencia, de la campaña de calibración inicial. Los vectores de error se
-representan magnificados $\times10$.
+imágenes de referencia, de la campaña de calibración \textbf{inicial} (junio de 2026). Los
+vectores de error se representan magnificados $\times10$.
+
+\begin{warnbox}[Estas cifras son históricas — no las de la calibración actual]
+Los RMSE de esta figura (1,45--4,74~m) corresponden a la primera campaña de calibración, ya
+superada por la ronda de refinamiento del 31 de agosto de 2026
+(\S\ref{sec:refinamiento-agosto31}, tabla~\ref{tab:calibration-results}): las 6 cámaras están hoy
+entre 0,21 y 0,86~m. Las imágenes en sí (\texttt{calibration/diagnostics/*.jpg}) no viven en el
+repositorio de código y, además, los datos de residuo por varilla necesarios para regenerarlas ya
+no están en este equipo — un \textit{reset} de datos (\textit{Borrar imágenes y resultados},
+capítulo~\ref{ch:ops}) borra las varillas marcadas junto con las imágenes, conservando solo el
+resumen (RMSE, matriz $H$) en el perfil de calibración. Se dejan aquí como referencia del
+\textbf{procedimiento} de diagnóstico visual, no como estado actual — para regenerarlas hace
+falta volver a marcar varillas en el paso Marcación y exportar el mapa de cobertura que ya genera
+la propia aplicación en el botón de informe PDF por cámara del paso Validación (más abajo en
+este mismo capítulo).
+\end{warnbox}
 
 \begin{figure}[H]
   \centering
   \begin{subfigure}[b]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../calibration/diagnostics/CAM1_diagnostic.jpg}
+    \safeimg{../calibration/diagnostics/CAM1_diagnostic.jpg}
     \caption{CAM~1 — RMSE val. 1.45~m}
   \end{subfigure}
   \hfill
   \begin{subfigure}[b]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../calibration/diagnostics/CAM2_diagnostic.jpg}
+    \safeimg{../calibration/diagnostics/CAM2_diagnostic.jpg}
     \caption{CAM~2 — RMSE val. 3.45~m}
   \end{subfigure}
 
   \vspace{0.4cm}
   \begin{subfigure}[b]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../calibration/diagnostics/CAM3_diagnostic.jpg}
+    \safeimg{../calibration/diagnostics/CAM3_diagnostic.jpg}
     \caption{CAM~3 — RMSE val. 2.32~m}
   \end{subfigure}
   \hfill
   \begin{subfigure}[b]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../calibration/diagnostics/CAM4_diagnostic.jpg}
+    \safeimg{../calibration/diagnostics/CAM4_diagnostic.jpg}
     \caption{CAM~4 — RMSE val. 3.06~m \textcolor{Goldenrod}{(revisar)}}
   \end{subfigure}
 
   \vspace{0.4cm}
   \begin{subfigure}[b]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../calibration/diagnostics/CAM5_diagnostic.jpg}
+    \safeimg{../calibration/diagnostics/CAM5_diagnostic.jpg}
     \caption{CAM~5 — RMSE val. 1.38~m}
   \end{subfigure}
   \hfill
   \begin{subfigure}[b]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../calibration/diagnostics/CAM6_diagnostic.jpg}
+    \safeimg{../calibration/diagnostics/CAM6_diagnostic.jpg}
     \caption{CAM~6 — RMSE val. 4.74~m \textcolor{BrickRed}{(crítico)}}
   \end{subfigure}
 
-  \caption{Diagnóstico de calibración — reproyección de GCPs (vectores $\times10$)}
+  \caption{Diagnóstico de calibración — reproyección de GCPs (vectores $\times10$), campaña de junio de 2026}
   \label{fig:diagnostics}
 \end{figure}
 

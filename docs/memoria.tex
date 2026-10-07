@@ -105,6 +105,20 @@
   breakable, left=4pt, right=4pt, top=2pt, bottom=2pt
 }
 
+% -- Imagen con fallback si falta el fichero -------------------
+% Varias figuras de esta memoria son capturas/assets de campo que no viven en
+% el repositorio de código (campañas de calibración antiguas, material que no
+% se versiona). \safeimg muestra un marcador en vez de abortar la compilación
+% de TODA la memoria si a alguien le falta el fichero en su copia local — en
+% cuanto el fichero exista, la figura se renderiza sola sin tocar nada más.
+\usepackage{ifthen}
+\newcommand{\safeimg}[2][width=\textwidth]{%
+  \IfFileExists{#2}{\includegraphics[#1]{#2}}{%
+    \fbox{\parbox[c][4cm][c]{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{\centering
+      \ttfamily\small Imagen no disponible en el repositorio:\\ \url{#2}}}%
+  }%
+}
+
 % -- Diagrama de flujo (TikZ) ---------------------------------
 \usepackage{tikz}
 \usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, shadows}

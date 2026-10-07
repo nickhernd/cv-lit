@@ -47,6 +47,11 @@ empieza donde termina la calibración, no la sustituye.
 
 \begin{figure}[H]
 \centering
+% Diagrama real detectado desbordando la página (bug de renderizado, no de
+% contenido): 4 bloques de min-width 4.5cm en horizontal necesitan ~22cm y el
+% área de texto de esta memoria mide ~15.5cm — el resizebox lo escala para
+% que quepa siempre, tenga el número de nodos que tenga.
+\resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[node distance=0.5cm and 1.4cm]
   \node[block, fill=SkyBlue!15] (desc) {1. Descarga\\{\tiny Obscape API}};
   \node[block, fill=Orange!15, right=of desc] (base) {2. Base\\{\tiny referencia de calibración}};
@@ -56,7 +61,8 @@ empieza donde termina la calibración, no la sustituye.
   \draw[arrow] (desc) -- (base);
   \draw[arrow] (base) -- (alin);
   \draw[arrow] (alin) -- (anal);
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{Pipeline de Auto Mode --- cada fase reutiliza código ya existente, sin reimplementar nada}
 \label{fig:automode-pipeline}
 \end{figure}
@@ -67,7 +73,8 @@ empieza donde termina la calibración, no la sustituye.
         (mismo criterio de deduplicación que el descargador manual,
         \texttt{acces\_api/obscape\_api.py}), guardándolas planas en
         \texttt{DATA\_DIR/\{carpeta\_cámara\}/} con el nombrado
-        \texttt{<epoch>\_<AAAAMMDD>\_<HHMMSS>\_<serie>.jpg} que el resto del backend ya
+        \texttt{<epoch>\_\allowbreak<AAAAMMDD>\_\allowbreak<HHMMSS>\_\allowbreak<serie>.jpg}
+        que el resto del backend ya
         reconoce. Si no hay imágenes nuevas en el rango, el job termina ahí con un mensaje
         claro (nada que hacer) en vez de seguir con pasos vacíos.
   \item \textbf{Selección de base}: TODO el lote se alinea contra la \texttt{reference\_image}

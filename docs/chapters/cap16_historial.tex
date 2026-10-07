@@ -50,6 +50,10 @@ Sep 2026 & Resultados & Edición manual de la línea detectada por SAM (arrastra
   \texttt{TrainingAnnotation.vue} \\
 Sep 2026 & Carga de imágenes & Visor de previsualización a tamaño completo antes de
   procesar/descartar una imagen \\
+Oct 2026 & Segmentación & \texttt{scripts/export\_yolo\_dataset.py} + \texttt{train\_yolo\_}
+  \texttt{segmentation.py}: exporta las polilíneas de Entrenamiento a dataset YOLO-seg
+  (línea $\to$ franja vía \texttt{shapely.buffer}) y entrena un YOLOv8n-seg — primer paso
+  hacia sustituir SAM por un modelo propio de línea húmeda (\S\ref{sec:linea-humeda-pendiente}) \\
 \bottomrule
 \end{tabular}
 \end{table}

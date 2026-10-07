@@ -181,6 +181,9 @@ onMounted(fetchSettings)
       </div>
     </div>
 
+    <!-- Oculto a petición del usuario (2026-09-23), igual que la pantalla
+         de Entrenamiento — NO borrado, solo sin mostrar mientras esa
+         sección no esté accesible desde el menú.
     <div v-if="!loading" class="card-standard p-4 space-y-3 border-amber-200">
       <div class="flex items-center gap-2">
         <div class="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">
@@ -201,6 +204,7 @@ onMounted(fetchSettings)
         <p class="text-[10px] text-slate-400">Sustituye <span class="font-mono">{n}</span> por el número de cámara (1-6). Las imágenes adicionales van en <span class="font-mono">training_images\</span> dentro de la misma carpeta.</p>
       </div>
     </div>
+    -->
 
     <div v-if="!loading" class="card-standard p-4 space-y-3 border-red-200">
       <div class="text-[10px] font-semibold text-red-500 uppercase tracking-wider">

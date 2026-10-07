@@ -1,0 +1,13 @@
+# Dependencias SOLO para entrenar el modelo YOLO de segmentación de la línea
+# húmeda (scripts/export_yolo_dataset.py, scripts/train_yolo_segmentation.py).
+# A propósito NO están en backend/requirements.txt: ese fichero es lo que
+# empaqueta PyInstaller dentro del .exe de la app, y nada de esto hace falta
+# para que la app funcione en producción (solo para preparar/entrenar el
+# modelo fuera de la app, en el ordenador de quien entrena).
+#
+# Instalación: pip install -r scripts/requirements-training.txt
+# (requiere además torch/torchvision y opencv-python-headless, ya presentes
+# en backend/requirements.txt — no se repiten aquí).
+
+ultralytics==8.4.174
+shapely==2.2.0

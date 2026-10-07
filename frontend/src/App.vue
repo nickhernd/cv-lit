@@ -74,9 +74,8 @@ onMounted(() => {
          secciones Proceso/Sistema, items de texto plano con borde izq. activo) -->
     <aside class="w-[220px] bg-[var(--bg2)] border-r border-slate-200 text-slate-600 flex flex-col shrink-0">
       <div class="p-4 flex items-center gap-2.5">
-        <div class="w-7 h-7 bg-blue-600 rounded-md flex items-center justify-center shrink-0">
-          <span class="text-[11px] font-semibold text-white">LC</span>
-        </div>
+        <!-- Logo "LC" quitado a petición del usuario (2026-09-23) — se
+             queda solo el texto del título. -->
         <div class="min-w-0">
           <p class="text-[13px] font-semibold text-slate-900 leading-tight truncate">Línea de Costa</p>
           <p class="text-[10px] text-slate-400 leading-tight truncate">Guardamar del Segura</p>
@@ -102,20 +101,33 @@ onMounted(() => {
           <span>Mapa GeoJSON</span>
         </button>
 
+        <!-- Oculto a petición del usuario (2026-09-23) — NO borrado, solo sin
+             botón de acceso: puede hacer falta más adelante. El componente
+             (TrainingAnnotation.vue) y sus endpoints de backend siguen
+             intactos y funcionando, solo no hay forma de llegar a la
+             pantalla desde el menú.
         <button @click="currentView = 'training'" class="nav-item" :class="{ active: currentView === 'training' }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M4 19 9 9l4 5 3-4 4 9"/><circle cx="9" cy="9" r="1.4" fill="currentColor" stroke="none"/><circle cx="13" cy="14" r="1.4" fill="currentColor" stroke="none"/><circle cx="16" cy="10" r="1.4" fill="currentColor" stroke="none"/></svg>
           <span>Entrenamiento (temp.)</span>
         </button>
+        -->
 
         <div class="px-5 pt-3.5 pb-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Sistema</div>
         <button @click="goToCalibration()" class="nav-item" :class="{ active: currentView === 'calibration' }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="8.25"/><circle cx="12" cy="12" r="3.25"/><path stroke-linecap="round" d="M12 2.75v2.5M12 18.75v2.5M21.25 12h-2.5M5.25 12h-2.5"/></svg>
           <span>Calibración</span>
         </button>
+        <!-- Oculto a petición del usuario (2026-09-23) — NO borrado, solo sin
+             botón de acceso: puede hacer falta más adelante. El componente
+             (Transects.vue) y los endpoints /api/cameras/{id}/transects
+             siguen intactos; analyze_roi() sigue calculando distancias si ya
+             hay transectos guardados, solo no hay forma de marcar nuevos
+             desde el menú.
         <button @click="currentView = 'transects'" class="nav-item" :class="{ active: currentView === 'transects' }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="6" cy="18" r="2"/><path stroke-linecap="round" d="M8 16.5 18 6M18 6h-5M18 6v5"/></svg>
           <span>Transectos</span>
         </button>
+        -->
         <button @click="currentView = 'cameras'" class="nav-item" :class="{ active: currentView === 'cameras' }">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 0 1 2-2h.9a2 2 0 0 0 1.7-.9l.8-1.2A2 2 0 0 1 10.1 4h3.8a2 2 0 0 1 1.7.9l.8 1.2a2 2 0 0 0 1.7.9H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><circle cx="12" cy="13" r="3"/></svg>
           <span>Cámaras</span>

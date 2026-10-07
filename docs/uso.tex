@@ -1,28 +1,132 @@
-\chapter{Guía de Operación}
-\label{ch:ops}
-% ==============================================================
+%% ============================================================
+%%  MANUAL DE USO — Línea de Costa (cv-lit)
+%%  Documento independiente: SOLO cómo usar la aplicación instalada.
+%%  Para la memoria técnica completa (arquitectura, algoritmos, historial),
+%%  ver memoria.tex / memoria.pdf en esta misma carpeta.
+%% ============================================================
+\documentclass[12pt,a4paper,spanish]{article}
 
-Este capítulo es la guía \textbf{definitiva de uso} de la aplicación instalada — pensada para
-quien va a \textbf{usar} la app, no para quien la desarrolla. El flujo de trabajo para quien sí
-toca código (entorno de desarrollo, herramientas CLI, tests) está aparte, en
-\S\ref{sec:dev-tools}.
+% -- Codificación y tipografía --------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\DeclareUnicodeCharacter{25CF}{\ensuremath{\bullet}}
+\DeclareUnicodeCharacter{25B6}{\ensuremath{\triangleright}}
+\DeclareUnicodeCharacter{25A0}{\ensuremath{\blacksquare}}
+\DeclareUnicodeCharacter{2713}{\ensuremath{\checkmark}}
+\usepackage[spanish,es-noquoting]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% -- Geometría ------------------------------------------------
+\usepackage[
+  top=2.5cm, bottom=2.5cm,
+  left=3.0cm, right=2.5cm,
+  headheight=15pt
+]{geometry}
+
+% -- Color y gráficos -----------------------------------------
+\usepackage[dvipsnames,svgnames,table]{xcolor}
+\usepackage{graphicx}
+\usepackage{float}
+
+% -- Tablas ---------------------------------------------------
+\usepackage{booktabs}
+\usepackage{array}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+% -- Código fuente (solo texttt inline, este manual no lleva bloques minted) --
+\usepackage{enumitem}
+\usepackage{parskip}
+\setlength{\parskip}{6pt}
+
+% -- Cabeceras y pies -------------------------------------------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textit{Línea de Costa --- Manual de Uso}}
+\fancyhead[R]{\small\textit{\leftmark}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% -- Hiperenlaces ---------------------------------------------
+\usepackage[
+  colorlinks=true,
+  linkcolor=NavyBlue,
+  urlcolor=Teal,
+  pdftitle={Línea de Costa --- Manual de Uso},
+  pdfauthor={Tech4D Lab --- Universidad de Alicante}
+]{hyperref}
+
+% -- Cajas de información -------------------------------------
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+\newtcolorbox{infobox}[1][]{
+  colback=SkyBlue!10, colframe=NavyBlue!70,
+  fonttitle=\bfseries, title=#1,
+  breakable, left=6pt, right=6pt, top=4pt, bottom=4pt
+}
+\newtcolorbox{warnbox}[1][]{
+  colback=Goldenrod!12, colframe=Goldenrod!80,
+  fonttitle=\bfseries, title=#1,
+  breakable, left=6pt, right=6pt, top=4pt, bottom=4pt
+}
+
+% -- Títulos ----------------------------------------------------
+\usepackage{titlesec}
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{NavyBlue!80}}
+  {\thesection}{1em}{}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{NavyBlue!60}}
+  {\thesubsection}{1em}{}
+
+% -- Metadatos ------------------------------------------------
+\title{%
+  \vspace{-1.5cm}
+  \textbf{\Huge Manual de Uso}\\[0.4cm]
+  {\Large\textcolor{NavyBlue}{Línea de Costa}}\\[0.2cm]
+  {\large Sistema de Monitorización Automática de Línea de Costa}\\[0.6cm]
+  \rule{\linewidth}{1pt}\\[0.4cm]
+  {\normalsize Guardamar del Segura · Alicante · España}
+}
+\author{Tech4D Lab --- Universidad de Alicante}
+\date{Septiembre 2026}
+
+%% ============================================================
+\begin{document}
+%% ============================================================
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+\noindent
+Este documento explica \textbf{únicamente cómo usar} la aplicación de escritorio
+\textbf{Línea de Costa} ya instalada — pantalla por pantalla, con capturas reales. No cubre
+arquitectura, algoritmos ni código: para eso está la memoria técnica completa del proyecto
+(\texttt{memoria.pdf}).
+\end{abstract}
+
+\tableofcontents
+
+% ==============================================================
 
 \section{Abrir la aplicación}
 
 Para el uso normal no hace falta Python, Node.js ni ninguna terminal: se instala el ejecutable
-de Windows (capítulo~\ref{ch:setup}, \S\ref{sec:build-installer}) y se abre como cualquier otro
-programa.
+de Windows y se abre como cualquier otro programa.
 
 \begin{enumerate}[leftmargin=1.5em]
   \item Ejecutar \texttt{LineaDeCosta-Setup.exe} y seguir el asistente de instalación.
   \item Abrir \textbf{``Línea de Costa''} desde el menú Inicio o el acceso directo del
         escritorio.
   \item La primera vez puede tardar unos segundos en aparecer la ventana: el propio ejecutable
-        arranca primero el backend en segundo plano y luego abre la ventana nativa
-        (\emph{pywebview}) apuntando a él — no hace falta ningún navegador aparte.
+        arranca primero el backend en segundo plano y luego abre la ventana nativa apuntando a
+        él — no hace falta ningún navegador aparte.
 \end{enumerate}
 
-\begin{warnbox}[No usar el acceso directo ``Descargar modelo de IA (SAM)''para el uso normal]
+\begin{warnbox}[No usar el acceso directo ``Descargar modelo de IA (SAM)'' para el uso normal]
 El instalador crea, además del acceso a la app, uno secundario en el menú Inicio para
 \emph{forzar} la descarga del checkpoint de SAM ($\sim$2,4~GB) sin abrir la ventana — solo hace
 falta si SAM no se instaló bien la primera vez o se quiere volver a descargar aposta. Abrirlo por
@@ -33,13 +137,11 @@ confunde si se pulsa pensando que es la app.
 \begin{warnbox}[Transectos y Entrenamiento: ocultos del menú a día de hoy (23/09/2026)]
 A petición del usuario, las pantallas \textit{Transectos} (\S\ref{sec:transectos}) y
 \textit{Entrenamiento (temp.)} (\S\ref{sec:entrenamiento}) \textbf{no tienen botón de acceso en
-el menú lateral} en esta versión — se ocultaron, no se eliminaron: el componente, los endpoints
-de backend y los datos ya guardados siguen intactos y funcionando (un transecto ya marcado, por
-ejemplo, se sigue calculando en cada análisis). Esta guía las documenta igualmente porque pueden
-reactivarse en cualquier momento — basta con descomentar el botón correspondiente en
-\texttt{App.vue} (marcado con un comentario que explica por qué está apagado) y volver a
-compilar. Las capturas de este capítulo corresponden a la interfaz \textbf{tal y como se ve
-ahora mismo}, sin esos dos botones.
+el menú lateral} en esta versión — se ocultaron, no se eliminaron: siguen intactas y
+funcionando por dentro (un transecto ya marcado, por ejemplo, se sigue calculando en cada
+análisis). Este manual las documenta igualmente porque pueden reactivarse en cualquier momento.
+Las capturas de este manual corresponden a la interfaz \textbf{tal y como se ve ahora mismo},
+sin esos dos botones.
 \end{warnbox}
 
 \section{Recorrido por pantallas}
@@ -55,7 +157,7 @@ seca y accesos rápidos a cada cámara.
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.95\textwidth]{screenshots/01_dashboard.png}
-\caption{Dashboard, con las 6 cámaras calibradas y el botón \textit{Informe PDF} sustituyendo al antiguo \textit{Imprimir Reporte}.}
+\caption{Dashboard, con las 6 cámaras calibradas y el botón \textit{Informe PDF}.}
 \end{figure}
 
 \subsection{Carga de imágenes}
@@ -69,11 +171,11 @@ Pantalla para gestionar qué imágenes tiene cada cámara y lanzar su análisis.
   \item \textbf{Selección}: clic sobre una miniatura para marcarla/desmarcarla; \textit{Todas} /
         \textit{Ninguna} / \textit{Solo H:00h} (la hora con más fotos del filtro actual) la
         rellenan de golpe.
-  \item \textbf{Previsualizar antes de procesar} (nuevo, 2026-09-14): el icono de lupa que
-        aparece al pasar el ratón sobre una miniatura abre la foto real a tamaño completo —
-        la miniatura es demasiado pequeña para juzgar si una imagen sirve (niebla, cámara
-        movida, algo tapando la zona). Desde ese mismo visor se puede \textbf{Descartar}
-        (elimina el archivo) o \textbf{Cerrar} sin tocar nada.
+  \item \textbf{Previsualizar antes de procesar}: el icono de lupa que aparece al pasar el ratón
+        sobre una miniatura abre la foto real a tamaño completo — la miniatura es demasiado
+        pequeña para juzgar si una imagen sirve (niebla, cámara movida, algo tapando la zona).
+        Desde ese mismo visor se puede \textbf{Descartar} (elimina el archivo) o \textbf{Cerrar}
+        sin tocar nada.
   \item \textbf{Punto verde} en una miniatura: esa imagen ya tiene un resultado aceptado en el
         histórico.
   \item \textbf{Botón de la papelera} (esquina inferior derecha de la miniatura, aparece al
@@ -86,7 +188,7 @@ Pantalla para gestionar qué imágenes tiene cada cámara y lanzar su análisis.
       \item \textit{Analizar pendientes (N)} — solo las que nunca se han analizado.
       \item \textit{Procesar selección (N)} — solo las marcadas a mano.
     \end{itemize}
-        Las tres procesan las imágenes \textbf{una a una} (SAM no admite lote) y al terminar
+        Las tres procesan las imágenes \textbf{una a una} (no se puede en lote) y al terminar
         llevan a \textit{Resultados} con la última imagen procesada.
 \end{itemize}
 
@@ -110,8 +212,8 @@ revisar la línea de costa detectada y sus métricas.
 \begin{itemize}[leftmargin=1.5em]
   \item \textbf{Flechas de navegación} (junto al título): pasan a la imagen anterior/siguiente de
         la lista. Si esa imagen \textbf{ya tiene} un resultado aceptado en el histórico, se
-        muestra al instante, sin volver a ejecutar SAM (\S\ref{sec:cache-por-imagen}); si nunca
-        se analizó, se lanza un análisis real, igual que con el botón de siempre.
+        muestra al instante, sin volver a analizar (\S\ref{sec:cache-por-imagen}); si nunca se
+        analizó, se lanza un análisis real, igual que con el botón de siempre.
   \item \textbf{Analizar todas (N)}: analiza de golpe todas las imágenes de la cámara
         seleccionada, sin salir de esta pantalla — para ver la evolución completa sin ir a
         Carga de imágenes.
@@ -121,51 +223,38 @@ revisar la línea de costa detectada y sus métricas.
       \item \textbf{Anchura de playa (transectos)} — un valor en metros por cada transecto
             marcado para esta cámara (\S\ref{sec:transectos}). Con la pantalla de Transectos
             oculta del menú a día de hoy, este apartado no aparece salvo que ya hubiera
-            transectos marcados de antes; sigue siendo, conceptualmente, el indicador pensado
-            para reemplazar al área en fiabilidad.
-      \item \textbf{Área seca (m\textsuperscript{2})} — se mantiene visible como referencia, no
-            se ha eliminado nada.
+            transectos marcados de antes.
+      \item \textbf{Área seca (m\textsuperscript{2})} — se mantiene visible como referencia.
       \item \textbf{Puntos UTM} y \textbf{Timestamp}.
     \end{enumerate}
-  \item \textbf{Editar línea manualmente} (nuevo, 2026-09-14, botón junto al título, solo
-        visible con un resultado aceptado): corrige a mano la línea que dio SAM cuando se
-        equivoca — ver \S\ref{sec:edicion-manual}.
+  \item \textbf{Editar línea manualmente} (botón junto al título, solo visible con un resultado
+        aceptado): corrige a mano la línea cuando se equivoca — ver \S\ref{sec:edicion-manual}.
   \item \textbf{Exportar GeoJSON}: descarga el histórico completo de la cámara en un
         \texttt{.geojson} (EPSG:25830), listo para abrir en QGIS.
 \end{itemize}
 
-\subsubsection{Caché por imagen: por qué las flechas no vuelven a lanzar SAM}
+\subsubsection{Por qué las flechas no vuelven a analizar}
 \label{sec:cache-por-imagen}
 
-Cada análisis se guarda con su nombre de fichero, tanto la imagen con la línea dibujada
-(\texttt{GET /api/cameras/\{id\}/analysis-result?file=...}) como el resultado numérico
-(\texttt{GET /api/cameras/\{id\}/images/\{filename\}/cached-result}, que lee directamente el
-histórico). Navegar con las flechas a una imagen ya analizada consulta ese resultado guardado en
-vez de relanzar SAM — instantáneo, y no satura el log con análisis repetidos de fotos que no han
-cambiado.
+Cada análisis se guarda por nombre de fichero, tanto la imagen con la línea dibujada como el
+resultado numérico. Navegar con las flechas a una imagen ya analizada consulta ese resultado
+guardado en vez de relanzar el análisis — instantáneo, y no repite trabajo sobre fotos que no
+han cambiado.
 
 \subsubsection{Edición manual de la línea detectada}
 \label{sec:edicion-manual}
 
-\begin{infobox}[Pedido en la reunión del 11/09/2026]
-``Permite editar manualmente las segmentaciones automáticas y conserva las correcciones como
-datos de entrenamiento.''
-\end{infobox}
-
 Al pulsar \textit{Editar línea manualmente}, la imagen mostrada cambia de la visualización
-(con la línea ya ``quemada'' en el JPG) a la \textbf{foto original}, con la línea detectada por
-SAM superpuesta como puntos de control editables —\texttt{analyze\_roi()} simplifica la línea
-píxel a píxel (que sale dentada) con \texttt{cv2.approxPolyDP} a un puñado de puntos manejables,
-no cientos.
+(con la línea ya dibujada) a la \textbf{foto original}, con la línea detectada superpuesta como
+puntos de control editables.
 
 \begin{itemize}[leftmargin=1.5em]
   \item \textbf{Clic} sobre la imagen: añade un punto nuevo.
   \item \textbf{Arrastrar} un punto existente: lo mueve.
   \item \textbf{Doble clic} sobre un punto: lo borra.
-  \item \textit{Guardar corrección}: envía los puntos corregidos al \textbf{mismo almacén} que
-        usa la sección de Entrenamiento (\S\ref{sec:entrenamiento}) — una corrección hecha aquí y
-        una polilínea marcada a mano en Entrenamiento acaban en el mismo conjunto de datos, no en
-        dos sitios separados.
+  \item \textit{Guardar corrección}: guarda los puntos corregidos como dato de entrenamiento,
+        en el mismo sitio que las polilíneas marcadas a mano en Entrenamiento
+        (\S\ref{sec:entrenamiento}).
   \item \textit{Cancelar}: descarta los cambios sin guardar nada.
 \end{itemize}
 
@@ -175,8 +264,8 @@ Visualiza sobre un mapa real las líneas de costa detectadas de todas las cámar
 
 \subsection{Calibración}
 
-Asistente de 7 pasos para establecer la homografía píxel~$\to$~UTM de cada cámara — detallado en
-el capítulo~\ref{ch:calibration}. No hace falta repetirlo salvo que la cámara se desplace de
+Asistente de 7 pasos para establecer la correspondencia entre píxel de la imagen y coordenada
+real en el terreno para cada cámara. No hace falta repetirlo salvo que la cámara se desplace de
 forma notable (viento fuerte, limpieza brusca) o se añada una cámara nueva.
 
 \begin{figure}[H]
@@ -198,8 +287,8 @@ Configuración de hardware por cámara: lente, ROI (región de interés) y ubica
 \subsection{Modo automático}
 
 Automatiza de punta a punta, para un rango de fechas, lo que \textit{Carga de imágenes} y
-\textit{Resultados} hacen a mano: descarga de la API de Obscape, alineación y análisis —
-capítulo~\ref{ch:automode}. Requiere una cámara ya calibrada.
+\textit{Resultados} hacen a mano: descarga de imágenes, alineación y análisis. Requiere una
+cámara ya calibrada.
 
 \begin{figure}[H]
 \centering
@@ -222,11 +311,10 @@ capítulo~\ref{ch:automode}. Requiere una cámara ya calibrada.
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.95\textwidth]{screenshots/07_configuracion.png}
-\caption{Configuración — credenciales de Obscape, ubicación de los datos y borrado de imágenes/resultados. La tarjeta de Entrenamiento que mostraba la ruta de esa sección (\S\ref{sec:en-pausa}) está oculta con el mismo criterio.}
+\caption{Configuración — credenciales de Obscape, ubicación de los datos y borrado de imágenes/resultados.}
 \end{figure}
 
 \section{Flujo de trabajo recomendado (día a día)}
-\label{sec:flujo-diario}
 
 \begin{enumerate}[leftmargin=1.5em, label=\textbf{\arabic*.}]
   \item \textit{Modo automático} (o \textit{Carga de imágenes} + \textit{Analizar pendientes})
@@ -243,21 +331,13 @@ capítulo~\ref{ch:automode}. Requiere una cámara ya calibrada.
 \begin{warnbox}[Sin botón de acceso en el menú a día de hoy (23/09/2026)]
 Las dos pantallas de esta sección — \textit{Transectos} y \textit{Entrenamiento (temp.)} — no
 tienen botón de acceso en el menú lateral en esta versión: se ocultaron a petición del usuario,
-\textbf{no se eliminaron}. El componente, los endpoints de backend y los datos ya guardados
-siguen intactos y funcionando (un transecto ya marcado, por ejemplo, se sigue calculando en cada
-análisis). Se documentan igualmente porque pueden reactivarse en cualquier momento — basta con
-descomentar el botón correspondiente en \texttt{App.vue} (marcado con un comentario que explica
-por qué está apagado) y volver a compilar.
+\textbf{no se eliminaron}. Siguen intactas y funcionando por dentro (un transecto ya marcado,
+por ejemplo, se sigue calculando en cada análisis). Se documentan igualmente porque pueden
+reactivarse en cualquier momento.
 \end{warnbox}
 
 \subsection{Transectos --- anchura de playa}
 \label{sec:transectos}
-
-\begin{infobox}[Pedido en la reunión del 11/09/2026]
-``Olvidaros de la cuestión de los cálculos de áreas [...] como indicador interesante sí que
-podría ser un transecto [...] la longitud que hay desde ese punto hasta la línea que habéis
-segmentado. Ese indicador nos da la anchura de playa en el tramo concreto.''
-\end{infobox}
 
 Sustituye al área en m\textsuperscript{2} como indicador principal de evolución de la playa: un
 punto de referencia \textbf{fijo} (p.\,ej. la valla de la duna) + la distancia hasta la línea de
@@ -271,31 +351,18 @@ costa detectada en cada análisis.
   \item \textit{Guardar cambios}.
 \end{enumerate}
 
-A partir de ahí, \textbf{cada análisis} de esa cámara (en \textit{Resultados}, \textit{Analizar
-todas} o \textit{Modo automático}) calcula automáticamente la distancia de cada transecto hasta
-la línea detectada y la muestra en el panel de métricas — no hace falta volver a marcarlo.
-
-\begin{warnbox}[Cómo se calcula la distancia]
-El backend recalcula la posición UTM del punto marcado con la homografía \textbf{vigente} en
-cada análisis (no la guarda fija), así que un transecto marcado hoy sigue siendo válido aunque la
-cámara se recalibre más adelante. La distancia es la del punto al \textbf{segmento más cercano}
-de la polilínea de costa — en la práctica, para un punto de referencia fijo mirando hacia el mar,
-equivale a la distancia perpendicular que se mediría a mano con una cinta métrica, sin necesidad
-de que el usuario marque también un ángulo (se discutió en la reunión y se optó por esta
-simplificación en vez de pedir un segundo clic de ángulo).
-\end{warnbox}
-
-Un mismo transecto puede reutilizarse en todas las imágenes futuras de esa cámara — la cámara es
-fija (o casi, ver debate sobre viento/limpieza en el capítulo~\ref{ch:calibration}), así que el
-mismo píxel de referencia vale para cualquier imagen suya.
+A partir de ahí, \textbf{cada análisis} de esa cámara calcula automáticamente la distancia de
+cada transecto hasta la línea detectada y la muestra en el panel de métricas — no hace falta
+volver a marcarlo. Un mismo transecto puede reutilizarse en todas las imágenes futuras de esa
+cámara.
 
 \subsection{Entrenamiento línea húmeda --- sección temporal}
 \label{sec:entrenamiento}
 
 \begin{warnbox}[Sección temporal]
 Pensada para que el equipo de campo marque a mano dónde está la línea húmeda real en imágenes
-reales, y así entrenar/ajustar la segmentación automática más adelante
-(\S\ref{sec:linea-humeda-pendiente}). No afecta a los resultados de \textit{Resultados}.
+reales, y así entrenar/ajustar la segmentación automática más adelante. No afecta a los
+resultados de \textit{Resultados}.
 \end{warnbox}
 
 \begin{enumerate}[leftmargin=1.5em]
@@ -307,8 +374,6 @@ reales, y así entrenar/ajustar la segmentación automática más adelante
 \end{enumerate}
 
 \subsubsection{Zoom, lupa y ajuste fino}
-
-Mismo patrón que la Marcación de varillas de Calibración (capítulo~\ref{ch:calibration}):
 
 \begin{itemize}[leftmargin=1.5em]
   \item \textbf{Completa / Doble zoom}: alterna entre la imagen ajustada al panel y el doble de
@@ -324,37 +389,18 @@ Mismo patrón que la Marcación de varillas de Calibración (capítulo~\ref{ch:c
 \subsubsection{Imágenes adicionales}
 
 No hace falta que las imágenes a marcar sean las ya cargadas de la cámara: el botón \textit{Subir
-imágenes adicionales} permite traer cualquier foto suelta solo para entrenamiento — se guardan en
-una carpeta separada (\texttt{training\_images/}) y aparecen en la lista marcadas como
-\texttt{[adicional]}. Se pueden eliminar de forma permanente con \textit{Eliminar esta imagen
-adicional} (a diferencia de las imágenes de cámara, que solo se pueden \emph{descartar}, ver
-abajo — borrarlas de verdad es cosa de \textit{Carga de imágenes}).
+imágenes adicionales} permite traer cualquier foto suelta solo para entrenamiento. Se pueden
+eliminar de forma permanente con \textit{Eliminar esta imagen adicional}.
 
 \subsubsection{Revisar y descartar antes de anotar}
 
-\begin{infobox}[Pedido en la reunión del 11/09/2026]
-``Previsualizar, revisar y descartar imágenes antes del procesamiento [...] igual que se
-descartan los puntos de control.''
-\end{infobox}
-
 El botón \textit{Descartar esta imagen} saca la imagen de la cola de anotación por defecto — es
-un descarte \textbf{blando y reversible}: no borra el archivo, igual que descartar una varilla de
-calibración no borra el punto marcado, solo lo excluye del cálculo. El checkbox \textit{Mostrar
+un descarte \textbf{blando y reversible}: no borra el archivo. El checkbox \textit{Mostrar
 descartadas (N)} las vuelve a mostrar, con la opción de \textit{Reincluir}.
 
 \subsubsection{Exportar}
 
-\textit{Exportar JSON (cámara)} descarga todas las polilíneas guardadas de la cámara actual en un
-único fichero — pensado para compartir con el equipo (p.\,ej. por Google Drive) y como base para
-entrenar/ajustar la segmentación más adelante.
+\textit{Exportar JSON (cámara)} descarga todas las polilíneas guardadas de la cámara actual en
+un único fichero.
 
-\subsection{Lo que queda pendiente, a propósito}
-\label{sec:linea-humeda-pendiente}
-
-Cambiar el objetivo real de la segmentación de ``toda la arena seca'' a la \textbf{línea húmeda}
-es el único punto de la reunión del 11/09/2026 que se deja explícitamente para más adelante: no
-se puede programar a ciegas, depende de tener ya un conjunto real de imágenes anotadas
-(\S\ref{sec:entrenamiento}) con el que decidir la referencia exacta antes de tocar el algoritmo
-de segmentación.
-
-% ==============================================================
+\end{document}

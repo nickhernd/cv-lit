@@ -34,6 +34,11 @@ El módulo implementa una \textbf{máquina de estados no-destructiva} de 5 fases
 
 \begin{figure}[H]
 \centering
+% Diagrama real detectado desbordando la página (bug de renderizado, no de
+% contenido): 5 bloques de min-width 4.5cm en horizontal necesitan ~30cm y el
+% área de texto de esta memoria mide ~15.5cm — el resizebox lo escala para
+% que quepa siempre, tenga el número de nodos que tenga.
+\resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[node distance=0.6cm and 1.8cm]
   \node[block, fill=gray!8] (idle) {idle};
   \node[block, fill=SkyBlue!15, right=of idle] (config) {configuring};
@@ -51,7 +56,8 @@ El módulo implementa una \textbf{máquina de estados no-destructiva} de 5 fases
     (review.south) to node[below,label]{\textcolor{BrickRed}{discard}} (idle.south);
   \draw[arrow, bend right=25, color=BrickRed!60]
     (proc.south) to node[below,label,pos=0.3]{\textcolor{BrickRed}{discard}} (idle.south);
-\end{tikzpicture}
+\end{tikzpicture}%
+}
 \caption{Máquina de estados del módulo BatchAlignment}
 \label{fig:state-machine}
 \end{figure}

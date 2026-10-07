@@ -141,6 +141,32 @@ dist\textbackslash LineaDeCosta\textbackslash \_internal\textbackslash frontend\
 assets\textbackslash} coincidan exactamente con los de \texttt{frontend/dist/assets/}.
 \end{warnbox}
 
+\begin{warnbox}[No confiar solo en el código de salida al compilar el instalador (2026-09-23)]
+Bug real: tras borrar a mano \texttt{backend\textbackslash build} y \texttt{backend\textbackslash
+dist} para forzar una reconstrucción completamente limpia (sin caché de PyInstaller — necesario en
+esta misma sesión porque una recompilación normal del paso~2 había reutilizado un
+\texttt{frontend\_dist} desactualizado, ver más abajo), solo se relanzó \texttt{PyInstaller
+desktop\_launcher.spec} y no también \texttt{download\_sam.spec} — al borrar la carpeta entera se
+había borrado también \texttt{backend\textbackslash dist\textbackslash download\_sam.exe}, que
+\texttt{cv-lit.iss} necesita en su sección \texttt{[Files]}. \texttt{ISCC.exe} falló con
+\texttt{"Error on line 81... Source file... download\_sam.exe does not exist. Compile aborted."}
+— pero como el propio ejecutable \texttt{ISCC.exe} se lanzó en segundo plano y solo se comprobó
+que la tarea había ``terminado'' (no el contenido real de su salida), el fallo pasó
+desapercibido y se siguió \textbf{reinstalando repetidamente un \texttt{Setup.exe} viejo, ya
+existente de una compilación anterior} — la instalación ``funcionaba'' (código de salida~0,
+sin ningún diálogo de error bajo \texttt{/VERYSILENT}) porque Inno Setup no borra ficheros
+sueltos que ya existan en el destino de una instalación previa, solo sobrescribe los que trae en
+su propio paquete. Sin ese paquete actualizado, nada cambiaba en el \texttt{.exe} instalado por
+mucho que se reinstalara. \textbf{Lección}: comprobar siempre el \textit{texto de salida} de
+\texttt{ISCC.exe} buscando literalmente ``\texttt{Successful compile}'' (nunca solo el código de
+salida del proceso que lo lanzó), y verificar tras instalar que
+\texttt{\%LOCALAPPDATA\%\textbackslash Programs\textbackslash Linea de
+Costa\textbackslash\_internal\textbackslash frontend\_dist\textbackslash index.html} referencia
+el mismo nombre de fichero \texttt{index-<hash>.js} que \texttt{frontend\textbackslash
+dist\textbackslash assets\textbackslash} en ese momento — si no coincide, el instalador no
+copió nada nuevo de verdad, sea cual sea el código de salida que haya devuelto.
+\end{warnbox}
+
 \textbf{Verificación rápida tras compilar}, sin necesidad de instalar nada: arrancar el
 ejecutable empaquetado directamente y comprobar que sirve la app entera.
 \begin{minted}{bash}
@@ -150,6 +176,93 @@ cd backend\dist\LineaDeCosta
 curl http://127.0.0.1:8000/               # debe devolver el HTML del frontend
 curl http://127.0.0.1:8000/api/cameras    # debe devolver JSON con las 6 cámaras
 \end{minted}
+
+\section{Entorno de desarrollo y herramientas de línea de comandos}
+\label{sec:dev-tools}
+
+Lo de arriba basta para generar el instalador. Esta sección es aparte, para quien va a tocar
+código — no hace falta nada de esto para usar la app ya instalada (capítulo~\ref{ch:ops}).
+
+\begin{codebox}[Arrancar backend + frontend en modo desarrollo]
+\begin{minted}{bash}
+# Windows (PowerShell) — activa venv/ y levanta backend+frontend con un
+# workspace de desarrollo vacío en workspace/dev/ (no toca datos reales)
+.\start_dev.ps1
+
+# Linux/macOS (o si se prefiere Conda: ver environment.yml)
+source venv/bin/activate   # o: conda activate cv-lit
+./scripts/start_dev.sh
+
+# Backend:  http://localhost:8000 (FastAPI + docs en /docs)
+# Frontend: http://localhost:5173 (Vue 3 + Vite)
+\end{minted}
+\end{codebox}
+
+\begin{codebox}[Workspace de demo — datos de muestra ya calibrados]
+\begin{minted}{bash}
+.\start_demo.ps1
+# Siembra workspace/demo/ desde cero cada vez (imágenes de muestra +
+# varillas del GCP.csv ya importadas y calibradas). No toca los datos reales.
+\end{minted}
+\end{codebox}
+
+\begin{codebox}[Descarga de imágenes por línea de comandos]
+\begin{minted}{bash}
+# Descarga estándar (últimas 2 semanas, 12:00h)
+python3 acces_api/scheduled_download.py
+
+# Diagnóstico de estado de cámaras
+python3 scripts/verify_setup.py
+\end{minted}
+\end{codebox}
+
+\begin{warnbox}[Ya no hay herramienta de calibración por línea de comandos]
+Las herramientas CLI que existían anteriormente (\texttt{calibration\_tool.py},
+\texttt{visualizar\_calibracion.py}, \texttt{recalibrate.py}) se eliminaron durante el
+endurecimiento del proyecto para producción: quedaban duplicadas con el asistente web y sin
+mantenimiento. La calibración se hace exclusivamente desde la interfaz web, pestaña
+\textit{Calibración} — asistente de 7 pasos, detallado en el capítulo~\ref{ch:calibration}.
+Verificar el motor matemático de la homografía se hace ahora con
+\texttt{python -m pytest tests/test\_homography\_math.py tests/test\_geometry\_warning.py}.
+\end{warnbox}
+
+\begin{codebox}[Alineación masiva por línea de comandos]
+\begin{minted}{bash}
+# Alinear todas las imágenes de una carpeta respecto a la primera
+python3 homography/align_images.py \
+  --input  /ruta/imagenes/ \
+  --output /ruta/salida/ \
+  --cam 1                    # aplica máscaras SIFT de CAM_1
+
+# Especificar imagen de referencia manualmente
+python3 homography/align_images.py \
+  --input  /ruta/imagenes/ \
+  --output /ruta/salida/ \
+  --ref    imagen_base.jpg \
+  --cam 2
+\end{minted}
+\end{codebox}
+
+Salidas:
+\begin{itemize}[leftmargin=1.5em]
+  \item \texttt{/output/aligned/} — imágenes alineadas
+  \item \texttt{/output/diagnostics/} — visualizaciones de matches
+  \item \texttt{/output/homographies.csv} — métricas y matrices $H$ por imagen
+\end{itemize}
+
+\begin{codebox}[Pipeline de extracción por línea de comandos]
+\begin{minted}{bash}
+# Prototipo completo: ROI → Segmentación SAM → Línea de costa
+python3 proces_images/test_mes3_pipeline.py --cam 1
+\end{minted}
+\end{codebox}
+
+\begin{codebox}[Suite de tests]
+\begin{minted}{bash}
+# Todo menos los tests de integración (necesitan la API real de Obscape)
+python -m pytest tests/ --ignore=tests/test_api_integration.py -q
+\end{minted}
+\end{codebox}
 
 % ==============================================================
 \appendix

@@ -1352,6 +1352,159 @@ def _build_calibration_report_pdf(cam_id: int, profile: dict, calibration: dict,
 
     return bytes(pdf.output())
 
+# ── Informe general en PDF (#nuevo 2026-09-23) ────────────────────────────────
+# Pedido explícito del usuario: sustituir el botón "Imprimir Reporte" del
+# Dashboard (hasta ahora un window.print() del propio HTML — "la típica
+# captura de pantalla") por un PDF generado de verdad en el backend, con el
+# mismo nivel de acabado que el informe de calibración por cámara
+# (_build_calibration_report_pdf, justo arriba): cabecera, resumen agregado,
+# gráfico de evolución y tablas — no una foto de la pantalla.
+def _historical_chart_png(historical: list) -> Optional[bytes]:
+    """Gráfico de evolución del área seca media diaria (PNG en memoria), para
+    embeber en el PDF. Mismos datos que alimentan la gráfica del Dashboard
+    (get_historical_data) — None si no hay histórico todavía."""
+    if not historical:
+        return None
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+
+    dates = [datetime.datetime.strptime(d["date"], "%Y-%m-%d") for d in historical]
+    areas = [d["area"] for d in historical]
+
+    fig, ax = plt.subplots(figsize=(7, 3))
+    ax.plot(dates, areas, color="#2563eb", linewidth=1.6, marker="o", markersize=3)
+    ax.fill_between(dates, areas, color="#2563eb", alpha=0.08)
+    ax.set_ylabel("Área seca media (m²)", fontsize=8)
+    ax.set_facecolor("#f8fafc")
+    ax.tick_params(labelsize=7)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m"))
+    fig.autofmt_xdate(rotation=30)
+    ax.set_title("Evolución histórica — área seca media diaria (todas las cámaras)", fontsize=9)
+    fig.tight_layout()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150)
+    plt.close(fig)
+    buf.seek(0)
+    return buf.read()
+
+def _build_dashboard_report_pdf() -> bytes:
+    from fpdf import FPDF
+
+    dashboard = get_dashboard()
+    historical = get_historical_data()
+    report_rows = get_report()
+    cameras_detail = {c["idx"]: c for c in list_cameras()}
+
+    # Último análisis aceptado por cámara (report_rows ya viene ordenado por
+    # timestamp ascendente) — para la tabla "por cámara" de abajo.
+    last_by_cam = {}
+    for row in report_rows:
+        last_by_cam[row["camara_idx"]] = row
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, _pdf_safe("Informe General de Monitorización - cv-lit"), ln=True)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(0, 6, _pdf_safe("Línea de costa - Guardamar del Segura (Alicante)"), ln=True)
+    pdf.cell(0, 6, f"Generado {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=True)
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(4)
+
+    def kv_table(rows):
+        pdf.set_font("Helvetica", "", 10)
+        for label, value in rows:
+            pdf.set_font("Helvetica", "B", 10)
+            pdf.cell(65, 7, _pdf_safe(label), border=0)
+            pdf.set_font("Helvetica", "", 10)
+            pdf.cell(0, 7, _pdf_safe(value) if value is not None else "-", border=0, ln=True)
+
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "Resumen general", ln=True)
+    kv_table([
+        ("Cámaras calibradas", f"{dashboard['cameras_calibrated']} / {dashboard['total_cameras']}"),
+        ("Imágenes en el sistema", f"{dashboard['images_processed']:,}".replace(",", " ")),
+        ("Área seca media histórica", f"{dashboard['avg_dry_area']} m²"),
+        ("Análisis aceptados en el histórico", str(len(report_rows))),
+        ("Sistema de referencia", "EPSG:25830 (ETRS89 / UTM huso 30N)"),
+    ])
+    pdf.ln(2)
+
+    chart_png = _historical_chart_png(historical)
+    if chart_png:
+        pdf.image(io.BytesIO(chart_png), w=180)
+        pdf.ln(2)
+
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "Estado por cámara", ln=True)
+    pdf.set_font("Helvetica", "B", 8)
+    headers = ["Cámara", "Estado", "RMSE (m)", "Imágenes", "Último análisis", "Confianza", "Área seca (m²)"]
+    widths = [30, 22, 18, 18, 32, 20, 30]
+    for h, w in zip(headers, widths):
+        pdf.cell(w, 6, _pdf_safe(h), border=1)
+    pdf.ln()
+    pdf.set_font("Helvetica", "", 8)
+    for cam_idx, info in sorted(CAMERAS.items()):
+        detail = cameras_detail.get(cam_idx, {})
+        last = last_by_cam.get(cam_idx)
+        row = [
+            _pdf_safe(info["name"]),
+            "Calibrada" if detail.get("calibrated") else "Sin calibrar",
+            f"{detail['rmse_m']:.2f}" if detail.get("rmse_m") is not None else "-",
+            str(detail.get("images_count", 0)),
+            (last["timestamp"] or "-")[:16] if last else "-",
+            f"{last['confianza_ia']:.2f}" if last and last.get("confianza_ia") is not None else "-",
+            f"{last['area_seca_m2']:,.0f}".replace(",", " ") if last and last.get("area_seca_m2") is not None else "-",
+        ]
+        for val, w in zip(row, widths):
+            pdf.cell(w, 6, val, border=1)
+        pdf.ln()
+    pdf.ln(4)
+
+    # Resultados recientes: las últimas 25 filas del histórico completo
+    # (mismos datos que GET /api/report, ordenados de más reciente a más
+    # antiguo) — la vista rápida; el CSV/JSON completo sigue disponible
+    # aparte para quien quiera todo el detalle.
+    recent = list(reversed(report_rows))[:25]
+    if recent:
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.cell(0, 8, f"Resultados recientes (últimos {len(recent)} de {len(report_rows)})", ln=True)
+        pdf.set_font("Helvetica", "B", 8)
+        headers2 = ["Fecha", "Cámara", "Imagen", "Confianza", "Área seca (m²)"]
+        widths2 = [32, 30, 62, 22, 30]
+        for h, w in zip(headers2, widths2):
+            pdf.cell(w, 6, _pdf_safe(h), border=1)
+        pdf.ln()
+        pdf.set_font("Helvetica", "", 8)
+        for row in recent:
+            cells = [
+                (row["timestamp"] or "-")[:16],
+                _pdf_safe(row["camara_nombre"]),
+                _pdf_safe(row["imagen"] or "-"),
+                f"{row['confianza_ia']:.2f}" if row.get("confianza_ia") is not None else "-",
+                f"{row['area_seca_m2']:,.0f}".replace(",", " ") if row.get("area_seca_m2") is not None else "-",
+            ]
+            for val, w in zip(cells, widths2):
+                pdf.cell(w, 6, val, border=1)
+            pdf.ln()
+
+    return bytes(pdf.output())
+
+@app.get("/api/report.pdf")
+def get_report_pdf():
+    pdf_bytes = _build_dashboard_report_pdf()
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="cv-lit_informe_general.pdf"'},
+    )
+
 # DEBUG: endpoint núcleo del pipeline de análisis. Carga imagen + homografía,
 # segmenta arena seca (SAM -> color_fallback -> Otsu, en cascada), valida la
 # máscara y la confianza, extrae la línea de costa en píxeles, la proyecta a

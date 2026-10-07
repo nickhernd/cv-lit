@@ -72,8 +72,16 @@ const upcomingTasks = computed(() => {
   return tasks
 })
 
-function printReport() {
-  window.print()
+// Sustituido a petición del usuario (2026-09-23): un window.print() del
+// propio HTML ("la típica captura de pantalla") por un PDF generado de
+// verdad en el backend (_build_dashboard_report_pdf en main.py) — cabecera,
+// resumen agregado, gráfico de evolución y tablas, con el mismo acabado que
+// el informe de calibración por cámara.
+// function printReport() {
+//   window.print()
+// }
+function downloadReportPDF() {
+  window.open(`${API}/api/report.pdf`, '_blank')
 }
 
 function downloadCSV() {
@@ -181,9 +189,9 @@ onMounted(fetchData)
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" stroke-width="2"/></svg>
         <span>Informe JSON</span>
       </button>
-      <button @click="printReport" class="btn-secondary">
+      <button @click="downloadReportPDF" class="btn-secondary" title="Informe general en PDF: resumen, gráfico de evolución y tablas por cámara">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 00-2 2h2m2 4h10a2 2 0 002-2v-4H5v4a2 2 0 002 2z" stroke-width="2"/><path d="M17 9V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4" stroke-width="2"/></svg>
-        <span>Imprimir Reporte</span>
+        <span>Informe PDF</span>
       </button>
     </div>
 
