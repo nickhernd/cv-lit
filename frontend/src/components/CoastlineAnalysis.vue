@@ -385,9 +385,9 @@ const CAMS = [1, 2, 3, 4, 5, 6]
           </div>
 
           <!-- Transectos: anchura de playa (#nuevo 2026-09-14) — indicador
-               principal pedido en la reunión, sustituye al área en fiabilidad;
-               el área se deja visible debajo por si sigue siendo útil como
-               referencia, no se ha quitado nada. -->
+               principal pedido en la reunión, sustituye al área en m² en
+               fiabilidad. Desde el 04/11/2026 el área en m² ya ni se muestra
+               (comentada más abajo): lo que interesa es esta distancia. -->
           <div v-if="result.transects && result.transects.length" class="space-y-1.5">
             <span class="text-xs text-slate-500">Anchura de playa (transectos)</span>
             <div v-for="t in result.transects" :key="t.label" class="flex justify-between items-center pl-1">
@@ -396,11 +396,16 @@ const CAMS = [1, 2, 3, 4, 5, 6]
             </div>
           </div>
 
-          <!-- Área seca -->
+          <!-- Área seca: quitada como indicador visible a petición del usuario
+               (04/11/2026) — lo que interesa ahora es la distancia de los
+               transectos (punto fijo de referencia -> línea de costa), ya
+               mostrada arriba. El dato sigue en result.dry_area_m2, no se ha
+               tocado el backend.
           <div class="flex justify-between items-center">
             <span class="text-xs text-slate-500">Área seca</span>
             <span class="text-sm font-mono font-semibold text-slate-800">{{ result.dry_area_m2?.toLocaleString('es-ES') }} m²</span>
           </div>
+          -->
 
           <!-- Puntos UTM -->
           <div class="flex justify-between items-center">

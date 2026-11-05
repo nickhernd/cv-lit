@@ -182,7 +182,12 @@ function updateGeoJson(data) {
         layer.bindPopup(
           `<b>Cámara ${p.ID_Camara}</b><br>` +
           (p.Timestamp ? `${String(p.Timestamp).replace('T', ' ').slice(0, 16)}<br>` : '') +
-          (p.Area_Seca_m2 != null ? `Área seca: ${p.Area_Seca_m2} m²<br>` : '') +
+          // Área seca quitada del popup a petición del usuario (04/11/2026):
+          // lo que interesa ahora es la distancia de los transectos, no el
+          // área en m² (p.Area_Seca_m2 sigue en el GeoJSON, solo no se pinta).
+          (p.Transectos && p.Transectos.length
+            ? p.Transectos.map(t => `${t.label}: ${t.distance_m} m`).join('<br>') + '<br>'
+            : '') +
           (p.Confianza_IA != null ? `Confianza: ${(p.Confianza_IA * 100).toFixed(0)}%<br>` : '') +
           `<a href="#" class="map-goto-camera" data-cam="${p.ID_Camara}">Ir a la cámara →</a>`
         )

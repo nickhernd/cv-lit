@@ -2014,7 +2014,7 @@ def get_cached_analysis_result(cam_id: int, filename: str):
 
 # ── Sección temporal de entrenamiento de polilíneas (#nuevo 2026-09-13) ──────
 # Pedido en reunión de equipo (11/09/2026): antes de poder automatizar dónde
-# está la "línea húmeda" real (el objetivo de segmentación pasa de "toda la
+# está la línea de costa real (el objetivo de segmentación pasa de "toda la
 # arena seca" a esto), el equipo de campo necesita marcar A MANO, sobre ~20
 # imágenes reales por cámara, dónde debería estar esa línea — esos datos son
 # los que luego se usarán para entrenar/ajustar la segmentación. Se guarda
@@ -2022,6 +2022,9 @@ def get_cached_analysis_result(cam_id: int, filename: str):
 # una anotación suelta sin tocar las demás, igual que se hace ya con las
 # varillas de calibración (_annotations_path) pero en su propia carpeta,
 # porque esto no tiene nada que ver con el calibrado geométrico.
+#
+# Objetivo afinado (04/11/2026): la línea a marcar es la que separa el mar
+# de la arena (húmeda o seca da igual), no la transición húmedo/seco.
 def _training_polyline_path(cam_id: int, filename: str) -> str:
     base = _safe_filename(filename).rsplit(".", 1)[0] + ".json"
     return os.path.join(DATA_DIR, f"CAM_{cam_id}", "training", base)

@@ -55,7 +55,7 @@
   linkcolor=NavyBlue,
   urlcolor=Teal,
   pdftitle={Línea de Costa --- Manual de Uso},
-  pdfauthor={Tech4D Lab --- Universidad de Alicante}
+  pdfauthor={Universidad de Alicante}
 ]{hyperref}
 
 % -- Cajas de información -------------------------------------
@@ -90,7 +90,7 @@
   \rule{\linewidth}{1pt}\\[0.4cm]
   {\normalsize Guardamar del Segura · Alicante · España}
 }
-\author{Tech4D Lab --- Universidad de Alicante}
+\author{Universidad de Alicante}
 \date{Septiembre 2026}
 
 %% ============================================================
@@ -99,14 +99,6 @@
 
 \maketitle
 \thispagestyle{empty}
-
-\begin{abstract}
-\noindent
-Este documento explica \textbf{únicamente cómo usar} la aplicación de escritorio
-\textbf{Línea de Costa} ya instalada — pantalla por pantalla, con capturas reales. No cubre
-arquitectura, algoritmos ni código: para eso está la memoria técnica completa del proyecto
-(\texttt{memoria.pdf}).
-\end{abstract}
 
 \tableofcontents
 
@@ -134,16 +126,6 @@ error solo muestra una consola que imprime una línea y se cierra sola; no es un
 confunde si se pulsa pensando que es la app.
 \end{warnbox}
 
-\begin{warnbox}[Transectos y Entrenamiento: ocultos del menú a día de hoy (23/09/2026)]
-A petición del usuario, las pantallas \textit{Transectos} (\S\ref{sec:transectos}) y
-\textit{Entrenamiento (temp.)} (\S\ref{sec:entrenamiento}) \textbf{no tienen botón de acceso en
-el menú lateral} en esta versión — se ocultaron, no se eliminaron: siguen intactas y
-funcionando por dentro (un transecto ya marcado, por ejemplo, se sigue calculando en cada
-análisis). Este manual las documenta igualmente porque pueden reactivarse en cualquier momento.
-Las capturas de este manual corresponden a la interfaz \textbf{tal y como se ve ahora mismo},
-sin esos dos botones.
-\end{warnbox}
-
 \section{Recorrido por pantallas}
 
 El menú lateral agrupa las pantallas en dos bloques: \textbf{Proceso} (el trabajo diario) y
@@ -151,8 +133,7 @@ El menú lateral agrupa las pantallas en dos bloques: \textbf{Proceso} (el traba
 
 \subsection{Dashboard}
 
-Vista general: estado de calibración de las 6 cámaras, gráfica de evolución histórica del área
-seca y accesos rápidos a cada cámara.
+Vista general: estado de calibración de las 6 cámaras y accesos rápidos a cada cámara.
 
 \begin{figure}[H]
 \centering
@@ -220,11 +201,11 @@ revisar la línea de costa detectada y sus métricas.
   \item \textbf{Panel de métricas}, de arriba a abajo:
     \begin{enumerate}
       \item \textbf{Confianza} — barra verde/ámbar/rojo.
-      \item \textbf{Anchura de playa (transectos)} — un valor en metros por cada transecto
-            marcado para esta cámara (\S\ref{sec:transectos}). Con la pantalla de Transectos
-            oculta del menú a día de hoy, este apartado no aparece salvo que ya hubiera
-            transectos marcados de antes.
-      \item \textbf{Área seca (m\textsuperscript{2})} — se mantiene visible como referencia.
+      \item \textbf{Anchura de playa (transectos)} — es el indicador principal de evolución de
+            la playa: la distancia, en metros, desde un punto de referencia fijo (p.\,ej. la
+            valla de la duna, en la frontera de la zona seca) hasta la línea de costa detectada,
+            por cada transecto marcado para esta cámara. No hace falta volver a marcarlo: se
+            recalcula solo en cada análisis.
       \item \textbf{Puntos UTM} y \textbf{Timestamp}.
     \end{enumerate}
   \item \textbf{Editar línea manualmente} (botón junto al título, solo visible con un resultado
@@ -252,9 +233,8 @@ puntos de control editables.
   \item \textbf{Clic} sobre la imagen: añade un punto nuevo.
   \item \textbf{Arrastrar} un punto existente: lo mueve.
   \item \textbf{Doble clic} sobre un punto: lo borra.
-  \item \textit{Guardar corrección}: guarda los puntos corregidos como dato de entrenamiento,
-        en el mismo sitio que las polilíneas marcadas a mano en Entrenamiento
-        (\S\ref{sec:entrenamiento}).
+  \item \textit{Guardar corrección}: guarda los puntos corregidos como dato de entrenamiento
+        para mejorar la segmentación automática más adelante.
   \item \textit{Cancelar}: descarta los cambios sin guardar nada.
 \end{itemize}
 
@@ -324,83 +304,5 @@ cámara ya calibrada.
         manualmente} en vez de descartar el análisis entero.
   \item Exportar el GeoJSON o el informe PDF cuando haga falta compartir resultados.
 \end{enumerate}
-
-\section{Funcionalidades en pausa}
-\label{sec:en-pausa}
-
-\begin{warnbox}[Sin botón de acceso en el menú a día de hoy (23/09/2026)]
-Las dos pantallas de esta sección — \textit{Transectos} y \textit{Entrenamiento (temp.)} — no
-tienen botón de acceso en el menú lateral en esta versión: se ocultaron a petición del usuario,
-\textbf{no se eliminaron}. Siguen intactas y funcionando por dentro (un transecto ya marcado,
-por ejemplo, se sigue calculando en cada análisis). Se documentan igualmente porque pueden
-reactivarse en cualquier momento.
-\end{warnbox}
-
-\subsection{Transectos --- anchura de playa}
-\label{sec:transectos}
-
-Sustituye al área en m\textsuperscript{2} como indicador principal de evolución de la playa: un
-punto de referencia \textbf{fijo} (p.\,ej. la valla de la duna) + la distancia hasta la línea de
-costa detectada en cada análisis.
-
-\begin{enumerate}[leftmargin=1.5em]
-  \item Ir a \textbf{Transectos} en el menú lateral y elegir la cámara.
-  \item Elegir una imagen de referencia (por defecto, la más reciente).
-  \item \textbf{Clic} sobre la imagen para añadir un transecto — aparece en la lista de la
-        izquierda con una etiqueta editable (p.\,ej. ``Valla duna norte'').
-  \item \textit{Guardar cambios}.
-\end{enumerate}
-
-A partir de ahí, \textbf{cada análisis} de esa cámara calcula automáticamente la distancia de
-cada transecto hasta la línea detectada y la muestra en el panel de métricas — no hace falta
-volver a marcarlo. Un mismo transecto puede reutilizarse en todas las imágenes futuras de esa
-cámara.
-
-\subsection{Entrenamiento línea húmeda --- sección temporal}
-\label{sec:entrenamiento}
-
-\begin{warnbox}[Sección temporal]
-Pensada para que el equipo de campo marque a mano dónde está la línea húmeda real en imágenes
-reales, y así entrenar/ajustar la segmentación automática más adelante. No afecta a los
-resultados de \textit{Resultados}.
-\end{warnbox}
-
-\begin{enumerate}[leftmargin=1.5em]
-  \item Ir a \textbf{Entrenamiento (temp.)} en el menú lateral y elegir la cámara.
-  \item Elegir una imagen de la lista desplegable (o subir una propia, ver más abajo).
-  \item \textbf{Clic} sobre la imagen para ir añadiendo los puntos de la polilínea, en orden,
-        siguiendo la línea húmeda real.
-  \item \textit{Guardar polilínea}.
-\end{enumerate}
-
-\subsubsection{Zoom, lupa y ajuste fino}
-
-\begin{itemize}[leftmargin=1.5em]
-  \item \textbf{Completa / Doble zoom}: alterna entre la imagen ajustada al panel y el doble de
-        tamaño (con scroll).
-  \item \textbf{Zoom de la lupa} (×2 a ×15): recorte ampliado que sigue al cursor, para acertar
-        el píxel exacto en fotos de varios miles de píxeles de ancho.
-  \item \textbf{Clic sobre un punto ya puesto}: lo selecciona (se pone verde y más grande) sin
-        moverlo.
-  \item \textbf{Flechas del teclado}, con un punto seleccionado: lo desplazan 1~px (10~px con
-        Mayús) — para el ajuste fino que el ratón no permite con precisión.
-\end{itemize}
-
-\subsubsection{Imágenes adicionales}
-
-No hace falta que las imágenes a marcar sean las ya cargadas de la cámara: el botón \textit{Subir
-imágenes adicionales} permite traer cualquier foto suelta solo para entrenamiento. Se pueden
-eliminar de forma permanente con \textit{Eliminar esta imagen adicional}.
-
-\subsubsection{Revisar y descartar antes de anotar}
-
-El botón \textit{Descartar esta imagen} saca la imagen de la cola de anotación por defecto — es
-un descarte \textbf{blando y reversible}: no borra el archivo. El checkbox \textit{Mostrar
-descartadas (N)} las vuelve a mostrar, con la opción de \textit{Reincluir}.
-
-\subsubsection{Exportar}
-
-\textit{Exportar JSON (cámara)} descarga todas las polilíneas guardadas de la cámara actual en
-un único fichero.
 
 \end{document}

@@ -289,20 +289,26 @@ Un mismo transecto puede reutilizarse en todas las imágenes futuras de esa cám
 fija (o casi, ver debate sobre viento/limpieza en el capítulo~\ref{ch:calibration}), así que el
 mismo píxel de referencia vale para cualquier imagen suya.
 
-\subsection{Entrenamiento línea húmeda --- sección temporal}
+\subsection{Entrenamiento línea de costa --- sección temporal}
 \label{sec:entrenamiento}
 
 \begin{warnbox}[Sección temporal]
-Pensada para que el equipo de campo marque a mano dónde está la línea húmeda real en imágenes
+Pensada para que el equipo de campo marque a mano dónde está la línea de costa real en imágenes
 reales, y así entrenar/ajustar la segmentación automática más adelante
 (\S\ref{sec:linea-humeda-pendiente}). No afecta a los resultados de \textit{Resultados}.
 \end{warnbox}
+
+\begin{infobox}[Qué línea marcar: mar--arena en vez de húmedo/seco]
+El objetivo confirmado (04/11/2026, ver detalle en \S\ref{sec:linea-humeda-pendiente}) es la
+línea que separa el \textbf{mar} de la \textbf{arena} (húmeda o seca, da igual), no la transición
+húmedo/seco — más contraste visual y más rápida y objetiva de marcar a mano.
+\end{infobox}
 
 \begin{enumerate}[leftmargin=1.5em]
   \item Ir a \textbf{Entrenamiento (temp.)} en el menú lateral y elegir la cámara.
   \item Elegir una imagen de la lista desplegable (o subir una propia, ver más abajo).
   \item \textbf{Clic} sobre la imagen para ir añadiendo los puntos de la polilínea, en orden,
-        siguiendo la línea húmeda real.
+        siguiendo la línea mar--arena.
   \item \textit{Guardar polilínea}.
 \end{enumerate}
 
@@ -351,10 +357,23 @@ entrenar/ajustar la segmentación más adelante.
 \subsection{Lo que queda pendiente, a propósito}
 \label{sec:linea-humeda-pendiente}
 
-Cambiar el objetivo real de la segmentación de ``toda la arena seca'' a la \textbf{línea húmeda}
-es el único punto de la reunión del 11/09/2026 que se deja explícitamente para más adelante: no
-se puede programar a ciegas, depende de tener ya un conjunto real de imágenes anotadas
-(\S\ref{sec:entrenamiento}) con el que decidir la referencia exacta antes de tocar el algoritmo
-de segmentación.
+Cambiar el objetivo real de la segmentación de ``toda la arena seca'' a una línea de costa
+precisa es el único punto de la reunión del 11/09/2026 que se deja explícitamente para más
+adelante: no se puede programar a ciegas, depende de tener ya un conjunto real de imágenes
+anotadas (\S\ref{sec:entrenamiento}) con el que decidir la referencia exacta antes de tocar el
+algoritmo de segmentación.
+
+\begin{warnbox}[Objetivo afinado (04/11/2026): línea mar--arena en vez de línea húmeda]
+Tras la reunión del 11/09/2026 se dejó abierto cuál era la referencia exacta (línea húmeda,
+marca de oleaje anterior, etc. — ver debate en el capítulo~\ref{ch:roadmap}). El objetivo
+confirmado ahora es más simple y mucho menos ambiguo: la línea que separa el \textbf{mar} de la
+\textbf{arena} (húmeda o seca, da igual — toda la arena cuenta como una sola clase frente al
+agua). Es un límite con mucho más contraste visual y mucho más objetivo de marcar a mano que la
+transición húmedo/seco, lo que hace que anotar \S\ref{sec:entrenamiento} sea más rápido y menos
+subjetivo. Esto no requiere ningún cambio inmediato en el SAM que usa la app hoy — sigue
+afinándose con las mismas herramientas (prompts por cámara, capítulo~\ref{ch:segmentation}) —
+pero es el objetivo que debe seguir el equipo al marcar polilíneas nuevas, y el criterio que
+usará el modelo YOLO entrenado a partir de ellas (\S\ref{sec:dev-tools}).
+\end{warnbox}
 
 % ==============================================================

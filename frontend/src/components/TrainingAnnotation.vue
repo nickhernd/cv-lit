@@ -7,11 +7,15 @@ const API = API_BASE
 
 // ── Sección TEMPORAL de entrenamiento (#nuevo 2026-09-13) ────────────────────
 // Pedida en la reunión de equipo del 11/09/2026: antes de poder cambiar el
-// objetivo de segmentación de "toda la arena seca" a la "línea húmeda" real,
+// objetivo de segmentación de "toda la arena seca" a una línea de costa real,
 // el equipo de campo necesita marcar a mano, sobre ~20 imágenes por cámara,
 // dónde debería estar esa línea. Esto NO usa SAM ni calcula nada — solo deja
 // clicar puntos sobre la foto real y guarda la polilínea resultante por
 // imagen, para exportarla después en JSON.
+//
+// Objetivo afinado (04/11/2026): la línea a marcar es la que separa el mar
+// de la arena (húmeda o seca da igual), no la transición húmedo/seco — más
+// objetiva y rápida de marcar a mano.
 
 const camId       = ref(1)
 const imageList   = ref([])
@@ -436,9 +440,9 @@ const svgPoints = computed(() => points.value.map(p => p.join(',')).join(' '))
       <div class="bg-amber-50 border border-amber-200 rounded-md p-3">
         <p class="text-xs font-semibold text-amber-700">Sección temporal</p>
         <p class="text-[10px] text-amber-600 mt-1 leading-relaxed">
-          Marca a mano la línea húmeda real sobre imágenes reales. Estos datos
-          se usarán para entrenar/ajustar la segmentación automática — no
-          afecta a los resultados de "Resultados".
+          Marca a mano la línea que separa el mar de la arena sobre imágenes
+          reales. Estos datos se usarán para entrenar/ajustar la segmentación
+          automática — no afecta a los resultados de "Resultados".
         </p>
       </div>
 
@@ -518,7 +522,7 @@ const svgPoints = computed(() => points.value.map(p => p.join(',')).join(' '))
     <main class="flex-1 card-standard overflow-hidden flex flex-col">
       <div class="card-header flex items-center justify-between shrink-0 normal-case">
         <h2 class="text-[13px] font-semibold text-slate-700">
-          Entrenamiento línea húmeda — CAM {{ camId }}
+          Entrenamiento línea de costa — CAM {{ camId }}
           <span v-if="selectedFile" class="font-normal text-slate-400 ml-2 text-xs font-mono">{{ selectedFile }}</span>
         </h2>
         <div v-if="imageList.length" class="flex items-center gap-1">
@@ -561,7 +565,7 @@ const svgPoints = computed(() => points.value.map(p => p.join(',')).join(' '))
              :style="{ width: stageDisplaySize.width + 'px', height: stageDisplaySize.height + 'px' }"
              @click="onStageClick" @mousemove="onStageMouseMove" @mouseleave="onStageMouseLeave">
           <img ref="markImgRef" :src="imageUrl" @load="onMarkImageLoad" draggable="false"
-               class="absolute inset-0 w-full h-full select-none" alt="Imagen para marcar la línea húmeda" />
+               class="absolute inset-0 w-full h-full select-none" alt="Imagen para marcar la línea de costa" />
           <svg
             v-if="imgNatural.width"
             class="absolute inset-0 w-full h-full"
@@ -594,7 +598,7 @@ const svgPoints = computed(() => points.value.map(p => p.join(',')).join(' '))
       <div class="px-5 py-3 border-t border-slate-100 flex items-center gap-4 text-xs text-slate-500 shrink-0">
         <div class="flex items-center gap-1.5">
           <div class="w-3 h-0.5 bg-rose-500"></div>
-          <span>Línea húmeda marcada a mano</span>
+          <span>Línea de costa marcada a mano</span>
         </div>
       </div>
     </main>

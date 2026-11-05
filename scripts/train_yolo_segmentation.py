@@ -1,4 +1,4 @@
-"""Entrena un modelo YOLO-seg (ultralytics) sobre el dataset de línea húmeda
+"""Entrena un modelo YOLO-seg (ultralytics) sobre el dataset de línea mar-arena
 generado por scripts/export_yolo_dataset.py.
 
 Es un envoltorio fino sobre la API de entrenamiento de ultralytics — no hace
@@ -12,7 +12,7 @@ reunión es ~20 por cámara) un modelo grande sobreajusta enseguida; empezar
 por el más pequeño y solo subir de tamaño si hace falta, con más datos.
 
 Uso:
-    python scripts/train_yolo_segmentation.py --data training_dataset/linea_humeda/data.yaml
+    python scripts/train_yolo_segmentation.py --data training_dataset/mar_arena/data.yaml
     python scripts/train_yolo_segmentation.py --data ... --epochs 100 --model yolov8s-seg.pt
 
 Salida: pesos entrenados en runs/segment/<name>/weights/best.pt (ruta que
@@ -37,7 +37,7 @@ def main():
     ap.add_argument("--device", default=None,
                     help="'0' para la primera GPU, 'cpu' para forzar CPU — sin especificar, ultralytics "
                          "elige GPU si hay una disponible")
-    ap.add_argument("--name", default="linea_humeda",
+    ap.add_argument("--name", default="mar_arena",
                     help="Nombre de la carpeta de resultados (runs/segment/<name>)")
     args = ap.parse_args()
 

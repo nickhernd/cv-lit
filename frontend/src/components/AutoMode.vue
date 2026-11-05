@@ -297,7 +297,13 @@ onUnmounted(() => {
               <th class="text-left px-4 py-2">Imagen</th>
               <th class="text-left px-4 py-2">Alineación</th>
               <th class="text-left px-4 py-2">Confianza</th>
+              <!-- Quitado a petición del usuario (04/11/2026): el área en m² deja de ser
+                   el indicador principal, lo que interesa es la distancia de los
+                   transectos (punto de referencia en la frontera -> línea de costa).
+                   No se borra el dato en el backend, solo esta columna.
               <th class="text-left px-4 py-2">Área seca (m²)</th>
+              -->
+              <th class="text-left px-4 py-2">Anchura de playa (transectos)</th>
               <th class="text-left px-4 py-2">Estado</th>
             </tr>
           </thead>
@@ -308,7 +314,15 @@ onUnmounted(() => {
               </td>
               <td class="px-4 py-2 text-slate-500">{{ r.align_status || '—' }}</td>
               <td class="px-4 py-2 text-slate-500">{{ r.confidence ? r.confidence.toFixed(2) : '—' }}</td>
+              <!--
               <td class="px-4 py-2 text-slate-500">{{ r.dry_area_m2 ? r.dry_area_m2.toLocaleString('es-ES') : '—' }}</td>
+              -->
+              <td class="px-4 py-2 text-slate-500 font-mono text-[11px]">
+                <span v-if="r.transects && r.transects.length">
+                  {{ r.transects.map(t => `${t.label}: ${t.distance_m}m`).join(' · ') }}
+                </span>
+                <span v-else>—</span>
+              </td>
               <td class="px-4 py-2">
                 <span class="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase">
                   <span class="w-1.5 h-1.5 rounded-full" :class="rowStatus(r).color"></span>

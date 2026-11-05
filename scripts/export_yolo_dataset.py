@@ -1,11 +1,11 @@
-"""Exporta las polilíneas de entrenamiento (línea húmeda) de todas las cámaras
+"""Exporta las polilíneas de entrenamiento (línea mar-arena) de todas las cámaras
 a un dataset de segmentación en formato YOLO (ultralytics), listo para
 `yolo segment train` o `scripts/train_yolo_segmentation.py`.
 
 Por qué una FRANJA y no la línea tal cual: YOLO-seg se entrena con polígonos
 (regiones cerradas), no con líneas abiertas. Cada polilínea marcada a mano se
 "engorda" con un ancho fijo (--line-width-px) usando shapely, formando un
-corredor alrededor de la línea húmeda real — el modelo aprende a detectar esa
+corredor alrededor de la línea mar-arena real — el modelo aprende a detectar esa
 franja, y luego se puede adelgazar de vuelta a una línea (mismo principio que
 extract_coastline_from_mask() ya usa en el resto del pipeline, solo que al
 revés: aquí partimos de la línea para construir la máscara, no de la máscara
@@ -20,8 +20,8 @@ backend/main.py, en vez de reimplementarla aparte y arriesgarse a que las dos
 copias diverjan con el tiempo.
 
 Uso:
-    python scripts/export_yolo_dataset.py --out training_dataset/linea_humeda
-    python scripts/export_yolo_dataset.py --out training_dataset/linea_humeda --line-width-px 40 --val-split 0.2
+    python scripts/export_yolo_dataset.py --out training_dataset/mar_arena
+    python scripts/export_yolo_dataset.py --out training_dataset/mar_arena --line-width-px 40 --val-split 0.2
 
 Salida:
     <out>/images/train/*.jpg   <out>/images/val/*.jpg
@@ -48,7 +48,7 @@ from main import (  # noqa: E402
 )
 
 CLASS_ID = 0
-CLASS_NAME = "linea_humeda"
+CLASS_NAME = "mar_arena"
 
 
 def _polyline_to_yolo_polygon(points, img_w, img_h, line_width_px, cap_style, join_style):
@@ -146,9 +146,9 @@ def write_dataset(samples, out_dir, val_split, seed):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", default="training_dataset/linea_humeda", help="Carpeta de salida del dataset")
+    ap.add_argument("--out", default="training_dataset/mar_arena", help="Carpeta de salida del dataset")
     ap.add_argument("--line-width-px", type=float, default=60.0,
-                    help="Ancho (px) de la franja alrededor de la línea húmeda marcada (por defecto 60px)")
+                    help="Ancho (px) de la franja alrededor de la línea mar-arena marcada (por defecto 60px)")
     ap.add_argument("--cap-style", choices=["flat", "round", "square"], default="flat",
                     help="Cómo se cierra el corredor en los extremos de la línea (por defecto flat)")
     ap.add_argument("--join-style", choices=["round", "mitre", "bevel"], default="round",

@@ -27,7 +27,7 @@ const VIEW_META = {
   cameras: { title: 'Cámaras', sub: 'Configuración hardware · Lente, ROI, ubicación' },
   automode: { title: 'Modo automático', sub: 'Descarga, alineación y análisis por rango de fechas' },
   settings: { title: 'Configuración', sub: 'Credenciales y ajustes de la aplicación' },
-  training: { title: 'Entrenamiento línea húmeda', sub: 'Sección temporal · Marcado manual para entrenar la segmentación' },
+  training: { title: 'Entrenamiento línea de costa', sub: 'Sección temporal · Marcado manual para entrenar la segmentación' },
   transects: { title: 'Transectos', sub: 'Anchura de playa · Punto de referencia + distancia a la línea de costa' },
 }
 const viewMeta = computed(() => VIEW_META[currentView.value] || { title: '', sub: '' })

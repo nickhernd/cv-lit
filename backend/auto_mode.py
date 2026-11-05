@@ -60,6 +60,7 @@ class ImageResult:
     align_status: str = ""        # "" (sin intentar) | "ok" | "failed" | "reference"
     confidence: float = 0.0
     dry_area_m2: float = 0.0
+    transects: list = field(default_factory=list)
     rejected: bool = False
     reject_reason: str = ""
     error: str = ""
@@ -265,6 +266,7 @@ async def _run_auto_pipeline(job_id: str):
                 res = analyze_roi(job.cam_id, item.filename)
                 item.confidence = res.get("confidence", 0.0)
                 item.dry_area_m2 = res.get("dry_area_m2", 0.0)
+                item.transects = res.get("transects", [])
                 item.rejected = bool(res.get("rejected", False))
                 item.reject_reason = res.get("reject_reason", "")
                 item.captured_at = res.get("timestamp")
@@ -333,6 +335,7 @@ def get_auto_results(job_id: str):
                 "align_status": r.align_status,
                 "confidence": r.confidence,
                 "dry_area_m2": r.dry_area_m2,
+                "transects": r.transects,
                 "rejected": r.rejected,
                 "reject_reason": r.reject_reason,
                 "error": r.error,

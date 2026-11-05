@@ -264,6 +264,56 @@ python -m pytest tests/ --ignore=tests/test_api_integration.py -q
 \end{minted}
 \end{codebox}
 
+\subsection{Entrenamiento de un modelo propio (YOLO-seg)}
+\label{sec:yolo-training}
+
+Pensado para cuando haya suficientes polilíneas reales marcadas en
+\textit{Entrenamiento} (capítulo~\ref{ch:ops}, \S\ref{sec:entrenamiento}) — primer paso hacia
+sustituir SAM por un modelo propio y ligero, entrenado específicamente para encontrar la línea
+mar--arena (\S\ref{sec:linea-humeda-pendiente}) en vez de depender de un modelo genérico de
+\textit{foundation} con prompts ajustados a mano cámara por cámara.
+
+\begin{warnbox}[Dependencias aparte del resto de la app]
+\texttt{ultralytics} (YOLO) y \texttt{shapely} \textbf{no} están en
+\texttt{backend/requirements.txt} — ese fichero es justo lo que empaqueta PyInstaller dentro
+del \texttt{.exe}, y nada de este entrenamiento hace falta para que la app funcione en
+producción. Instalación aparte: \texttt{pip install -r scripts/requirements-training.txt}.
+\end{warnbox}
+
+\begin{codebox}[Paso 1 --- exportar las polilíneas a dataset YOLO-seg]
+\begin{minted}{bash}
+python scripts/export_yolo_dataset.py --out training_dataset/mar_arena
+\end{minted}
+\end{codebox}
+
+Cada polilínea (línea abierta) se convierte en un polígono de entrenamiento engordándola con
+\texttt{shapely} un ancho fijo (\texttt{--line-width-px}, 60~px por defecto) — YOLO-seg necesita
+regiones cerradas, no líneas; es el mismo principio que \texttt{extract\_coastline\_from\_mask()}
+pero al revés (de línea a franja, en vez de de máscara a línea). La fuente de datos es
+exactamente la misma que usa la pantalla \textit{Entrenamiento} — se reutiliza la lógica real del
+backend (\texttt{list\_training\_images}, \texttt{\_training\_polyline\_path}...) importándola de
+\texttt{backend/main.py}, para que las dos copias no puedan divergir con el tiempo.
+
+\begin{codebox}[Paso 2 --- entrenar]
+\begin{minted}{bash}
+python scripts/train_yolo_segmentation.py --data training_dataset/mar_arena/data.yaml
+\end{minted}
+\end{codebox}
+
+Envoltorio fino sobre \texttt{ultralytics}: parte de \texttt{yolov8n-seg.pt} (el modelo más
+pequeño de la familia-seg) por defecto — con un dataset pequeño (el objetivo inicial de la
+reunión es $\sim$20 imágenes por cámara) un modelo grande sobreajusta enseguida. Los pesos
+entrenados quedan en \texttt{runs/segment/<nombre>/weights/best.pt}.
+
+\begin{warnbox}[Verificado end-to-end con fotos reales (07/10/2026) --- sin datos de producción]
+El pipeline completo (exportar + entrenar) se probó con 2 polilíneas de prueba sobre fotos
+reales (no inventadas: imágenes reales de CAM~1 y CAM~2) — se comprobó visualmente que el
+polígono exportado caía exactamente donde se había marcado la línea, y se lanzó un entrenamiento
+real de 1 época sin errores. Los datos y pesos de esa prueba se borraron después; a día de hoy
+no hay ninguna polilínea real guardada en producción — hace falta que el equipo marque las
+primeras antes de entrenar un modelo de verdad.
+\end{warnbox}
+
 % ==============================================================
 \appendix
 % ==============================================================

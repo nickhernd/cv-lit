@@ -187,7 +187,7 @@ onMounted(fetchSettings)
     <div v-if="!loading" class="card-standard p-4 space-y-3 border-amber-200">
       <div class="flex items-center gap-2">
         <div class="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">
-          Entrenamiento línea húmeda (temporal)
+          Entrenamiento línea de costa (temporal)
         </div>
       </div>
       <p class="text-xs text-slate-500 leading-relaxed">

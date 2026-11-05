@@ -2,13 +2,22 @@
 \label{app:changelog}
 % ==============================================================
 
-\begin{table}[H]
-\centering
-\caption{Historial de versiones del sistema}
-\begin{tabular}{C{2.5cm} L{4cm} L{7cm}}
+\begin{longtable}{C{2.5cm} L{4cm} L{7cm}}
+\caption{Historial de versiones del sistema} \\
 \toprule
 \textbf{Fecha} & \textbf{Componente} & \textbf{Cambio} \\
 \midrule
+\endfirsthead
+\multicolumn{3}{l}{\textit{(continúa de la página anterior)}} \\
+\toprule
+\textbf{Fecha} & \textbf{Componente} & \textbf{Cambio} \\
+\midrule
+\endhead
+\bottomrule
+\multicolumn{3}{r}{\textit{(continúa en la página siguiente)}} \\
+\endfoot
+\bottomrule
+\endlastfoot
 Ene 2026 & API client & Cliente Obscape + descarga con deduplicación \\
 Feb 2026 & Calibración & \texttt{calibration\_tool.py}: intrínsecos + validación ciega \\
 Mar 2026 & Calibración & \texttt{recalibrate.py}: recalibración por arrastre de GCPs \\
@@ -53,9 +62,16 @@ Sep 2026 & Carga de imágenes & Visor de previsualización a tamaño completo an
 Oct 2026 & Segmentación & \texttt{scripts/export\_yolo\_dataset.py} + \texttt{train\_yolo\_}
   \texttt{segmentation.py}: exporta las polilíneas de Entrenamiento a dataset YOLO-seg
   (línea $\to$ franja vía \texttt{shapely.buffer}) y entrena un YOLOv8n-seg — primer paso
-  hacia sustituir SAM por un modelo propio de línea húmeda (\S\ref{sec:linea-humeda-pendiente}) \\
-\bottomrule
-\end{tabular}
-\end{table}
+  hacia sustituir SAM por un modelo propio de línea de costa (\S\ref{sec:linea-humeda-pendiente}) \\
+Nov 2026 & Proyecto & El programa de sensorización de Guardamar recibe nombre propio:
+  \textbf{SensoMar} \\
+Nov 2026 & Cámaras & Las 6 cámaras pasan a capturar en ráfaga (1~Hz, 10 fotos) a las 12:00 y
+  13:00; sin cambios de código --- \texttt{download\_image\_flat()} ya nombra cada fichero con
+  segundos (\texttt{<epoch>\_<AAAAMMDD>\_<HHMMSS>\_<serie>.jpg}), así que las 10 fotos de cada
+  ráfaga no colisionan \\
+Nov 2026 & Segmentación & Objetivo de anotación afinado: la referencia a marcar ya no es la
+  línea húmeda (ambigua) sino la línea que separa el \textbf{mar} de la \textbf{arena}
+  (\S\ref{sec:linea-humeda-pendiente}) --- más objetiva y rápida de marcar a mano \\
+\end{longtable}
 
 %% ============================================================

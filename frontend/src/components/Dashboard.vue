@@ -201,8 +201,13 @@ onMounted(fetchData)
        <p class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Generado el {{ new Date().toLocaleDateString() }} - CV-LIT UA Engineering</p>
     </div>
 
-    <!-- Resumen: igual patrón que el mock — 3 cifras clave de un vistazo -->
-    <div class="grid grid-cols-3 gap-4">
+    <!-- Resumen: igual patrón que el mock — cifras clave de un vistazo.
+         La tarjeta "Área seca media" se quitó a petición del usuario
+         (04/11/2026): el área en m² deja de ser el indicador principal, lo
+         que interesa es la distancia de los transectos (ver Resultados /
+         Modo automático). El dato data.avg_dry_area sigue llegando del
+         backend, solo no se pinta aquí. -->
+    <div class="grid grid-cols-2 gap-4">
       <div class="card-standard p-4">
         <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Cámaras calibradas</p>
         <p class="text-xl font-mono font-medium text-slate-900 tabular-nums">{{ data.cameras_calibrated }} / {{ data.total_cameras }}</p>
@@ -211,10 +216,12 @@ onMounted(fetchData)
         <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Imágenes procesadas</p>
         <p class="text-xl font-mono font-medium text-slate-900 tabular-nums">{{ data.images_processed.toLocaleString() }}</p>
       </div>
+      <!--
       <div class="card-standard p-4">
         <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Área seca media</p>
         <p class="text-xl font-mono font-medium text-slate-900 tabular-nums">{{ data.avg_dry_area }} <span class="text-sm text-slate-400">m²</span></p>
       </div>
+      -->
     </div>
 
     <!-- Estado de cámaras: rejilla escaneable, cada tarjeta lleva a su calibración -->
@@ -277,7 +284,12 @@ onMounted(fetchData)
       </div>
     </div>
 
-    <!-- HISTORICAL CHART -->
+    <!-- HISTORICAL CHART: quitado a petición del usuario (04/11/2026) — era la
+         evolución histórica del área en m², que deja de interesar como
+         indicador (ver nota de la tarjeta "Área seca media" más arriba). No
+         hay todavía un agregado histórico equivalente para los transectos a
+         nivel Dashboard (sí por imagen, en Resultados/Modo automático), así
+         que de momento se oculta sin sustituirla por otra gráfica.
     <div class="card-standard overflow-hidden">
        <div class="card-header flex justify-between items-center uppercase tracking-wider text-[10px] gap-3 flex-wrap">
           <div class="flex items-center gap-3">
@@ -301,7 +313,7 @@ onMounted(fetchData)
                       <stop offset="100%" stop-color="#c98f3e" stop-opacity="0" />
                    </linearGradient>
                 </defs>
-                <!-- Rejilla horizontal tenue: da referencia de escala sin competir con la línea -->
+                Rejilla horizontal tenue: da referencia de escala sin competir con la línea
                 <line v-for="gy in [0, 50, 100, 150]" :key="gy" x1="0" :y1="gy" x2="800" :y2="gy" stroke="#e2e8f0" stroke-width="1" vector-effect="non-scaling-stroke" />
                 <path v-if="chartPoints" :d="`M0,150 L${chartPoints} L800,150 Z`" fill="url(#chartGradient)" />
                 <polyline v-if="chartPoints" fill="none" stroke="#c98f3e" stroke-width="2" :points="chartPoints" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" />
@@ -318,6 +330,7 @@ onMounted(fetchData)
          Todavía no hay histórico real de área seca — se irá llenando con cada análisis (paso "Resultados").
        </p>
     </div>
+    -->
 
   </div>
 
