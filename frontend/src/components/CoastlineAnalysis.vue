@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { API_BASE } from '../api.js'
 
 const emit = defineEmits(['notify'])
@@ -208,6 +208,17 @@ const editImgEl = ref(null)
 const editNaturalW = ref(0)
 const editNaturalH = ref(0)
 const draggingIdx = ref(null)
+// Historial para "Deshacer" (#nuevo 05/11/2026, pedido por el usuario: poder
+// deshacer un punto añadido/movido/borrado sin querer). Guarda una copia de
+// editPoints ANTES de cada cambio — deshacer simplemente restaura la última.
+const editHistory = ref([])
+function snapshotEditHistory() {
+  editHistory.value.push(editPoints.value.map(p => [...p]))
+}
+function undoEdit() {
+  const prev = editHistory.value.pop()
+  if (prev) editPoints.value = prev
+}
 
 const editImageUrl = computed(() => {
   if (!selectedFile.value) return ''
@@ -218,11 +229,13 @@ const editSvgPoints = computed(() => editPoints.value.map(p => p.join(',')).join
 function startEditing() {
   if (!result.value) return
   editPoints.value = (result.value.points_px || []).map(p => [...p])
+  editHistory.value = []
   editing.value = true
 }
 function cancelEditing() {
   editing.value = false
   editPoints.value = []
+  editHistory.value = []
   draggingIdx.value = null
 }
 // Cambiar de imagen (flechas, selector, nuevo análisis) sale del modo edición
@@ -233,28 +246,120 @@ function onEditImgLoad(e) {
   editNaturalW.value = e.target.naturalWidth
   editNaturalH.value = e.target.naturalHeight
 }
+
+// ── Zoom (vista completa/doble + lupa) y recuadro del lienzo (#nuevo
+// 05/11/2026, pedido por el usuario: poder hacer zoom para editar con más
+// precisión). Mismo patrón que TrainingAnnotation.vue (Entrenamiento) y el
+// paso 5 "Marcación" de Calibración — stagePanelRef es el visor con scroll
+// propio para el doble zoom, editStageRef es el lienzo EXACTAMENTE del
+// tamaño de la imagen renderizada, única referencia para convertir un click
+// en píxel real y para posicionar los puntos dibujados. ────────────────────
+const stagePanelRef = ref(null)
+const editStageRef = ref(null)
+const panelSize = ref({ width: 0, height: 0 })
+const imageZoomMode = ref('fit')   // 'fit' = ajustada al visor; 'x2' = el doble, con scroll
+let stageResizeObserver = null
+
+const stageDisplaySize = computed(() => {
+  const natW = editNaturalW.value, natH = editNaturalH.value
+  const { width: boxW, height: boxH } = panelSize.value
+  if (!natW || !natH || !boxW || !boxH) return { width: 0, height: 0 }
+  const fitScale = Math.min(boxW / natW, boxH / natH)
+  const scale = imageZoomMode.value === 'x2' ? fitScale * 2 : fitScale
+  return { width: natW * scale, height: natH * scale }
+})
+
+function updatePanelSize() {
+  if (!stagePanelRef.value) return
+  panelSize.value = { width: stagePanelRef.value.clientWidth, height: stagePanelRef.value.clientHeight }
+}
+watch(stagePanelRef, (el) => {
+  if (stageResizeObserver) { stageResizeObserver.disconnect(); stageResizeObserver = null }
+  if (el) {
+    updatePanelSize()
+    stageResizeObserver = new ResizeObserver(updatePanelSize)
+    stageResizeObserver.observe(el)
+  }
+})
+onBeforeUnmount(() => { if (stageResizeObserver) stageResizeObserver.disconnect() })
+
+// Convierte un evento de ratón en coordenadas de píxel nativas de la imagen
+// — SIEMPRE contra editStageRef (el lienzo a tamaño de imagen renderizada),
+// para que funcione igual con zoom "completa" o "doble".
 function editEventToPixel(event) {
-  const el = editImgEl.value
+  const el = editStageRef.value
   if (!el) return null
-  const rect = el.getBoundingClientRect()
+  const box = el.getBoundingClientRect()
+  if (!box.width || !box.height) return null
+  const x = event.clientX - box.left
+  const y = event.clientY - box.top
   return {
-    x: ((event.clientX - rect.left) / rect.width) * editNaturalW.value,
-    y: ((event.clientY - rect.top) / rect.height) * editNaturalH.value,
+    x: (x / box.width) * editNaturalW.value,
+    y: (y / box.height) * editNaturalH.value,
   }
 }
+
+// Lupa de precisión: recorte ampliado alrededor del cursor, igual que en
+// Calibración/Entrenamiento — imprescindible para acertar el píxel exacto
+// en fotos de varios miles de píxeles de ancho.
+const zoomFactor = ref(6)
+const LOUPE_SIZE = 220
+const loupeCanvasRef = ref(null)
+const loupeVisible = ref(false)
+const loupeScreenPos = ref({ left: 0, top: 0 })
+let loupeNaturalPos = { x: 0, y: 0 }
+
+function drawLoupe() {
+  const canvas = loupeCanvasRef.value
+  const img = editImgEl.value
+  if (!canvas || !img || !editNaturalW.value) return
+  const ctx = canvas.getContext('2d')
+  const cropSize = LOUPE_SIZE / zoomFactor.value
+  const sx = Math.min(Math.max(loupeNaturalPos.x - cropSize / 2, 0), Math.max(editNaturalW.value - cropSize, 0))
+  const sy = Math.min(Math.max(loupeNaturalPos.y - cropSize / 2, 0), Math.max(editNaturalH.value - cropSize, 0))
+  ctx.clearRect(0, 0, LOUPE_SIZE, LOUPE_SIZE)
+  ctx.imageSmoothingEnabled = false
+  ctx.drawImage(img, sx, sy, cropSize, cropSize, 0, 0, LOUPE_SIZE, LOUPE_SIZE)
+  ctx.strokeStyle = 'rgba(239, 68, 68, 0.9)'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(LOUPE_SIZE / 2, 0); ctx.lineTo(LOUPE_SIZE / 2, LOUPE_SIZE)
+  ctx.moveTo(0, LOUPE_SIZE / 2); ctx.lineTo(LOUPE_SIZE, LOUPE_SIZE / 2)
+  ctx.stroke()
+}
+
+function positionLoupe(event) {
+  const panelBox = stagePanelRef.value.getBoundingClientRect()
+  let left = event.clientX - panelBox.left + 24
+  let top = event.clientY - panelBox.top - LOUPE_SIZE - 24
+  if (left + LOUPE_SIZE > panelBox.width) left = event.clientX - panelBox.left - LOUPE_SIZE - 24
+  if (top < 0) top = event.clientY - panelBox.top + 24
+  loupeScreenPos.value = { left, top }
+}
+
 function onEditStageClick(event) {
   if (draggingIdx.value !== null) return  // el mouseup de un drag no debe añadir un punto nuevo
   const p = editEventToPixel(event)
   if (!p) return
+  snapshotEditHistory()
   editPoints.value.push([Math.round(p.x), Math.round(p.y)])
 }
-function startDrag(idx) { draggingIdx.value = idx }
+function startDrag(idx) {
+  snapshotEditHistory()
+  draggingIdx.value = idx
+}
 function onEditStageMouseMove(event) {
-  if (draggingIdx.value === null) return
   const p = editEventToPixel(event)
-  if (!p) return
+  if (p) {
+    loupeNaturalPos = p
+    loupeVisible.value = true
+    positionLoupe(event)
+    requestAnimationFrame(drawLoupe)
+  }
+  if (draggingIdx.value === null || !p) return
   editPoints.value[draggingIdx.value] = [Math.round(p.x), Math.round(p.y)]
 }
+function onEditStageMouseLeave() { loupeVisible.value = false }
 function endDrag() {
   // pequeño retardo: si no, el click sintético que sigue al mouseup (mismo
   // gesto) llega con draggingIdx ya a null y añade un punto de más justo
@@ -262,6 +367,7 @@ function endDrag() {
   setTimeout(() => { draggingIdx.value = null }, 0)
 }
 function deletePoint(idx) {
+  snapshotEditHistory()
   editPoints.value.splice(idx, 1)
 }
 
@@ -467,6 +573,10 @@ const CAMS = [1, 2, 3, 4, 5, 6]
           </template>
           <template v-if="editing">
             <span class="text-[10px] text-amber-600 font-semibold uppercase">{{ editPoints.length }} puntos · clic: añadir · arrastrar: mover · doble clic: borrar</span>
+            <button @click="undoEdit" :disabled="!editHistory.length" title="Deshace el último punto añadido, movido o borrado"
+                    class="btn-secondary text-[10px] uppercase py-1 px-2 disabled:opacity-40 disabled:cursor-not-allowed">
+              Deshacer
+            </button>
             <button @click="cancelEditing" class="btn-secondary text-[10px] uppercase py-1 px-2">Cancelar</button>
             <button @click="saveCorrection" :disabled="savingCorrection || editPoints.length < 2" class="btn-standard text-[10px] uppercase py-1 px-2 disabled:opacity-40 disabled:cursor-not-allowed">
               {{ savingCorrection ? 'Guardando…' : 'Guardar corrección' }}
@@ -509,20 +619,52 @@ const CAMS = [1, 2, 3, 4, 5, 6]
         <!-- Edición manual de la línea (#nuevo 2026-09-14): imagen ORIGINAL
              (sin la línea ya "quemada" en el JPG, como en resultImageUrl) +
              overlay editable — clic para añadir, arrastrar para mover, doble
-             clic para borrar un punto. -->
-        <div v-else-if="editing" class="relative inline-block" style="cursor: crosshair;">
-          <img ref="editImgEl" :src="editImageUrl" @load="onEditImgLoad" draggable="false"
-               @click="onEditStageClick" @mousemove="onEditStageMouseMove" @mouseup="endDrag" @mouseleave="endDrag"
-               class="max-w-full max-h-[70vh] object-contain rounded-md block select-none" alt="Imagen original para corregir la línea" />
-          <svg v-if="editNaturalW" class="absolute top-0 left-0 w-full h-full" style="pointer-events:none"
-               :viewBox="`0 0 ${editNaturalW} ${editNaturalH}`" preserveAspectRatio="none">
-            <polyline :points="editSvgPoints" fill="none" stroke="#f43f5e" stroke-width="6" />
-            <circle v-for="(p, i) in editPoints" :key="i"
-                    @mousedown.stop="startDrag(i)" @dblclick.stop="deletePoint(i)"
-                    :cx="p[0]" :cy="p[1]" :r="draggingIdx === i ? 15 : 10"
-                    fill="#f43f5e" stroke="white" stroke-width="3"
-                    style="pointer-events:auto; cursor:grab" />
-          </svg>
+             clic para borrar un punto. Zoom (completa/doble + lupa) y
+             "Deshacer" (#nuevo 05/11/2026, pedido por el usuario) — mismo
+             patrón que TrainingAnnotation.vue y Calibración (paso 5). -->
+        <div v-else-if="editing" class="w-full h-full flex flex-col gap-3">
+          <div class="flex items-center gap-4 shrink-0 px-1">
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Vista</span>
+              <div class="segmented-light">
+                <button @click="imageZoomMode = 'fit'" :class="{ active: imageZoomMode === 'fit' }" title="Imagen completa ajustada al panel">Completa</button>
+                <button @click="imageZoomMode = 'x2'" :class="{ active: imageZoomMode === 'x2' }" title="El doble de tamaño — usa scroll para llegar a cada zona">Doble zoom</button>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">Zoom lupa</span>
+              <button @click="zoomFactor = Math.max(2, zoomFactor - 1)" class="w-5 h-5 flex items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-50 text-xs leading-none">−</button>
+              <span class="text-[10px] font-mono text-slate-600 w-6 text-center">×{{ zoomFactor }}</span>
+              <button @click="zoomFactor = Math.min(15, zoomFactor + 1)" class="w-5 h-5 flex items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-50 text-xs leading-none">+</button>
+            </div>
+          </div>
+
+          <div ref="stagePanelRef" class="flex-1 min-h-0 overflow-auto bg-slate-900 relative flex items-center justify-center rounded-md">
+            <div ref="editStageRef" class="relative shrink-0 cursor-crosshair"
+                 :style="{ width: stageDisplaySize.width + 'px', height: stageDisplaySize.height + 'px' }"
+                 @click="onEditStageClick" @mousemove="onEditStageMouseMove" @mouseup="endDrag"
+                 @mouseleave="onEditStageMouseLeave(); endDrag()">
+              <img ref="editImgEl" :src="editImageUrl" @load="onEditImgLoad" draggable="false"
+                   class="absolute inset-0 w-full h-full select-none" alt="Imagen original para corregir la línea" />
+              <svg v-if="editNaturalW" class="absolute inset-0 w-full h-full" style="pointer-events:none"
+                   :viewBox="`0 0 ${editNaturalW} ${editNaturalH}`" preserveAspectRatio="none">
+                <polyline :points="editSvgPoints" fill="none" stroke="#f43f5e" stroke-width="6" />
+                <circle v-for="(p, i) in editPoints" :key="i"
+                        @mousedown.stop="startDrag(i)" @dblclick.stop="deletePoint(i)"
+                        :cx="p[0]" :cy="p[1]" :r="draggingIdx === i ? 15 : 10"
+                        fill="#f43f5e" stroke="white" stroke-width="3"
+                        style="pointer-events:auto; cursor:grab" />
+              </svg>
+            </div>
+
+            <!-- Lupa: vive FUERA del lienzo (que hace scroll/zoom) y se posiciona
+                 contra el visor, para no perderse fuera de la pantalla. -->
+            <div v-show="loupeVisible" class="absolute z-30 rounded-md overflow-hidden border-2 border-white/80 shadow-xl pointer-events-none"
+                 :style="{ left: loupeScreenPos.left + 'px', top: loupeScreenPos.top + 'px', width: LOUPE_SIZE + 'px', height: LOUPE_SIZE + 'px' }">
+              <canvas ref="loupeCanvasRef" :width="LOUPE_SIZE" :height="LOUPE_SIZE" class="block bg-black"></canvas>
+              <div class="absolute top-1 left-1 bg-black/70 text-white text-[8px] font-semibold px-1.5 py-0.5 rounded uppercase">×{{ zoomFactor }}</div>
+            </div>
+          </div>
         </div>
 
         <!-- Imagen resultado con segmentación + línea de costa superpuesta (#84, #85) -->

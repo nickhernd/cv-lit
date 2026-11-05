@@ -184,7 +184,26 @@ def extract_coastline_from_mask(
         return cw
 
     main_contour = max(valid, key=horizontal_span)
-    points = main_contour.reshape(-1, 2).tolist()
+
+    # Quedarnos SOLO con el borde superior del contorno (#nuevo 05/11/2026,
+    # pedido por el usuario: "se ve como un polígono, quiero la línea que
+    # separa la arena del agua"). El contorno completo de findContours rodea
+    # TODO el blob de arena seca, incluidos los bordes artificiales donde la
+    # máscara se corta por los márgenes de ROI/imagen (abajo, izquierda,
+    # derecha) — dibujar ese contorno entero se veía casi como un polígono
+    # cerrado en vez de solo la línea real arena/agua. Aquí se rellena el
+    # contorno principal y, para cada columna x dentro de su span horizontal,
+    # se toma el píxel de arena más alto (menor y): esa es la transición real.
+    x0, _, cw, _ = cv2.boundingRect(main_contour)
+    blob_mask = np.zeros((h, w), dtype=np.uint8)
+    cv2.drawContours(blob_mask, [main_contour], -1, 255, thickness=cv2.FILLED)
+    points = []
+    for col in range(x0, x0 + cw):
+        ys = np.flatnonzero(blob_mask[:, col])
+        if ys.size:
+            points.append([col, int(ys[0])])
+    if len(points) < 2:
+        return None
 
     # Suavizar (#58)
     if smooth:

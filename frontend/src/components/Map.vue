@@ -205,6 +205,17 @@ function updateGeoJson(data) {
     }
   }).addTo(map)
 
+  // El polígono de área seca se añade DESPUÉS que la línea en el GeoJSON
+  // (main.py: features = [line_feature, polygon_feature]), y Leaflet pinta
+  // en orden de inserción — el relleno naranja quedaba por encima y podía
+  // tapar visualmente la línea de costa. Pedido del usuario (05/11/2026):
+  // la línea siempre visible por encima del relleno del polígono.
+  geoJsonLayer.eachLayer(l => {
+    if (l.feature?.geometry?.type === 'LineString' && typeof l.bringToFront === 'function') {
+      l.bringToFront()
+    }
+  })
+
   applySelectionStyle()
 
   // Encajar la vista solo la primera vez: al animar la línea temporal o

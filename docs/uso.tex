@@ -88,7 +88,7 @@
   {\Large\textcolor{NavyBlue}{Línea de Costa}}\\[0.2cm]
   {\large Sistema de Monitorización Automática de Línea de Costa}\\[0.6cm]
   \rule{\linewidth}{1pt}\\[0.4cm]
-  {\normalsize Guardamar del Segura · Alicante · España}
+  {\normalsize Alicante · España}
 }
 \author{Universidad de Alicante}
 \date{Septiembre 2026}
@@ -100,10 +100,12 @@
 \maketitle
 \thispagestyle{empty}
 
+
+\newpage
 \tableofcontents
 
 % ==============================================================
-
+\newpage
 \section{Abrir la aplicación}
 
 Para el uso normal no hace falta Python, Node.js ni ninguna terminal: se instala el ejecutable
@@ -125,7 +127,7 @@ falta si SAM no se instaló bien la primera vez o se quiere volver a descargar a
 error solo muestra una consola que imprime una línea y se cierra sola; no es un fallo, pero
 confunde si se pulsa pensando que es la app.
 \end{warnbox}
-
+\newpage
 \section{Recorrido por pantallas}
 
 El menú lateral agrupa las pantallas en dos bloques: \textbf{Proceso} (el trabajo diario) y
@@ -187,7 +189,7 @@ revisar la línea de costa detectada y sus métricas.
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.95\textwidth]{screenshots/03_resultados.png}
-\caption{Resultados — selector de cámara/imagen, panel de métricas y visor de la línea de costa.}
+\caption{Resultados — selector de cámara/imagen, panel de métricas y visor de la línea de costa: una línea fina sobre la transición real arena/agua, no un relleno.}
 \end{figure}
 
 \begin{itemize}[leftmargin=1.5em]
@@ -229,10 +231,22 @@ Al pulsar \textit{Editar línea manualmente}, la imagen mostrada cambia de la vi
 (con la línea ya dibujada) a la \textbf{foto original}, con la línea detectada superpuesta como
 puntos de control editables.
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{screenshots/03b_resultados_edicion.png}
+\caption{Edición manual — vista completa/doble zoom, lupa (×2 a ×15) y \textit{Deshacer}, igual
+que en Calibración y Entrenamiento.}
+\end{figure}
+
 \begin{itemize}[leftmargin=1.5em]
   \item \textbf{Clic} sobre la imagen: añade un punto nuevo.
   \item \textbf{Arrastrar} un punto existente: lo mueve.
   \item \textbf{Doble clic} sobre un punto: lo borra.
+  \item \textbf{Vista completa / Doble zoom} y \textbf{Zoom lupa} (×2 a ×15, sigue al cursor):
+        igual que en Calibración y Entrenamiento, para acertar el píxel exacto en fotos de
+        varios miles de píxeles de ancho.
+  \item \textit{Deshacer}: deshace el último punto añadido, movido o borrado — por si se pincha
+        sin querer.
   \item \textit{Guardar corrección}: guarda los puntos corregidos como dato de entrenamiento
         para mejorar la segmentación automática más adelante.
   \item \textit{Cancelar}: descarta los cambios sin guardar nada.
@@ -251,7 +265,25 @@ forma notable (viento fuerte, limpieza brusca) o se añada una cámara nueva.
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.95\textwidth]{screenshots/04_calibracion.png}
-\caption{Calibración — vista general con el estado real de las 6 cámaras: RMSE, MAE, GCPs e inliers.}
+\caption{Calibración — vista general (paso 1) con el estado real de las 6 cámaras: RMSE, MAE, GCPs e inliers.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{screenshots/04b_calibracion_marcacion.png}
+\caption{Paso 5, Marcación — la lupa (zoom ×2 a ×15) sigue al cursor para fijar el píxel exacto de cada varilla sobre fotos de varios miles de píxeles de ancho.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{screenshots/04c_calibracion_calculo.png}
+\caption{Paso 6, Cálculo — error de reproyección por varilla (RMSE/MAE en píxeles y metros) antes de aceptar la homografía.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{screenshots/04d_calibracion_validacion.png}
+\caption{Paso 7, Validación — resumen final (RMSE, MAE, inliers) y cobertura de varillas sobre la imagen.}
 \end{figure}
 
 \subsection{Cámaras}
@@ -294,15 +326,5 @@ cámara ya calibrada.
 \caption{Configuración — credenciales de Obscape, ubicación de los datos y borrado de imágenes/resultados.}
 \end{figure}
 
-\section{Flujo de trabajo recomendado (día a día)}
-
-\begin{enumerate}[leftmargin=1.5em, label=\textbf{\arabic*.}]
-  \item \textit{Modo automático} (o \textit{Carga de imágenes} + \textit{Analizar pendientes})
-        para procesar las imágenes nuevas de cada cámara ya calibrada.
-  \item Revisar en \textit{Resultados} los rechazos y las confianzas bajas; si la línea
-        detectada se equivoca de forma puntual, corregirla con \textit{Editar línea
-        manualmente} en vez de descartar el análisis entero.
-  \item Exportar el GeoJSON o el informe PDF cuando haga falta compartir resultados.
-\end{enumerate}
 
 \end{document}
