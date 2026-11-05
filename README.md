@@ -23,4 +23,3 @@ cd backend && pyinstaller desktop_launcher.spec && pyinstaller download_sam.spec
 ## Documentación
 
 - [`docs/uso.pdf`](docs/uso.pdf) — manual de uso de la aplicación, pantalla por pantalla.
-- [`docs/memoria.pdf`](docs/memoria.pdf) — memoria técnica completa (arquitectura, calibración, segmentación).
